@@ -1,0 +1,117 @@
+/* sidebar.css
+ * Fixed / collapsible sidebar for Work Card System
+ * ----------------------------------------------- */
+
+:root {
+    --sidebar-bg: #020617;
+    --sidebar-bg-alt: #0f172a;
+    --sidebar-text: #e5e7eb;
+    --sidebar-text-muted: #9ca3af;
+    --sidebar-active-bg: #111827;
+    --sidebar-active-border: #3b82f6;
+    --sidebar-width-desktop: 240px;
+}
+
+/* Base sidebar styling */
+.sidebar {
+    position: fixed;
+    inset-block: 0;
+    left: 0;
+    width: var(--sidebar-width-desktop);
+    background: radial-gradient(circle at top left, #0b1120 0, var(--sidebar-bg-alt) 40%, var(--sidebar-bg) 100%);
+    color: var(--sidebar-text);
+    z-index: 1040; /* above content, below navbar dropdowns */
+    display: flex;
+    flex-direction: column;
+    transform: translateX(0);
+    transition: transform 0.25s ease-in-out;
+}
+
+/* On small screens, sidebar is hidden by default via .sidebar-collapsed class on body */
+body.sidebar-collapsed .sidebar {
+    transform: translateX(-100%);
+}
+
+/* Sidebar header and brand */
+.sidebar-header {
+    min-height: 3.25rem;
+}
+
+.sidebar-brand-text {
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+/* Divider */
+.sidebar-divider {
+    border-color: rgba(148, 163, 184, 0.35);
+}
+
+/* Nav links */
+.sidebar .nav-link {
+    color: var(--sidebar-text-muted);
+    border-radius: 0.55rem;
+    padding: 0.55rem 0.75rem;
+    font-size: 0.9rem;
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    margin-bottom: 0.15rem;
+    transition:
+        background-color 0.15s ease,
+        color 0.15s ease,
+        transform 0.08s ease,
+        box-shadow 0.1s ease;
+}
+
+/* Icons */
+.sidebar .nav-link i {
+    font-size: 1rem;
+}
+
+/* Hover state */
+.sidebar .nav-link:hover {
+    color: #f9fafb;
+    background-color: rgba(55, 65, 81, 0.7);
+    transform: translateX(1px);
+}
+
+/* Active state */
+.sidebar .nav-link.active {
+    color: #f9fafb;
+    background: linear-gradient(90deg, #1d4ed8, rgba(37, 99, 235, 0.15));
+    box-shadow: inset 3px 0 0 var(--sidebar-active-border);
+}
+
+/* Logout link in red */
+.sidebar .nav-link.text-danger {
+    color: #fca5a5 !important;
+}
+
+.sidebar .nav-link.text-danger:hover {
+    background-color: rgba(239, 68, 68, 0.25);
+}
+
+/* Sidebar footer */
+.sidebar-footer {
+    border-top: 1px solid rgba(148, 163, 184, 0.35);
+}
+
+/* Main content should be offset by sidebar on desktop */
+.main-content {
+    margin-left: var(--sidebar-width-desktop);
+    min-height: 100vh;
+}
+
+/* Responsive behavior */
+@media (max-width: 991.98px) {
+    .sidebar {
+        width: 260px;
+        box-shadow: 0 0 0 1px rgba(15, 23, 42, 0.4), 0 18px 45px rgba(15, 23, 42, 0.9);
+    }
+
+    .main-content {
+        margin-left: 0;
+    }
+}
+

@@ -1,0 +1,1046 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <!-- Meta -->
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+    <title>Work Card System - Dashboard</title>
+
+    <!-- Bootstrap 5 CSS CDN -->
+    <link
+        href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
+        rel="stylesheet"
+        integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH"
+        crossorigin="anonymous"
+    />
+
+    <!-- Bootstrap Icons (for sidebar icons) -->
+    <link
+        rel="stylesheet"
+        href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css"
+    />
+
+    <!-- Custom CSS: Sidebar + Dashboard -->
+    <link rel="stylesheet" href="sidebar.css" />
+    <link rel="stylesheet" href="dashboard.css" />
+    <link rel="icon" type="image/svg+xml" href="https://www.texolenergies.com/assets/Texol_icon-AiPT1Z13.png">
+</head>
+<body class="dashboard-body">
+    <!--
+        Layout structure:
+        - Sidebar (fixed on left for md+; collapsible on mobile)
+        - Top navbar inside main content with hamburger on mobile
+        - Main content area with summary cards and activity table
+    -->
+    <div class="d-flex" id="layoutWrapper">
+        <!-- Sidebar -->
+<nav id="sidebar" class="sidebar d-flex flex-column flex-shrink-0">
+    <div class="sidebar-header d-flex align-items-center justify-content-between px-3 px-lg-4 py-3">
+        <span class="fs-6 fw-semibold text-white sidebar-brand-text">
+        <img
+                        src="https://www.texolenergies.com/assets/Logo-paGHQfRF.svg"
+                        alt="Texol Energies"
+                        class="brand-logo"
+                    />        </span>
+        <button
+            class="btn btn-sm btn-outline-light d-lg-none"
+            id="sidebarCloseBtn"
+            type="button"
+            aria-label="Close sidebar"
+        >
+            <i class="bi bi-x-lg"></i>
+        </button>
+    </div>
+
+    <hr class="sidebar-divider my-0" />
+
+    <!-- Sidebar Navigation -->
+    <ul class="nav nav-pills flex-column mb-auto mt-2 px-2 px-lg-3">
+        <li class="nav-item">
+            <a href="  index" class="nav-link active" data-menu="dashboard">
+                <i class="bi bi-speedometer2 me-2"></i>
+                Dashboard
+            </a>
+        </li>
+    
+      
+        <li>
+            <a href="  job_cards" class="nav-link" data-menu="job_cards">
+                <i class="bi bi-clipboard-check me-2"></i>
+              Tasks
+            </a>
+        </li>
+                <li>
+            <a href="  tickets" class="nav-link" data-menu="tickets">
+                <i class="bi bi-ticket-detailed me-2"></i>
+                Tickets
+            </a>
+        </li>
+                <li>
+            <a href="  mytickets" class="nav-link" data-menu="mytickets">
+                <i class="bi bi-person-lines-fill me-2"></i>
+                My Tickets
+            </a>
+        </li>
+        <li>
+            <a href="  requisition" class="nav-link" data-menu="requisitions">
+                <i class="bi bi-file-earmark-plus me-2"></i>
+                Requisitions
+            </a>
+        </li>
+                <li>
+            <a href="  customer_feedback" class="nav-link" data-menu="customer_feedback">
+                <i class="bi bi-chat-dots me-2"></i>
+                Customer Feedback
+            </a>
+        </li>
+        
+                        <li>
+            <a href="  users" class="nav-link" data-menu="users">
+                <i class="bi bi-people-fill me-2"></i>
+                Users
+            </a>
+        </li>
+        
+                
+        <li>
+            <a href="  shared" class="nav-link" data-menu="shared">
+                <i class="bi bi-people me-2"></i>
+                Shared With Me
+            </a>
+        </li>
+                
+       
+        <li>
+            <a href="  profile" class="nav-link" data-menu="profile">
+                <i class="bi bi-person-circle me-2"></i>
+                Profile
+            </a>
+        </li>
+                <li class="nav-item dropdown">
+            <a href="#" class="nav-link dropdown-toggle" data-bs-toggle="dropdown" role="button" aria-expanded="false">
+                <i class="bi bi-gear-fill me-2"></i>
+                Admin Settings
+            </a>
+            <ul class="dropdown-menu">
+                                <li>
+                    <a class="dropdown-item" href="  departments">
+                        <i class="bi bi-diagram-3-fill me-2"></i>Departments
+                    </a>
+                </li>
+                                                <li>
+                    <a class="dropdown-item" href="  categories">
+                        <i class="bi bi-tags-fill me-2"></i>Categories
+                    </a>
+                </li>
+                                                <li>
+                    <a class="dropdown-item" href="  roles">
+                        <i class="bi bi-person-vcard-fill me-2"></i>Roles
+                    </a>
+                </li>
+                                                <li>
+                    <a class="dropdown-item" href="  permissions">
+                        <i class="bi bi-shield-lock-fill me-2"></i>Permissions
+                    </a>
+                </li>
+                                <li>
+                    <a class="dropdown-item" href="  source">
+                        <i class="bi bi-link-45deg me-2"></i>Source
+                    </a>
+                </li>
+                <li>
+                    <a class="dropdown-item" href="  branches">
+                        <i class="bi bi-building me-2"></i>Branches
+                    </a>
+                </li>
+            </ul>
+        </li>
+                <li class="mt-3">
+            <a href="  logout" class="nav-link text-danger" data-menu="logout">
+                <i class="bi bi-box-arrow-right me-2"></i>
+                Logout
+            </a>
+        </li>
+    </ul>
+
+    <!-- Sidebar footer -->
+    <div class="sidebar-footer mt-auto px-3 px-lg-4 py-3 small text-muted">
+        <span>© 2026 Texol</span>
+    </div>
+</nav>
+<!-- /Sidebar -->
+
+
+        <!-- Main Content Wrapper -->
+        <div class="main-content flex-grow-1 d-flex flex-column">
+            <!-- Top Navbar -->
+            <nav class="navbar navbar-expand-lg navbar-light bg-white border-bottom main-navbar px-3 px-lg-4">
+                <!-- Sidebar toggle (hamburger) on small screens -->
+                <button
+                    class="btn btn-outline-secondary d-lg-none me-2"
+                    id="sidebarToggleBtn"
+                    type="button"
+                    aria-label="Toggle sidebar"
+                >
+                    <i class="bi bi-list"></i>
+                </button>
+
+                <a class="navbar-brand fw-semibold d-none d-sm-inline d-flex align-items-center gap-2" href="#">
+                    <span id="pageTitle">Dashboard</span>
+                </a>
+
+                <div class="ms-auto d-flex align-items-center gap-3">
+                    
+<!-- =========================
+NOTIFICATION UI
+========================= -->
+
+<div class="dropdown me-2">
+
+
+    <ul class="dropdown-menu dropdown-menu-end"
+        style="min-width:320px; max-height:400px; overflow-y:auto;">
+
+        <li><h6 class="dropdown-header">Unread Tickets</h6></li>
+
+        
+                            <li>
+                    <a href="#"
+                       class="dropdown-item ticket-item"
+                       data-id="390ddd3a-9427-420a-8d95-4d2baa1960f7">
+
+                        <strong>
+                            CCTV REPAIR AT SIRAPOLLO                        </strong><br>
+
+                        <small class="text-muted">
+                            Jul 15 10:03                        </small>
+
+                    </a>
+                </li>
+                            <li>
+                    <a href="#"
+                       class="dropdown-item ticket-item"
+                       data-id="46254fd9-2c96-43eb-ac8f-f2af00e2783a">
+
+                        <strong>
+                            Jinja Xpress POS Cashier not working                        </strong><br>
+
+                        <small class="text-muted">
+                            Jul 14 15:13                        </small>
+
+                    </a>
+                </li>
+                            <li>
+                    <a href="#"
+                       class="dropdown-item ticket-item"
+                       data-id="2609d547-a258-483c-9d19-238602a4e7b7">
+
+                        <strong>
+                            Work laptop not starting                        </strong><br>
+
+                        <small class="text-muted">
+                            Jul 13 13:13                        </small>
+
+                    </a>
+                </li>
+                            <li>
+                    <a href="#"
+                       class="dropdown-item ticket-item"
+                       data-id="33f47e07-de51-4974-8906-515f137f75c5">
+
+                        <strong>
+                            cctv Installation                        </strong><br>
+
+                        <small class="text-muted">
+                            Jul 13 08:04                        </small>
+
+                    </a>
+                </li>
+                            <li>
+                    <a href="#"
+                       class="dropdown-item ticket-item"
+                       data-id="bbd380e8-7472-431a-b381-517b03bc127b">
+
+                        <strong>
+                            test                        </strong><br>
+
+                        <small class="text-muted">
+                            Jul 13 07:37                        </small>
+
+                    </a>
+                </li>
+            
+        
+        <li><hr class="dropdown-divider"></li>
+        <li><a class="dropdown-item text-center small" href="tickets">View All</a></li>
+
+    </ul>
+</div>
+
+<!-- =========================
+JS (FIXED + PERSISTENT)
+========================= -->
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+
+    const badge = document.querySelector('#notificationBtn .badge');
+
+    document.querySelectorAll('.ticket-item').forEach(item => {
+
+        item.addEventListener('click', async function (e) {
+            e.preventDefault();
+
+            const ticketId = this.dataset.id;
+
+            // remove from UI immediately
+            const li = this.closest('li');
+            if (li) li.remove();
+
+            // update badge immediately (UI)
+            if (badge) {
+                let count = parseInt(badge.innerText || "0");
+                if (count > 1) {
+                    badge.innerText = count - 1;
+                } else {
+                    badge.remove();
+                }
+            }
+
+            // mark as viewed in DB
+            try {
+                await fetch('api/mark_ticket_viewed.php', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        ticket_id: ticketId
+                    })
+                });
+            } catch (err) {
+                console.error(err);
+            }
+
+            // redirect
+            window.location.href = 'tickets?open=' + ticketId;
+        });
+
+    });
+
+});
+</script>                    
+<div class="dropdown">
+    <button
+        class="btn btn-sm btn-outline-primary d-flex align-items-center gap-2"
+        type="button"
+        data-bs-toggle="dropdown"
+        aria-expanded="false"
+    >
+                    <span class="avatar-initials">GZ</span>
+                <span class="small d-none d-md-inline">Gadafi Ziro</span>
+        <i class="bi bi-caret-down-fill small"></i>
+    </button>
+    <ul class="dropdown-menu dropdown-menu-end">
+        <li><h6 class="dropdown-header small">Signed in as</h6></li>
+        <li><span class="dropdown-item-text small text-muted">
+            gadafingowa067@gmail.com        </span></li>
+        <li><hr class="dropdown-divider" /></li>
+        <li><a class="dropdown-item small" href="profile">Profile</a></li>
+        <li><a class="dropdown-item small" href="logout">Logout</a></li>
+    </ul>
+</div>
+                </div>
+            </nav>
+            <!-- /Top Navbar -->
+
+            <!-- Main Dashboard Content -->
+            <main class="flex-grow-1 py-4 py-md-5 px-3 px-lg-4 content-area">
+                <!-- DASHBOARD SECTION -->
+                <section class="mb-4" data-section="dashboard">
+      <h1 class="h4 fw-semibold mb-1">
+    Good Afternoon, 
+    <span class="small d-none d-md-inline">Gadafi Ziro</span>
+</h1>
+                    <p class="text-muted small mb-0">
+                        Here’s an overview of your work cards and recent activity.
+                    </p>
+                </section>
+
+                <!-- Additional Ticket Metrics -->
+                <section class="mb-4">
+                    <div class="row g-3 g-lg-4">
+                        <!-- Assigned Tickets -->
+                        <div class="col-12 col-md-4 col-xl-3">
+                            <div class="card summary-card border-0 shadow-sm h-100 position-relative">
+                                <div class="card-body d-flex align-items-center">
+                                    <div class="summary-icon-wrap bg-success-subtle text-success me-3">
+                                        <i class="bi bi-person-check"></i>
+                                    </div>
+                                    <div>
+                                        <div class="small text-muted text-uppercase fw-semibold mb-1">
+                                            Assigned Tickets
+                                        </div>
+                                        <div class="fs-4 fw-bold">3</div>
+                                        <div class="text-muted small mt-1">
+                                            Tickets with technicians
+                                        </div>
+                                    </div>
+                                </div>
+                                <a href="tickets?view=assigned" class="stretched-link" aria-label="View assigned tickets"></a>
+                            </div>
+                        </div>
+
+                                                    <!-- Unassigned Tickets (admin only) -->
+                            <div class="col-12 col-md-4 col-xl-3">
+                                <div class="card summary-card border-0 shadow-sm h-100 position-relative">
+                                    <div class="card-body d-flex align-items-center">
+                                        <div class="summary-icon-wrap bg-danger-subtle text-danger me-3">
+                                            <i class="bi bi-person-dash"></i>
+                                        </div>
+                                        <div>
+                                            <div class="small text-muted text-uppercase fw-semibold mb-1">
+                                                Unassigned Tickets
+                                            </div>
+                                            <div class="fs-4 fw-bold">1</div>
+                                            <div class="text-muted small mt-1">
+                                                No technician assigned
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <a href="tickets?view=unassigned" class="stretched-link" aria-label="View unassigned tickets"></a>
+                                </div>
+                            </div>
+                        
+                        <!-- Overdue Tickets -->
+                        <div class="col-12 col-md-4 col-xl-3">
+                            <div class="card summary-card border-0 shadow-sm h-100 position-relative">
+                                <div class="card-body d-flex align-items-center">
+                                    <div class="summary-icon-wrap bg-danger-subtle text-danger me-3">
+                                        <i class="bi bi-exclamation-triangle"></i>
+                                    </div>
+                                    <div>
+                                        <div class="small text-muted text-uppercase fw-semibold mb-1">
+                                            Overdue Tickets
+                                        </div>
+                                        <div class="fs-4 fw-bold">2</div>
+                                        <div class="text-muted small mt-1">
+                                            Past their due date
+                                        </div>
+                                    </div>
+                                </div>
+                                <a href="tickets?view=overdue" class="stretched-link" aria-label="View overdue tickets"></a>
+                            </div>
+                        </div>
+
+                                                    <!-- Due Today Tickets (admin only) -->
+                            <div class="col-12 col-md-4 col-xl-3">
+                                <div class="card summary-card border-0 shadow-sm h-100 position-relative">
+                                    <div class="card-body d-flex align-items-center">
+                                        <div class="summary-icon-wrap bg-warning-subtle text-warning me-3">
+                                            <i class="bi bi-calendar-x"></i>
+                                        </div>
+                                        <div>
+                                            <div class="small text-muted text-uppercase fw-semibold mb-1">
+                                                Due Today
+                                            </div>
+                                            <div class="fs-4 fw-bold">0</div>
+                                            <div class="text-muted small mt-1">
+                                                Deadline is today
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <a href="tickets?view=today" class="stretched-link" aria-label="View due today tickets"></a>
+                                </div>
+                            </div>
+                        
+                                            </div>
+                </section>
+
+                <!-- More Stats -->
+                <section class="mb-4">
+                    <div class="row g-3 g-lg-4">
+                        <div class="col-12 col-md-3">
+                            <div class="card summary-card border-0 shadow-sm h-100 position-relative">
+                                <div class="card-body d-flex align-items-center">
+                                    <div class="summary-icon-wrap bg-primary-subtle text-primary me-3">
+                                        <i class="bi bi-folder2-open"></i>
+                                    </div>
+                                    <div>
+                                        <div class="small text-muted text-uppercase fw-semibold mb-1">
+                                            Open Tickets
+                                        </div>
+                                        <div class="fs-4 fw-bold">2</div>
+                                        <div class="text-muted small mt-1">
+                                            Awaiting action
+                                        </div>
+                                    </div>
+                                </div>
+                                <a href="tickets?view=open" class="stretched-link" aria-label="View open tickets"></a>
+                            </div>
+                        </div>
+
+                        <div class="col-12 col-md-3">
+                            <div class="card summary-card border-0 shadow-sm h-100 position-relative">
+                                <div class="card-body d-flex align-items-center">
+                                    <div class="summary-icon-wrap bg-warning-subtle text-warning me-3">
+                                        <i class="bi bi-tools"></i>
+                                    </div>
+                                    <div>
+                                        <div class="small text-muted text-uppercase fw-semibold mb-1">
+                                            In Progress
+                                        </div>
+                                        <div class="fs-4 fw-bold">1</div>
+                                        <div class="text-muted small mt-1">
+                                            Currently being handled
+                                        </div>
+                                    </div>
+                                </div>
+                                <a href="tickets?view=inprogress" class="stretched-link" aria-label="View in progress tickets"></a>
+                            </div>
+                        </div>
+
+                        <div class="col-12 col-md-3">
+                            <div class="card summary-card border-0 shadow-sm h-100 position-relative">
+                                <div class="card-body d-flex align-items-center">
+                                    <div class="summary-icon-wrap bg-secondary-subtle text-secondary me-3">
+                                        <i class="bi bi-check2-circle"></i>
+                                    </div>
+                                    <div>
+                                        <div class="small text-muted text-uppercase fw-semibold mb-1">
+                                            Closed Tickets
+                                        </div>
+                                        <div class="fs-4 fw-bold">56</div>
+                                        <div class="text-muted small mt-1">
+                                            Finished tickets
+                                        </div>
+                                    </div>
+                                </div>
+                                <a href="tickets?view=closed" class="stretched-link" aria-label="View closed tickets"></a>
+                            </div>
+                        </div>
+
+                                                    <div class="col-12 col-md-3">
+                                <div class="card summary-card border-0 shadow-sm h-100 position-relative">
+                                    <div class="card-body d-flex align-items-center">
+                                        <div class="summary-icon-wrap bg-info-subtle text-info me-3">
+                                            <i class="bi bi-calendar-day"></i>
+                                        </div>
+                                        <div>
+                                            <div class="small text-muted text-uppercase fw-semibold mb-1">
+                                                Today&apos;s Tickets
+                                            </div>
+                                            <div class="fs-4 fw-bold">0</div>
+                                            <div class="text-muted small mt-1">
+                                                Created since midnight
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <a href="tickets?view=today" class="stretched-link" aria-label="View today&apos;s tickets"></a>
+                                </div>
+                            </div>
+                                            </div>
+                </section>
+
+                <!-- Ticket Completion + Priority Progress -->
+                                <section class="mb-4">
+                    <div class="row g-3 g-lg-4">
+                        <div class="col-12 col-xl-6">
+                            <div class="card border-0 shadow-sm h-100">
+                                <div class="card-header bg-white py-3 px-3 px-md-4">
+                                    <h2 class="h6 mb-1 fw-semibold">Resolved vs Unresolved Tickets</h2>
+                                    <p class="text-muted small mb-0">
+                                        Resolution ratio based on your current ticket count.
+                                    </p>
+                                </div>
+                                <div class="card-body px-3 px-md-4 py-3">
+                                    <div style="position: relative; height: 320px;">
+                                        <canvas id="ticketStatusChart" aria-label="Ticket status chart" role="img"></canvas>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-12 col-xl-6">
+                            <div class="card border-0 shadow-sm h-100">
+                                <div class="card-header bg-white py-3 px-3 px-md-4">
+                                    <h2 class="h6 mb-1 fw-semibold">Priority Progress</h2>
+                                    <p class="text-muted small mb-0">
+                                        Ticket distribution by priority level.
+                                    </p>
+                                </div>
+                                <div class="card-body px-3 px-md-4 py-3">
+                                    <div class="mb-3">
+                                        <div class="d-flex justify-content-between small fw-semibold mb-1">
+                                            <span>Low</span>
+                                            <span>10 (17%)</span>
+                                        </div>
+                                        <div class="progress" style="height: 8px;">
+                                            <div class="progress-bar bg-success" role="progressbar" style="width: 17%;" aria-valuenow="17" aria-valuemin="0" aria-valuemax="100"></div>
+                                        </div>
+                                    </div>
+
+                                    <div class="mb-3">
+                                        <div class="d-flex justify-content-between small fw-semibold mb-1">
+                                            <span>Medium</span>
+                                            <span>28 (47%)</span>
+                                        </div>
+                                        <div class="progress" style="height: 8px;">
+                                            <div class="progress-bar bg-info" role="progressbar" style="width: 47%;" aria-valuenow="47" aria-valuemin="0" aria-valuemax="100"></div>
+                                        </div>
+                                    </div>
+
+                                    <div class="mb-3">
+                                        <div class="d-flex justify-content-between small fw-semibold mb-1">
+                                            <span>High</span>
+                                            <span>20 (33%)</span>
+                                        </div>
+                                        <div class="progress" style="height: 8px;">
+                                            <div class="progress-bar bg-warning" role="progressbar" style="width: 33%;" aria-valuenow="33" aria-valuemin="0" aria-valuemax="100"></div>
+                                        </div>
+                                    </div>
+
+                                    <div>
+                                        <div class="d-flex justify-content-between small fw-semibold mb-1">
+                                            <span>Urgent</span>
+                                            <span>2 (3%)</span>
+                                        </div>
+                                        <div class="progress" style="height: 8px;">
+                                            <div class="progress-bar bg-danger" role="progressbar" style="width: 3%;" aria-valuenow="3" aria-valuemin="0" aria-valuemax="100"></div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Recent Activity Table -->
+                <section class="mb-4">
+                    <div class="card border-0 shadow-sm">
+                        <div class="card-header bg-white d-flex flex-wrap justify-content-between align-items-center py-3 px-3 px-md-4">
+                            <div>
+                                <h2 class="h6 mb-0 fw-semibold">Recent Activity</h2>
+                                <p class="text-muted small mb-0">
+                                    Latest changes to your work cards.
+                                </p>
+                            </div>
+                            <button class="btn btn-sm btn-outline-primary mt-2 mt-md-0">
+                                View all
+                            </button>
+                        </div>
+                        <div class="card-body px-2 px-md-4 py-3">
+                            <div class="table-responsive">
+                                <table class="table table-hover align-middle mb-0">
+                                    <thead class="table-light">
+                                        <tr>
+                                            <th scope="col" class="small text-uppercase text-muted">Work Card</th>
+                                            <th scope="col" class="small text-uppercase text-muted">Type</th>
+                                            <th scope="col" class="small text-uppercase text-muted">Status</th>
+                                            <th scope="col" class="small text-uppercase text-muted">Updated</th>
+                                            <th scope="col" class="small text-uppercase text-muted text-end">Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="recentAssignedBody">
+                                        <tr>
+                                            <td colspan="5" class="text-center text-muted small py-4">
+                                                Loading assigned tasks...
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- USERS SECTION (Add User form) -->
+                <section class="mb-4 d-none" data-section="users">
+                    <div class="row g-3 g-lg-4">
+                        <div class="col-12 col-xl-8">
+                            <div class="card border-0 shadow-sm">
+                                <div class="card-header bg-white py-3 px-3 px-md-4">
+                                    <h2 class="h6 mb-1 fw-semibold">Add New User</h2>
+                                    <p class="text-muted small mb-0">
+                                        Create a user account and assign them to a department.
+                                    </p>
+                                </div>
+                                <div class="card-body px-3 px-md-4 pb-4">
+                                    <!-- Pure front-end form for now -->
+                                    <form class="row g-3">
+                                        <div class="col-12 col-md-6">
+                                            <label class="form-label small fw-semibold" for="userName">
+                                                Full Name
+                                            </label>
+                                            <input
+                                                type="text"
+                                                class="form-control form-control-sm"
+                                                id="userName"
+                                                placeholder="Jane Doe"
+                                                required
+                                            />
+                                        </div>
+                                        <div class="col-12 col-md-6">
+                                            <label class="form-label small fw-semibold" for="userEmail">
+                                                Email
+                                            </label>
+                                            <input
+                                                type="email"
+                                                class="form-control form-control-sm"
+                                                id="userEmail"
+                                                placeholder="jane.doe@texol.com"
+                                                required
+                                            />
+                                        </div>
+
+                                        <div class="col-12 col-md-6">
+                                            <label class="form-label small fw-semibold" for="userDepartment">
+                                                Department
+                                            </label>
+                                            <select
+                                                class="form-select form-select-sm"
+                                                id="userDepartment"
+                                                required
+                                            >
+                                                <option value="" selected disabled>Select department</option>
+                                                <option value="Maintenance">Maintenance</option>
+                                                <option value="Production">Production</option>
+                                                <option value="Quality">Quality</option>
+                                                <option value="Engineering">Engineering</option>
+                                                <option value="HSE">HSE</option>
+                                                <option value="Admin">Admin</option>
+                                            </select>
+                                        </div>
+
+                                        <div class="col-12 col-md-6">
+                                            <label class="form-label small fw-semibold" for="userRole">
+                                                Role
+                                            </label>
+                                            <select
+                                                class="form-select form-select-sm"
+                                                id="userRole"
+                                                required
+                                            >
+                                                <option value="" selected disabled>Select role</option>
+                                                <option value="Operator">Operator</option>
+                                                <option value="Supervisor">Supervisor</option>
+                                                <option value="Engineer">Engineer</option>
+                                                <option value="Manager">Manager</option>
+                                                <option value="Admin">Admin</option>
+                                            </select>
+                                        </div>
+
+                                        <div class="col-12 col-md-6">
+                                            <label class="form-label small fw-semibold" for="userPassword">
+                                                Temporary Password
+                                            </label>
+                                            <input
+                                                type="password"
+                                                class="form-control form-control-sm"
+                                                id="userPassword"
+                                                placeholder="Generate or set a temp password"
+                                                required
+                                            />
+                                        </div>
+
+                                        <div class="col-12 col-md-6">
+                                            <label class="form-label small fw-semibold" for="userStatus">
+                                                Status
+                                            </label>
+                                            <select
+                                                class="form-select form-select-sm"
+                                                id="userStatus"
+                                                required
+                                            >
+                                                <option value="active" selected>Active</option>
+                                                <option value="inactive">Inactive</option>
+                                            </select>
+                                        </div>
+
+                                        <div class="col-12 d-flex justify-content-end mt-2">
+                                            <button type="button" class="btn btn-sm btn-outline-secondary me-2">
+                                                Reset
+                                            </button>
+                                            <button type="submit" class="btn btn-sm btn-primary">
+                                                Save User
+                                            </button>
+                                        </div>
+                                    </form>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="col-12 col-xl-4">
+                            <div class="card border-0 shadow-sm h-100">
+                                <div class="card-body p-3 p-md-4">
+                                    <h3 class="h6 fw-semibold mb-2">User management tips</h3>
+                                    <ul class="small text-muted mb-0 ps-3">
+                                        <li class="mb-1">Use work email addresses for all users.</li>
+                                        <li class="mb-1">Department controls which work cards they see.</li>
+                                        <li class="mb-1">Use roles to differentiate access in your backend logic.</li>
+                                        <li>Mark users inactive instead of deleting to preserve history.</li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+            </main>
+            <!-- /Main Dashboard Content -->
+        </div>
+        <!-- /Main Content Wrapper -->
+    </div>
+
+    <!-- Bootstrap JS Bundle CDN -->
+    <script
+        src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"
+        integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz"
+        crossorigin="anonymous"
+    ></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0"></script>
+
+    <!-- App JS (sidebar toggle, nav active) -->
+    <script src="app.js"></script>
+
+    <script>
+        (function initTicketStatusChart() {
+            const canvas = document.getElementById('ticketStatusChart');
+            if (!canvas || typeof Chart === 'undefined') return;
+            if (typeof ChartDataLabels !== 'undefined') {
+                Chart.register(ChartDataLabels);
+            }
+
+            const totalTickets = 60;
+            const resolvedTickets = Math.max(0, 56);
+            const unresolvedTickets = Math.max(0, totalTickets - resolvedTickets);
+
+            new Chart(canvas, {
+                type: 'pie',
+                data: {
+                    labels: ['Resolved', 'Unresolved'],
+                    datasets: [{
+                        label: 'Tickets',
+                        data: [resolvedTickets, unresolvedTickets],
+                        backgroundColor: [
+                            'rgba(0, 77, 152, 0.85)',
+                            'rgba(255, 140, 0, 0.85)'
+                        ],
+                        borderColor: [
+                            'rgba(0, 77, 152, 1)',
+                            'rgba(255, 140, 0, 1)'
+                        ],
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: true,
+                            position: 'bottom'
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    return `${context.label}: ${context.parsed} ticket(s)`;
+                                }
+                            }
+                        },
+                        datalabels: {
+                            color: '#ffffff',
+                            font: {
+                                weight: 'bold',
+                                size: 12
+                            },
+                        formatter: function(value, context) {
+    const total = (context.dataset.data || []).reduce((sum, n) => sum + n, 0);
+
+    const pct = total > 0 ? ((value / total) * 100).toFixed(2) : "0.00";
+
+    return `${context.chart.data.labels[context.dataIndex]}\n${value.toFixed(2)} (${pct}%)`;
+}
+                        }
+                    }
+                }
+            });
+        })();
+    </script>
+
+    <!-- Supabase client for Recent Activity (assigned to me) -->
+    <script type="module">
+        import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+
+        const supabaseUrl = 'https://pjwvfuyzbzayxqxisysi.supabase.co';
+        const supabaseKey = 'sb_publishable_0irc-UsepAkekLihnXz8Mw_ouNmhqld';
+        const supabase = createClient(supabaseUrl, supabaseKey);
+
+        const currentUserEmail = "gadafingowa067@gmail.com";
+        const currentUserUuid = "";
+        const tbody = document.getElementById('recentAssignedBody');
+
+        function renderPriorityBadge(priority) {
+            const prio = (priority || '').toLowerCase();
+            let prioClass = 'bg-secondary-subtle text-secondary';
+            if (prio === 'low') prioClass = 'bg-info-subtle text-info';
+            else if (prio === 'medium') prioClass = 'bg-warning-subtle text-warning';
+            else if (prio === 'high') prioClass = 'bg-danger-subtle text-danger';
+            return `<span class="badge rounded-pill ${prioClass} small">${priority || 'N/A'}</span>`;
+        }
+
+        function renderStatusBadge(status) {
+            const val = (status || '').toLowerCase();
+            let cls = 'bg-secondary-subtle text-secondary';
+            if (val === 'open') cls = 'bg-primary-subtle text-primary';
+            else if (val === 'in progress') cls = 'bg-warning-subtle text-warning';
+            else if (val === 'resolved') cls = 'bg-success-subtle text-success';
+            else if (val === 'pending review') cls = 'bg-warning-subtle text-warning';
+            return `<span class="badge rounded-pill ${cls} small">${status || 'Unknown'}</span>`;
+        }
+
+        function escapeHtml(str) {
+            return (str || '')
+                .toString()
+                .replaceAll('&', '&amp;')
+                .replaceAll('<', '&lt;')
+                .replaceAll('>', '&gt;')
+                .replaceAll('"', '&quot;')
+                .replaceAll("'", '&#039;');
+        }
+
+        async function loadRecentAssigned() {
+            if (!tbody) return;
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="5" class="text-center text-muted small py-4">
+                        Loading assigned tasks...
+                    </td>
+                </tr>`;
+
+            try {
+                if (!currentUserEmail) {
+                    tbody.innerHTML = `
+                        <tr>
+                            <td colspan="5" class="text-center small text-danger py-4">
+                                Missing user session. Please log in again.
+                            </td>
+                        </tr>`;
+                    return;
+                }
+
+                // Fetch assigned tickets (using inner join)
+                const { data: assignedData, error: assignedError } = await supabase
+                    .from('tickets')
+                    .select('id,title,status,priority,created_at,ticket_assignees!inner(technician_email)')
+                    .eq('ticket_assignees.technician_email', currentUserEmail)
+                    .order('created_at', { ascending: false })
+                    .limit(50);
+
+                // Build OR filter for requested_by (email and/or UUID) and requester
+                let orFilter = `requester.eq.${currentUserEmail},requested_by.eq.${currentUserEmail}`;
+                if (currentUserUuid) {
+                    orFilter += `,requested_by.eq.${currentUserUuid}`;
+                }
+
+                // Fetch requested tickets
+                const { data: requestedData, error: requestedError } = await supabase
+                    .from('tickets')
+                    .select('id,title,status,priority,created_at,requester,requested_by')
+                    .or(orFilter)
+                    .order('created_at', { ascending: false })
+                    .limit(50);
+
+                if (assignedError || requestedError) {
+                    console.error('Assigned error:', assignedError);
+                    console.error('Requested error:', requestedError);
+                    tbody.innerHTML = `
+                        <tr>
+                            <td colspan="5" class="text-center small text-danger py-4">
+                                Failed to load assigned tasks: ${escapeHtml((assignedError || requestedError)?.message || 'Unknown error')}
+                            </td>
+                        </tr>`;
+                    return;
+                }
+
+                // Merge and deduplicate by ID
+                const merged = [];
+                const seenIds = new Set();
+                
+                [...(assignedData || []), ...(requestedData || [])].forEach(ticket => {
+                    if (!seenIds.has(ticket.id)) {
+                        seenIds.add(ticket.id);
+                        merged.push(ticket);
+                    }
+                });
+
+                // Sort by created_at desc
+                merged.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+
+                const data = merged.slice(0, 50);
+
+                if (!data || data.length === 0) {
+                    tbody.innerHTML = `
+                        <tr>
+                            <td colspan="5" class="text-center text-muted small py-4">
+                                No tasks assigned to you yet.
+                            </td>
+                        </tr>`;
+                    return;
+                }
+
+                tbody.innerHTML = '';
+                data.forEach((t) => {
+                    const title = escapeHtml(t.title || 'Untitled');
+                    const id = escapeHtml(t.id || '');
+                    const status = t.status || '';
+                    const priority = t.priority || '';
+                    const whenSrc = t.created_at || null;
+                    let when = '—';
+                    if (whenSrc) {
+                        const d = new Date(whenSrc);
+                        when = d.toLocaleString();
+                    }
+
+                    const tr = document.createElement('tr');
+                    tr.innerHTML = `
+                        <td>
+                            <div class="fw-semibold small text-truncate" style="max-width: 280px;">${title}</div>
+                            <div class="text-muted small">ID: ${id}</div>
+                        </td>
+                        <td>${renderPriorityBadge(priority)}</td>
+                        <td>${renderStatusBadge(status)}</td>
+                        <td class="small text-muted">${escapeHtml(when)}</td>
+                        <td class="text-end">
+                            <form method="post" action="  tickets" class="d-inline">
+                                <input type="hidden" name="open_notes_modal" value="1" />
+                                <input type="hidden" name="notes_ticket_id" value="${id}" />
+                                <input type="hidden" name="notes_ticket_title" value="${title}" />
+                                <input type="hidden" name="notes_ticket_status" value="${escapeHtml(status)}" />
+                                <input type="hidden" name="notes_ticket_priority" value="${escapeHtml(priority)}" />
+                                <input type="hidden" name="notes_ticket_created_at" value="${escapeHtml(t.created_at || '')}" />
+                                <input type="hidden" name="notes_ticket_requested_by" value="${escapeHtml(t.requested_by || '')}" />
+                                <button class="btn btn-sm btn-outline-secondary me-1" title="View notes">
+                                    <i class="bi bi-eye"></i>
+                                </button>
+                            </form>
+                            <a class="btn btn-sm btn-outline-primary" href="admintickets" title="Open in Tickets">
+                                <i class="bi bi-pencil"></i>
+                            </a>
+                        </td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+            } catch (err) {
+                console.error(err);
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="5" class="text-center small text-danger py-4">
+                            Unexpected error loading assigned tasks.
+                        </td>
+                    </tr>`;
+            }
+        }
+
+        loadRecentAssigned();
+    </script>
+</body>
+</html>

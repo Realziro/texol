@@ -1,0 +1,12 @@
+<IfModule mod_rewrite.c>
+RewriteEngine On
+
+# Remove .php from URL
+RewriteCond %{REQUEST_FILENAME}.php -f
+RewriteRule ^([^/.]+)$ $1.php [L,QSA]
+
+# If file doesn't exist, go to index.php
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteRule ^ index.php [L,QSA]
+</IfModule>

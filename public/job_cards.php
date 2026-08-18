@@ -1,0 +1,3090 @@
+<?php
+session_start();
+if (!isset($_SESSION['user_email'])) {
+    header('Location:   login');
+    exit;
+}
+
+include __DIR__ . '/../config.php';
+$activeMenu = 'job_cards';
+
+// Handle create modal request
+$openCreateModal = false;
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['open_create_modal'])) {
+    $openCreateModal = true;
+}
+
+// Fetch categories from database
+$categories = [];
+if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY') && SUPABASE_URL !== '' && SUPABASE_ANON_KEY !== '') {
+    $supabaseUrl = rtrim(SUPABASE_URL, '/');
+    $supabaseKey = SUPABASE_ANON_KEY;
+
+    $query = http_build_query([
+        'select' => 'name',
+        'order' => 'name'
+    ]);
+
+    $ch = curl_init();
+    curl_setopt_array($ch, [
+        CURLOPT_URL => $supabaseUrl . '/rest/v1/categories?' . $query,
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_HTTPHEADER => [
+            'apikey: ' . $supabaseKey,
+            'Authorization: Bearer ' . $supabaseKey,
+            'Accept: application/json'
+        ]
+    ]);
+
+    $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+
+    if ($httpCode === 200 && $response) {
+        $categories = json_decode($response, true) ?: [];
+    }
+}
+
+// Fetch branches from database
+$branches = [];
+if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY') && SUPABASE_URL !== '' && SUPABASE_ANON_KEY !== '') {
+    $supabaseUrl = rtrim(SUPABASE_URL, '/');
+    $supabaseKey = SUPABASE_ANON_KEY;
+
+    $query = http_build_query([
+        'select' => 'id,name',
+        'order' => 'name'
+    ]);
+
+    $ch = curl_init();
+    curl_setopt_array($ch, [
+        CURLOPT_URL => $supabaseUrl . '/rest/v1/branches?' . $query,
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_HTTPHEADER => [
+            'apikey: ' . $supabaseKey,
+            'Authorization: Bearer ' . $supabaseKey,
+            'Accept: application/json'
+        ]
+    ]);
+
+    $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+
+    if ($httpCode === 200 && $response) {
+        $branches = json_decode($response, true) ?: [];
+    }
+}
+?>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <!-- Meta -->
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+    <title>Work Card System - Tasks</title>
+
+    <!-- Bootstrap 5 CSS CDN -->
+    <link
+        href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
+        rel="stylesheet"
+        integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH"
+        crossorigin="anonymous"
+    />
+    <!-- Bootstrap Icons -->
+    <link
+        rel="stylesheet"
+        href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css"
+    />
+    <!-- Quill.js for rich text editor -->
+    <link href="https://cdn.quilljs.com/1.3.6/quill.snow.css" rel="stylesheet">
+    <script src="https://cdn.quilljs.com/1.3.6/quill.min.js"></script>
+    <!-- Reuse layout styles -->
+    <link rel="stylesheet" href="sidebar.css" />
+    <link rel="stylesheet" href="dashboard.css" />
+    <link rel="icon" type="image/svg+xml" href="https://www.texolenergies.com/assets/Texol_icon-AiPT1Z13.png">
+</head>
+<body class="dashboard-body">
+    <div class="d-flex" id="layoutWrapper">
+        <?php
+        // Shared sidebar, mark "job_cards" as active here
+        $activeMenu = 'job_cards';
+        include __DIR__ . '/partials/sidebar.php';
+        ?>
+
+        <!-- Main Content -->
+        <div class="main-content flex-grow-1 d-flex flex-column">
+            <!-- Top Navbar -->
+            <nav class="navbar navbar-expand-lg navbar-light bg-white border-bottom main-navbar px-3 px-lg-4 py-2">
+                <button
+                    class="btn btn-outline-secondary d-lg-none me-2"
+                    id="sidebarToggleBtn"
+                    type="button"
+                    aria-label="Toggle sidebar"
+                >
+                    <i class="bi bi-list"></i>
+                </button>
+
+                <a class="navbar-brand fw-semibold d-none d-sm-inline d-flex align-items-center gap-2" href="#">
+                    <span id="pageTitle">Tasks</span>
+                </a>
+
+                <div class="ms-auto d-flex align-items-center gap-3">
+                    <?php include __DIR__ . '/partials/notifications.php'; ?>
+                    <?php include __DIR__ . '/partials/navbar_user.php'; ?>
+                </div>
+            </nav>
+            <!-- /Top Navbar -->
+
+            <!-- Job Cards Content -->
+            <main class="flex-grow-1 py-4 py-md-5 px-3 px-lg-4 content-area">
+                <section class="mb-4">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <div>
+                            <h1 class="h4 fw-semibold mb-1"></h1>
+                            <p class="text-muted small mb-0"></p>
+                        </div>
+                        <button class="btn btn-primary" id="openCreateJobCardBtn" data-bs-toggle="modal" data-bs-target="#createJobCardModal">
+                            <i class="bi bi-plus-lg me-2"></i>Create New Task
+                        </button>
+                    </div>
+                </section>
+
+                <!-- Job Cards List -->
+                <section>
+                    <div class="row g-2 mb-3">
+                        <div class="col-12 col-lg-4">
+                            <input type="text" class="form-control form-control-sm" id="jobCardFilterSearch" placeholder="Search title or description..." />
+                        </div>
+                        <div class="col-6 col-lg-3">
+                            <select class="form-select form-select-sm" id="jobCardFilterStatus">
+                                <option value="">All Statuses</option>
+                                <option value="Pending">Pending</option>
+                                <option value="In Progress">In Progress</option>
+                                <option value="Completed">Completed</option>
+                                <option value="Closed">Closed</option>
+                            </select>
+                        </div>
+                        <div class="col-6 col-lg-2">
+                            <select class="form-select form-select-sm" id="jobCardFilterOwnership">
+                                <option value="">All Access</option>
+                                <option value="owned">Owned by me</option>
+                                <option value="shared">Shared with me</option>
+                            </select>
+                        </div>
+                        <div class="col-6 col-lg-2">
+                            <select class="form-select form-select-sm" id="jobCardFilterDue">
+                                <option value="">Any Due Date</option>
+                                <option value="overdue">Overdue</option>
+                                <option value="nodue">No due date</option>
+                            </select>
+                        </div>
+                        <div class="col-6 col-lg-1 d-grid">
+                            <button class="btn btn-sm btn-outline-secondary" type="button" id="clearJobCardFiltersBtn">Clear</button>
+                        </div>
+                    </div>
+                    <div class="row" id="jobCardsList">
+                        <!-- Job cards will be loaded here -->
+                    </div>
+                    
+                    <!-- Empty State -->
+                    <div id="emptyState" class="text-center py-5" style="display: none;">
+                        <i class="bi bi-clipboard-check text-muted" style="font-size: 3rem;"></i>
+                        <h5 class="mt-3 text-muted">No Tasks</h5>
+                        <p class="text-muted small">Create your first task to get started</p>
+                    </div>
+                </section>
+            </main>
+        </div>
+    </div>
+
+    <!-- Create Job Card Modal -->
+<div class="modal fade" id="createJobCardModal" tabindex="-1" aria-labelledby="createJobCardModalLabel">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+
+            <div class="modal-header">
+                <h5 class="modal-title fw-semibold" id="createJobCardModalLabel">Create New Task</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+
+            <div class="modal-body">
+                <form id="createJobCardForm" class="row g-3">
+
+                    <!-- Title -->
+                    <div class="col-12">
+                        <label class="form-label fw-semibold">Title *</label>
+                        <input type="text" class="form-control" id="jobCardTitle" required>
+                    </div>
+
+                    <!-- Description -->
+                    <div class="col-12">
+                        <label class="form-label fw-semibold">Description</label>
+                        <div id="jobCardDescription" style="height: 150px;"></div>
+                        <input type="hidden" id="jobCardDescriptionHidden" />
+                    </div>
+
+                    <!-- Department (Dynamic from DB) -->
+                <div class="col-md-6">
+    <label class="form-label fw-semibold">Department *</label>
+    <select class="form-select" id="jobCardDepartment" required>
+        <option value="">Loading departments...</option>
+    </select>
+</div>
+
+                    <!-- Category -->
+                    <div class="col-md-6">
+                        <label class="form-label fw-semibold">Category</label>
+                        <select class="form-select" id="jobCardCategory">
+                            <option value="">Select category</option>
+                            <?php foreach ($categories as $category): ?>
+                                <option value="<?php echo htmlspecialchars($category['name'], ENT_QUOTES, 'UTF-8'); ?>">
+                                    <?php echo htmlspecialchars($category['name'], ENT_QUOTES, 'UTF-8'); ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+
+                    <!-- Branch -->
+                    <div class="col-md-6">
+                        <label class="form-label fw-semibold">Branch</label>
+                        <select class="form-select" id="jobCardBranch">
+                            <option value="">Select branch</option>
+                            <?php foreach ($branches as $branch): ?>
+                                <option value="<?php echo htmlspecialchars($branch['name'], ENT_QUOTES, 'UTF-8'); ?>">
+                                    <?php echo htmlspecialchars($branch['name'], ENT_QUOTES, 'UTF-8'); ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+
+                    <!-- Status -->
+                    <div class="col-md-6">
+                        <label class="form-label fw-semibold">Status</label>
+                        <select class="form-select" id="jobCardStatus">
+                            <option value="Pending">Pending</option>
+                            <option value="In Progress">In Progress</option>
+                            <option value="Completed">Completed</option>
+                        </select>
+                    </div>
+
+                    <!-- Due Date -->
+                  
+
+                    <!-- Urgency -->
+                    <div class="col-md-4">
+                        <label class="form-label fw-semibold">Urgency</label>
+                        <select class="form-select" id="jobCardUrgency">
+                            <option value="low">Low</option>
+                            <option value="medium">Medium</option>
+                            <option value="high">High</option>
+                            <option value="urgent">Urgent</option>
+                        </select>
+                    </div>
+
+                    <!-- Impact -->
+                    <div class="col-md-4">
+                        <label class="form-label fw-semibold">Impact</label>
+                        <select class="form-select" id="jobCardImpact">
+                            <option value="low">Low</option>
+                            <option value="medium">Medium</option>
+                            <option value="high">High</option>
+                        </select>
+                    </div>
+
+                    <!-- Priority -->
+                    <div class="col-md-4">
+                        <label class="form-label fw-semibold">Priority</label>
+                        <select class="form-select" id="jobCardPriority">
+                            <option value="low">Low</option>
+                            <option value="medium">Medium</option>
+                            <option value="high">High</option>
+                            <option value="urgent">Urgent</option>
+                        </select>
+                    </div>
+
+                    <!-- Planned Start Date -->
+                    <div class="col-md-6">
+                        <label class="form-label fw-semibold">Planned Start Date</label>
+                        <input type="datetime-local" class="form-control" id="jobCardPlannedStartDate">
+                    </div>
+  <div class="col-md-6">
+                        <label class="form-label fw-semibold">Due Date</label>
+                        <input type="datetime-local" class="form-control" id="jobCardDueDate">
+                    </div>
+                    <div class="mb-3" id="jobCardTechnicianEmailContainer">
+    <label class="form-label fw-semibold">Assign Technician <span class="text-muted fw-normal">(Optional)</span></label>
+    <select class="form-select" id="jobCardTechnicianEmail">
+        <option value="">Select Technician</option>
+    </select>
+</div>
+                    <!-- Attachment -->
+                    <div class="col-12">
+                        <label class="form-label fw-semibold">Attachment</label>
+                        <input type="file" class="form-control" id="jobCardAttachment" multiple>
+                        <small class="text-muted">Supported: PDF, DOC, XLS, Images, ZIP</small>
+                    </div>
+
+                </form>
+            </div>
+
+            <div class="modal-footer">
+                <button class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button class="btn btn-primary" id="saveJobCardBtn">Create Task</button>
+            </div>
+
+        </div>
+    </div>
+</div>
+
+    <!-- Job Card Detail Modal -->
+    <div class="modal fade" id="jobCardDetailModal" tabindex="-1" aria-labelledby="jobCardDetailModalLabel">
+        <div class="modal-dialog modal-xl modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="jobCardDetailModalLabel">Task Details</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="row">
+                        <!-- Job Card Info -->
+                        <div class="col-md-4">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h6 class="mb-0">Task Info</h6>
+                                </div>
+                                <div class="card-body">
+                                    <input type="hidden" id="detailJobCardId" value="">
+                                    <div class="mb-3">
+                                        <label class="form-label small text-muted">Title</label>
+                                        <p class="fw-semibold" id="detailJobCardTitle">-</p>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label small text-muted">Description</label>
+                                        <p id="detailJobCardDescription">-</p>
+                                    </div>
+                                    
+                                    <div class="mb-3">
+    <label class="form-label small text-muted">Department</label>
+    <p id="detailJobCardDepartment">-</p>
+</div>
+<div class="mb-3">
+    <label class="form-label small text-muted">Category</label>
+    <p id="detailJobCardCategory">-</p>
+</div>
+<div class="mb-3">
+    <label class="form-label small text-muted">Branch</label>
+    <p id="detailJobCardBranch" class="d-none">-</p>
+</div>
+<div class="row mb-3">
+    <div class="col-4">
+        <label class="form-label small text-muted">Urgency</label>
+        <p id="detailJobCardUrgency">-</p>
+    </div>
+
+    <div class="col-4">
+        <label class="form-label small text-muted">Impact</label>
+        <p id="detailJobCardImpact">-</p>
+    </div>
+
+    <div class="col-4">
+        <label class="form-label small text-muted">Priority</label>
+        <p id="detailJobCardPriority">-</p>
+    </div>
+</div>
+<div class="mb-3">
+    <label class="form-label small text-muted">Planned Start Date</label>
+    <p id="detailJobCardPlannedStartDate">-</p>
+</div>
+                                    
+                                    <div class="mb-3">
+                                        <label class="form-label small text-muted">Status</label>
+                                        <span class="badge" id="detailJobCardStatus">-</span>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label small text-muted">Due Date</label>
+                                        <p id="detailJobCardDueDate">-</p>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label small text-muted">Progress</label>
+                                        <div class="progress mb-2" style="height: 20px;">
+                                            <div class="progress-bar" id="detailProgressBar" role="progressbar" style="width: 0%">0%</div>
+                                        </div>
+                                        <small class="text-muted" id="detailProgressText">0 of 0 tasks completed</small>
+                                    </div>
+                                    
+                                    <!-- Notes Section -->
+                                    <div class="mb-3">
+                                        <label class="form-label small text-muted">Notes</label>
+                                        <div class="mb-2">
+                                            <textarea class="form-control" id="jobCardNotes" rows="3" placeholder="Add notes about this task..."></textarea>
+                                        </div>
+                                        <button class="btn btn-sm btn-outline-primary" id="addJobNoteBtn">
+                                            <i class="bi bi-plus-lg me-1"></i>Add Note
+                                        </button>
+                                    </div>
+                                    
+                                    <!-- Notes List -->
+                                    <div class="mt-3">
+                                        <h6 class="small text-muted mb-2">Notes History</h6>
+                                        <div id="jobCardNotesList" class="list-group">
+                                            <!-- Notes will be loaded here -->
+                                        </div>
+                                    </div>
+                                    <!-- Attachments Section -->
+<div class="mb-3">
+    <label class="form-label small text-muted">Attachments</label>
+
+    <div id="jobCardAttachmentsContainer" class="border rounded p-2 bg-light">
+        <small class="text-muted">No attachments available</small>
+    </div>
+</div>
+                                    <!-- Actions -->
+                                    <div class="d-grid gap-2" id="jobCardActions">
+                                        <button class="btn btn-outline-primary btn-sm" id="editJobCardBtn">
+                                            <i class="bi bi-pencil me-1"></i>Edit
+                                        </button>
+                                        <button class="btn btn-outline-dark btn-sm d-none" id="closeJobCardBtn">
+                                            <i class="bi bi-x-circle me-1"></i>Close Task
+                                        </button>
+                                        <button class="btn btn-outline-success btn-sm" id="shareJobCardBtn">
+                                            <i class="bi bi-share me-1"></i>Share
+                                        </button>
+                                        <button class="btn btn-outline-danger btn-sm" id="deleteJobCardBtn">
+                                            <i class="bi bi-trash me-1"></i>Delete
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Tasks -->
+                        <div class="col-md-8">
+                            <div class="card">
+                                <div class="card-header d-flex justify-content-between align-items-center">
+                                    <h6 class="mb-0">Tasks</h6>
+                                    <button class="btn btn-primary btn-sm" id="addTaskBtn">
+                                        <i class="bi bi-plus-lg me-1"></i>Add Task
+                                    </button>
+                                </div>
+                                <div class="card-body">
+                                    <div id="tasksList">
+                                        <!-- Tasks will be loaded here -->
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Create Task Modal -->
+    <div class="modal fade" id="createTaskModal" tabindex="-1" aria-labelledby="createTaskModalLabel">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="createTaskModalLabel">Create New Task</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="createTaskForm">
+                        <div class="mb-3">
+                            <label for="taskTitle" class="form-label fw-semibold">Title *</label>
+                            <input type="text" class="form-control" id="taskTitle" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="taskDescription" class="form-label fw-semibold">Description</label>
+                            <textarea class="form-control" id="taskDescription" rows="3"></textarea>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="taskStatus" class="form-label fw-semibold">Status</label>
+                                <select class="form-select" id="taskStatus">
+                                    <option value="To Do">To Do</option>
+                                    <option value="Doing">Doing</option>
+                                    <option value="Done">Done</option>
+                                </select>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label for="taskPriority" class="form-label fw-semibold">Priority</label>
+                                <select class="form-select" id="taskPriority">
+                                    <option value="low">Low</option>
+                                    <option value="medium">Medium</option>
+                                    <option value="high">High</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6 mb-3" id="taskAssignedToContainer">
+                                <label for="taskAssignedTo" class="form-label fw-semibold">Assigned To</label>
+                                <select class="form-select" id="taskAssignedTo">
+                                    <option value="">Unassigned</option>
+                                </select>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label for="taskDueDate" class="form-label fw-semibold">Due Date</label>
+                                <input type="datetime-local" class="form-control" id="taskDueDate">
+                            </div>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary" id="saveTaskBtn">Create Task</button>
+                </div>
+            </div>
+        </div>
+    </div>
+<div class="modal fade" id="editTaskModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+
+            <div class="modal-header">
+                <h5 class="modal-title">Edit Task</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+
+            <div class="modal-body">
+                <input type="hidden" id="editTaskId">
+
+                <div class="mb-2">
+                    <label class="form-label">Title *</label>
+                    <input type="text" class="form-control" id="editTaskTitle">
+                </div>
+
+                <div class="mb-2">
+                    <label class="form-label">Description</label>
+                    <textarea class="form-control" id="editTaskDescription"></textarea>
+                </div>
+
+                <div class="mb-2">
+                    <label class="form-label">Status</label>
+                    <select class="form-select" id="editTaskStatus" required>
+    <option value="To Do">To Do</option>
+    <option value="Doing">Doing</option>
+    <option value="Done">Done</option>
+</select>
+                </div>
+
+                <div class="mb-2">
+                    <label class="form-label">Priority</label>
+                    <select class="form-select" id="editTaskPriority">
+                        <option value="low">Low</option>
+                        <option value="medium">Medium</option>
+                        <option value="high">High</option>
+                    </select>
+                </div>
+
+                <div class="mb-2" id="editTaskAssignedToContainer">
+                    <label class="form-label">Assigned To</label>
+                    <select class="form-select" id="editTaskAssignedTo">
+                        <option value="">Unassigned</option>
+                    </select>
+                </div>
+
+                <div class="mb-2">
+                    <label class="form-label">Due Date</label>
+                    <input type="datetime-local" class="form-control" id="editTaskDueDate">
+                </div>
+                <div class="mb-2">
+                    <label class="form-label">Attachment</label>
+                    <input type="file" class="form-control" id="editTaskAttachment" multiple>
+                    <small class="text-muted">Supported: PDF, DOC, XLS, Images, ZIP</small>
+                </div>
+            </div>
+
+            <div class="modal-footer">
+                <button class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button class="btn btn-primary" id="updateTaskBtn">Update Task</button>
+            </div>
+
+        </div>
+    </div>
+</div>
+    <!-- Task Detail Modal -->
+    <div class="modal fade" id="taskDetailModal" tabindex="-1" aria-labelledby="taskDetailModalLabel">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="taskDetailModalLabel">Task Details</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="row">
+                        <div class="col-md-8">
+                            <div class="mb-3">
+                                <label class="form-label small text-muted">Title</label>
+                                <p class="fw-semibold" id="detailTaskTitle">-</p>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label small text-muted">Description</label>
+                                <p id="detailTaskDescription">-</p>
+                            </div>
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label small text-muted">Status</label>
+                                    <span class="badge" id="detailTaskStatus">-</span>
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label small text-muted">Priority</label>
+                                    <span class="badge" id="detailTaskPriority">-</span>
+                                </div>
+                            </div>
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label small text-muted">Assigned To</label>
+                                    <p id="detailTaskAssignedTo">-</p>
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label small text-muted">Due Date</label>
+                                    <p id="detailTaskDueDate">-</p>
+                                </div>
+                            </div>
+                            <!-- Attachments Section -->
+                            <div class="mb-3">
+                                <label class="form-label small text-muted">Attachments</label>
+                                <div id="taskAttachmentsContainer" class="border rounded p-2 bg-light">
+                                    <small class="text-muted">No attachments available</small>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Task Notes Section -->
+                        <div class="row mt-3">
+                            <div class="col-12">
+                                <div class="card">
+                                    <div class="card-header">
+                                        <h6 class="mb-0">Task Notes</h6>
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="mb-3">
+                                            <textarea class="form-control" id="taskNotes" rows="3" placeholder="Add notes about this task..."></textarea>
+                                        </div>
+                                        <button class="btn btn-sm btn-outline-primary" id="addTaskNoteBtn">
+                                            <i class="bi bi-plus-lg me-1"></i>Add Note
+                                        </button>
+                                    </div>
+                                    
+                                    <!-- Task Notes List -->
+                                    <div class="mt-3">
+                                        <h6 class="small text-muted mb-2">Notes History</h6>
+                                        <div id="taskNotesList" class="list-group">
+                                            <!-- Task notes will be loaded here -->
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="col-md-4">
+                            <div class="d-grid gap-2">
+                                <button class="btn btn-outline-primary btn-sm" id="editTaskBtn">
+                                    <i class="bi bi-pencil me-1"></i>Edit
+                                </button>
+                              <button class="btn btn-outline-danger btn-sm" id="deleteTaskBtn">
+    <i class="bi bi-trash me-1"></i>Delete
+</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Share Job Card Modal -->
+    <div class="modal fade" id="shareJobCardModal" tabindex="-1" aria-labelledby="shareJobCardModalLabel">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="shareJobCardModalLabel">Share Task</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="shareJobCardForm">
+                        <div class="mb-3">
+                            <label for="shareUserEmail" class="form-label fw-semibold">User Email</label>
+                            <div class="position-relative">
+                                <input type="email" class="form-control" id="shareUserEmail" required 
+                                       placeholder="Type to search users..." 
+                                       autocomplete="off">
+                                <div class="dropdown-menu" id="userSuggestions" style="position: absolute; top: 100%; left: 0; right: 0; max-height: 200px; overflow-y: auto;">
+                                    <!-- User suggestions will be loaded here -->
+                                </div>
+                            </div>
+                            <div class="form-text">Type to search and select users to share with</div>
+                        </div>
+                        <div class="mb-3">
+                            <label for="shareUserRole" class="form-label fw-semibold">Role</label>
+                            <select class="form-select" id="shareUserRole">
+                                <option value="editor">Editor - Can add/edit tasks and notes</option>
+                                <option value="viewer">Viewer - Read-only access</option>
+                            </select>
+                        </div>
+                    </form>
+                    
+                    <!-- Current Shares -->
+                    <div class="mt-4">
+                        <h6 class="mb-3">Current Shares</h6>
+                        <div id="currentShares" class="list-group">
+                            <!-- Current shares will be loaded here -->
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary" id="shareJobCardSubmitBtn">Share</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Alert for job cards -->
+    <div id="jobCardAlert" class="alert alert-danger py-2 px-3 mb-3" style="display: none;"></div>
+
+    <script type="module">
+        // Make Supabase constants available to JavaScript
+        const SUPABASE_URL = '<?php echo defined('SUPABASE_URL') ? SUPABASE_URL : ''; ?>';
+        const SUPABASE_ANON_KEY = '<?php echo defined('SUPABASE_ANON_KEY') ? SUPABASE_ANON_KEY : ''; ?>';
+        
+        import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+        
+        const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        
+        let currentJobCard = null;
+        let currentTask = null;
+        let currentUser = null;
+        let allJobCards = [];
+        let jobCardQuill = null;
+        const currentUserRole = <?php echo json_encode($_SESSION['user_role'] ?? ''); ?>;
+        const isAdmin = (currentUserRole || '').toLowerCase() === 'admin';
+        const jobCardFilterSearch = document.getElementById('jobCardFilterSearch');
+        const jobCardFilterStatus = document.getElementById('jobCardFilterStatus');
+        const jobCardFilterOwnership = document.getElementById('jobCardFilterOwnership');
+        const jobCardFilterDue = document.getElementById('jobCardFilterDue');
+        const clearJobCardFiltersBtn = document.getElementById('clearJobCardFiltersBtn');
+        
+        // Initialize
+        document.addEventListener('DOMContentLoaded', async () => {
+            await loadCurrentUser();
+            if (currentUser) {
+                await loadJobCards();
+            }
+            setupEventListeners();
+        });
+        
+        async function loadUsersIntoTaskDropdown() {
+    try {
+        const { data, error } = await supabase
+            .from('users')
+            .select('id, email, full_name')
+            .order('full_name', { ascending: true });
+
+        if (error) throw error;
+
+        const select = document.getElementById('taskAssignedTo');
+
+        // keep default option
+        select.innerHTML = `<option value="">Unassigned</option>`;
+
+        data.forEach(user => {
+            const name = user.full_name || user.email;
+
+            const option = document.createElement('option');
+            option.value = user.email; // store email for saving and notifications
+            option.textContent = name;
+
+            select.appendChild(option);
+        });
+
+    } catch (error) {
+        console.error('Error loading users:', error);
+    }
+}
+
+async function loadUsersIntoEditTaskDropdown() {
+    try {
+        const { data, error } = await supabase
+            .from('users')
+            .select('id, email, full_name')
+            .order('full_name', { ascending: true });
+
+        if (error) throw error;
+
+        const select = document.getElementById('editTaskAssignedTo');
+        select.innerHTML = `<option value="">Unassigned</option>`;
+
+        data.forEach(user => {
+            const name = user.full_name || user.email;
+            const option = document.createElement('option');
+            option.value = user.email;
+            option.textContent = name;
+            select.appendChild(option);
+        });
+
+    } catch (error) {
+        console.error('Error loading users for edit dropdown:', error);
+    }
+}
+        
+        async function loadTechnicians() {
+    const { data, error } = await supabase
+        .from('users')
+        .select('full_name, email')
+        .eq('department', 'ICT Department');
+
+    if (error) {
+        console.error(error);
+        return;
+    }
+
+    const select = document.getElementById('jobCardTechnicianEmail');
+    select.innerHTML = `<option value="">Select Technician</option>`;
+
+    data.forEach(user => {
+        const option = document.createElement('option');
+        option.value = user.email;
+        option.textContent = `${user.full_name} (${user.email})`;
+        select.appendChild(option);
+    });
+    
+}
+
+document.getElementById('deleteTaskBtn').addEventListener('click', deleteTask);
+document.addEventListener('DOMContentLoaded', () => {
+    const btn = document.getElementById('updateTaskBtn');
+
+    if (btn) {
+        btn.addEventListener('click', () => {
+            console.log('Update clicked'); // 🔥 debug
+            updateTask();
+        });
+    }
+});
+      
+      document.getElementById('editTaskBtn').addEventListener('click', async () => {
+    if (!currentTask) return;
+
+    // Load users into edit dropdown
+    await loadUsersIntoEditTaskDropdown();
+
+    // Fill edit modal
+    document.getElementById('editTaskId').value = currentTask.id;
+    document.getElementById('editTaskTitle').value = currentTask.title;
+    document.getElementById('editTaskDescription').value = currentTask.description || '';
+    document.getElementById('editTaskStatus').value = currentTask.status;
+    document.getElementById('editTaskPriority').value = currentTask.priority;
+    document.getElementById('editTaskAssignedTo').value = currentTask.assigned_to || '';
+    document.getElementById('editTaskDueDate').value =
+        currentTask.due_date ? currentTask.due_date.slice(0,16) : '';
+
+    // 🔥 CLOSE detail modal first (important)
+    const detailModal = bootstrap.Modal.getInstance(document.getElementById('taskDetailModal'));
+    if (detailModal) {
+        document.getElementById('taskDetailModal').addEventListener('hidden.bs.modal', function handler() {
+            this.removeEventListener('hidden.bs.modal', handler);
+
+            new bootstrap.Modal(document.getElementById('editTaskModal')).show();
+        });
+
+        detailModal.hide();
+    }
+});
+
+//delete task
+
+async function deleteTask() {
+    if (!currentTask) return;
+
+    const confirmDelete = confirm(`Delete task: "${currentTask.title}"?`);
+
+    if (!confirmDelete) return;
+
+    try {
+        const { error } = await supabase
+            .from('tasks')
+            .delete()
+            .eq('id', currentTask.id);
+
+        if (error) {
+            console.error('Delete error:', error);
+            showAlert(error.message, 'danger');
+            return;
+        }
+
+        // Close modal
+        const modal = bootstrap.Modal.getInstance(
+            document.getElementById('taskDetailModal')
+        );
+
+        if (modal) modal.hide();
+
+        // Refresh tasks
+        await loadTasks(currentJobCard.id);
+
+        showAlert('Task deleted successfully', 'success');
+
+    } catch (error) {
+        console.error('Unexpected error:', error);
+        showAlert('Error deleting task', 'danger');
+    }
+}
+async function updateTask() {
+    console.log('updateTask fired');
+
+    const id = document.getElementById('editTaskId').value;
+
+    const title = document.getElementById('editTaskTitle').value.trim();
+    const description = document.getElementById('editTaskDescription').value.trim();
+    const status = document.getElementById('editTaskStatus').value;
+    const priority = document.getElementById('editTaskPriority').value;
+    const assignedTo = document.getElementById('editTaskAssignedTo').value;
+    const dueDate = document.getElementById('editTaskDueDate').value;
+    const attachmentInput = document.getElementById('editTaskAttachment');
+    const files = attachmentInput ? attachmentInput.files : [];
+
+    // Store old assigned value for comparison
+    const oldAssignedTo = currentTask?.assigned_to || null;
+
+    if (!title) {
+        showAlert('Title is required', 'danger');
+        return;
+    }
+
+    // ✅ FIX DATE FORMAT
+    const safeDueDate = dueDate ? new Date(dueDate).toISOString() : null;
+
+    // ✅ CLEAN PAYLOAD (NO undefined)
+    const payload = {
+        title,
+        description: description || null,
+        status,
+        priority,
+        assigned_to: assignedTo || null,
+        due_date: safeDueDate
+    };
+
+    // Upload attachments if any
+    let uploadedFiles = [];
+    if (files && files.length > 0) {
+        uploadedFiles = await uploadTaskAttachments(files);
+        payload.attachment = uploadedFiles;
+    }
+
+    console.log('Updating with payload:', payload);
+
+    try {
+        const { data, error } = await supabase
+            .from('tasks')
+            .update(payload)
+            .eq('id', id)
+            .select();
+
+        if (error) {
+            console.error('Supabase error:', error);
+            showAlert(error.message, 'danger');
+            return;
+        }
+
+        console.log('Updated row:', data);
+
+        // Send email notification if assigned technician changed
+        if (assignedTo && assignedTo !== oldAssignedTo && data?.length) {
+            try {
+                const task = data[0];
+                const jobCardUrl = `${window.location.origin}/job_cards?id=${currentJobCard.id}`;
+
+                console.log("Sending task reassignment email to:", assignedTo);
+
+                const subject = `Task Re-assigned: ${title}`;
+                const body = `
+<div style='font-family: Arial, sans-serif; background:#f4f6f9; padding:20px;'>
+   <img
+                src='https://texolenergies.com/assets/Logo-paGHQfRF.svg'
+                alt='Texol Energies'
+                style='width:140px; margin-bottom:10px; display:block; margin-left:auto; margin-right:auto;'
+            />
+    <div style='max-width:650px; margin:0 auto; background:#ffffff; border-radius:12px; overflow:hidden; box-shadow:0 2px 12px rgba(0,0,0,0.08);'>
+
+        <!-- HEADER -->
+        <div style='background:#1f3c88; color:#ffffff; padding:25px; text-align:center;'>
+
+            <h2 style='margin:0; font-size:20px;'>Task Re-assignment</h2>
+
+        </div>
+
+        <!-- BODY -->
+        <div style='padding:25px;'>
+
+            <!-- TITLE -->
+            <h3 style='margin:0 0 10px; font-size:18px; color:#333;'>${title}</h3>
+
+            <!-- DESCRIPTION -->
+            <p style='font-size:14px; color:#555; line-height:1.6; margin-bottom:20px;'>
+${description}            </p>
+
+            <!-- BADGES -->
+            <div style='margin-bottom:20px;'>
+                <span style='display:inline-block; padding:6px 12px; border-radius:20px; font-size:12px; background:#e8f0ff; color:#1f3c88; margin:3px;'>
+                    Status: ${task.status || 'N/A'}
+                </span>
+                <span style='display:inline-block; padding:6px 12px; border-radius:20px; font-size:12px; background:#fff4e5; color:#b26a00; margin:3px;'>
+                    Priority: ${task.priority || 'N/A'}
+                </span>
+            </div>
+
+            <p style='font-size:14px; color:#555; line-height:1.6; margin-bottom:20px;'>
+                <a href="${jobCardUrl}" style='color:#1f3c88; text-decoration:none; font-weight:bold;'>View Job Card</a>
+            </p>
+
+            <!-- FOOTER TAGS -->
+            <div style='margin-top:25px; text-align:center;'>
+
+                <span style='display:inline-block; padding:6px 12px; border-radius:20px; font-size:12px; background:#1f3c88; color:#fff; margin:3px;'>
+                    Task Notification
+                </span>
+
+                <span style='display:inline-block; padding:6px 12px; border-radius:20px; font-size:12px; background:#e9f7ef; color:#1e7e34; margin:3px;'>
+                    System Generated
+                </span>
+
+            </div>
+
+        </div>
+
+        <!-- FOOTER -->
+        <div style='background:#f4f6f9; padding:15px; text-align:center; font-size:12px; color:#777;'>
+
+            <p style='margin:0;'>Texol Energies - THI Support </p>
+            <p style='margin:5px 0 0;'>Please do not reply to this email.</p>
+
+        </div>
+
+    </div>
+
+</div>
+                `;
+
+                const res = await fetch('sendmail.php', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+                    body: new URLSearchParams({
+                        to: assignedTo,
+                        subject: subject,
+                        body: body
+                    })
+                });
+
+                const result = await res.text();
+                console.log("MAIL RESPONSE:", result);
+
+            } catch (emailErr) {
+                console.error('Error sending task email:', emailErr);
+            }
+        }
+
+        bootstrap.Modal.getInstance(document.getElementById('editTaskModal')).hide();
+
+        await loadTasks(currentJobCard.id);
+
+        showAlert('Task updated successfully', 'success');
+
+    } catch (error) {
+        console.error('Unexpected error:', error);
+        showAlert('Error updating task', 'danger');
+    }
+}
+        // Load current user
+        async function loadCurrentUser() {
+            try {
+                const userEmail = '<?php echo $_SESSION["user_email"] ?? ""; ?>';
+                
+                // Get user UUID from database using email
+                const { data: userData, error: userError } = await supabase
+                    .from('users')
+                    .select('id, email')
+                    .eq('email', userEmail)
+                    .single();
+                
+                if (userError) {
+                    console.error('Error getting user data:', userError);
+                    return;
+                }
+                
+                currentUser = userData || null;
+            } catch (error) {
+                console.error('Error loading user:', error);
+            }
+        }
+        function renderJobCardAttachments(attachments) {
+    const container = document.getElementById('jobCardAttachmentsContainer');
+
+    if (!attachments || attachments.length === 0) {
+        container.innerHTML = '<small class="text-muted">No attachments available</small>';
+        return;
+    }
+
+    container.innerHTML = '';
+
+    attachments.forEach(file => {
+        const item = document.createElement('div');
+        item.className = 'd-flex justify-content-between align-items-center mb-1';
+
+        item.innerHTML = `
+            <span class="text-truncate" style="max-width: 180px;">
+                <i class="bi bi-paperclip me-1"></i>
+                ${file.split('/').pop()}
+            </span>
+         <a href="${file}" download class="btn btn-sm btn-outline-primary">
+    <i class="bi bi-download"></i>
+</a>
+        `;
+
+        container.appendChild(item);
+    });
+}
+
+        function renderTaskAttachments(attachments) {
+    const container = document.getElementById('taskAttachmentsContainer');
+
+    if (!attachments || attachments.length === 0) {
+        container.innerHTML = '<small class="text-muted">No attachments available</small>';
+        return;
+    }
+
+    container.innerHTML = '';
+
+    attachments.forEach(file => {
+        const item = document.createElement('div');
+        item.className = 'd-flex justify-content-between align-items-center mb-1';
+
+        item.innerHTML = `
+            <span class="text-truncate" style="max-width: 180px;">
+                <i class="bi bi-paperclip me-1"></i>
+                ${file.split('/').pop()}
+            </span>
+         <a href="${file}" download class="btn btn-sm btn-outline-primary">
+    <i class="bi bi-download"></i>
+</a>
+        `;
+
+        container.appendChild(item);
+    });
+}
+        // Setup event listeners
+        function setupEventListeners() {
+            // Create job card
+            document.getElementById('saveJobCardBtn').addEventListener('click', createJobCard);
+            // Open-create button: ensure fresh state (not editing)
+            const openCreateBtn = document.getElementById('openCreateJobCardBtn');
+            if (openCreateBtn) {
+                openCreateBtn.addEventListener('click', () => {
+                    // Clear selected job card and reset form for creation
+                    currentJobCard = null;
+                    const form = document.getElementById('createJobCardForm');
+                    if (form) form.reset();
+                    const titleEl = document.getElementById('createJobCardModalLabel');
+                    const saveBtn = document.getElementById('saveJobCardBtn');
+                    if (titleEl) titleEl.textContent = 'Create New Job Card';
+                    if (saveBtn) saveBtn.textContent = 'Create Job Card';
+                    // Defaults
+                    const statusEl = document.getElementById('jobCardStatus');
+                    if (statusEl) statusEl.value = 'Pending';
+                });
+            }
+            
+            // Job card actions
+            document.getElementById('editJobCardBtn').addEventListener('click', editJobCard);
+            document.getElementById('shareJobCardBtn').addEventListener('click', openShareModal);
+            document.getElementById('deleteJobCardBtn').addEventListener('click', deleteJobCard);
+            document.getElementById('closeJobCardBtn').addEventListener('click', closeJobCard);
+            
+            // Share job card form
+            document.getElementById('shareJobCardSubmitBtn').addEventListener('click', async () => {
+                const email = document.getElementById('shareUserEmail').value.trim();
+                const role = document.getElementById('shareUserRole').value;
+                
+                if (!email) {
+                    showAlert('Email is required', 'danger');
+                    return;
+                }
+                
+                try {
+                    // Get user UUID from database using email
+                    const { data: userData, error: userError } = await supabase
+                        .from('users')
+                        .select('id')
+                        .eq('email', email)
+                        .single();
+                    
+                    if (userError || !userData) {
+                        showAlert('User not found', 'danger');
+                        return;
+                    }
+                    
+                    const { error } = await supabase
+                        .from('job_card_users')
+                        .insert([{
+                            job_card_id: currentJobCard.id,
+                            user_id: userData.id, // Use actual UUID
+                            role: role
+                        }]);
+             
+             
+             await fetch('sendmail.php', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+        to: email,
+        subject: `Task Shared: ${currentJobCard.title}`,
+   body: `
+<div style='font-family: Arial, sans-serif; background:#f4f6f9; padding:20px;'>
+   <img
+                src='https://texolenergies.com/assets/Logo-paGHQfRF.svg'
+                alt='Texol Energies'
+                style='width:140px; margin-bottom:10px; display:block; margin-left:auto; margin-right:auto;'
+            />
+    <div style='max-width:650px; margin:0 auto; background:#ffffff; border-radius:12px; overflow:hidden; box-shadow:0 2px 12px rgba(0,0,0,0.08);'>
+
+        <!-- HEADER -->
+        <div style='background:#1f3c88; color:#ffffff; padding:25px; text-align:center;'>
+
+            <h2 style='margin:0; font-size:20px;'>Task Shared With You</h2>
+
+        </div>
+
+        <!-- BODY -->
+        <div style='padding:25px;'>
+
+            <!-- TITLE -->
+            <h3 style='margin:0 0 10px; font-size:18px; color:#333;'>${currentJobCard.title}</h3>
+
+            <!-- DESCRIPTION -->
+            <p style='font-size:14px; color:#555; line-height:1.6; margin-bottom:20px;'>
+                ${currentJobCard.description || 'N/A'}
+            </p>
+
+            <!-- BADGES -->
+            <div style='margin-bottom:20px;'>
+                <span style='display:inline-block; padding:6px 12px; border-radius:20px; font-size:12px; background:#e8f0ff; color:#1f3c88; margin:3px;'>
+                    Status: ${currentJobCard.status || 'N/A'}
+                </span>
+                <span style='display:inline-block; padding:6px 12px; border-radius:20px; font-size:12px; background:#fff4e5; color:#b26a00; margin:3px;'>
+                    Priority: ${currentJobCard.priority || 'N/A'}
+                </span>
+                <span style='display:inline-block; padding:6px 12px; border-radius:20px; font-size:12px; background:#f0f0f0; color:#555; margin:3px;'>
+                    Role: ${role}
+                </span>
+            </div>
+
+            <!-- FOOTER TAGS -->
+            <div style='margin-top:25px; text-align:center;'>
+
+                <span style='display:inline-block; padding:6px 12px; border-radius:20px; font-size:12px; background:#1f3c88; color:#fff; margin:3px;'>
+                    Task Notification
+                </span>
+
+                <span style='display:inline-block; padding:6px 12px; border-radius:20px; font-size:12px; background:#e9f7ef; color:#1e7e34; margin:3px;'>
+                    System Generated
+                </span>
+
+            </div>
+
+        </div>
+
+        <!-- FOOTER -->
+        <div style='background:#f4f6f9; padding:15px; text-align:center; font-size:12px; color:#777;'>
+
+            <p style='margin:0;'>Texol Energies - THI Support </p>
+            <p style='margin:5px 0 0;'>Please do not reply to this email.</p>
+
+        </div>
+
+    </div>
+
+</div>
+`
+    })
+});
+
+
+                    if (error) throw error;
+                    
+                    document.getElementById('shareJobCardForm').reset();
+                    await openShareModal(); // Refresh shares
+                    showAlert('Job card shared successfully', 'success');
+                } catch (error) {
+                    console.error('Error sharing job card:', error);
+                    showAlert('Error sharing job card', 'danger');
+                }
+            });
+            
+            // User search for sharing
+            const shareUserEmailInput = document.getElementById('shareUserEmail');
+            const userSuggestions = document.getElementById('userSuggestions');
+            let allUsers = [];
+            let selectedUser = null;
+            
+            // Load all users for suggestions
+            async function loadUsers() {
+                try {
+                    const { data, error } = await supabase
+                        .from('users')
+                        .select('id, email, full_name')
+                        .eq('status', 'active')
+                        .order('full_name', { ascending: true });
+                    
+                    if (error) throw error;
+                    allUsers = data || [];
+                } catch (error) {
+                    console.error('Error loading users:', error);
+                }
+            }
+            
+            // Show user suggestions as user types
+            shareUserEmailInput.addEventListener('input', (e) => {
+                const query = e.target.value.toLowerCase().trim();
+                
+                if (query.length < 2) {
+                    userSuggestions.style.display = 'none';
+                    return;
+                }
+                
+                const filteredUsers = allUsers.filter(user => 
+                    user.email.toLowerCase().includes(query) || 
+                    (user.full_name && user.full_name.toLowerCase().includes(query))
+                );
+                
+                if (filteredUsers.length > 0) {
+                    userSuggestions.innerHTML = filteredUsers.slice(0, 5).map(user => `
+                        <a class="dropdown-item" href="#" onclick="selectUser('${user.email}', '${user.full_name || user.email}')">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div>
+                                    <div class="fw-semibold">${user.full_name || user.email}</div>
+                                    <small class="text-muted">${user.email}</small>
+                                </div>
+                                <small class="text-muted">ID: ${user.id}</small>
+                            </div>
+                        </a>
+                    `).join('');
+                    userSuggestions.style.display = 'block';
+                } else {
+                    userSuggestions.style.display = 'none';
+                }
+            });
+            
+            // Select user from suggestions
+            window.selectUser = (email, displayName) => {
+                shareUserEmailInput.value = email;
+                userSuggestions.style.display = 'none';
+                selectedUser = { email, displayName };
+            };
+            
+            // Hide suggestions when clicking outside
+            document.addEventListener('click', (e) => {
+                if (!shareUserEmailInput.contains(e.target)) {
+                    userSuggestions.style.display = 'none';
+                }
+            });
+            
+            // Load users on page load
+            loadUsers();
+            loadTechnicians();
+   loadUsersIntoTaskDropdown();
+
+            // Initialize Quill editor for job card description
+            jobCardQuill = new Quill('#jobCardDescription', {
+                theme: 'snow',
+                placeholder: 'Enter job card description...',
+                modules: {
+                    toolbar: [
+                        ['bold', 'italic', 'underline'],
+                        [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+                        ['link'],
+                        ['clean']
+                    ]
+                }
+            });
+
+            // Hide task assignment dropdowns for non-admin users
+            if (!isAdmin) {
+                const taskAssignedToContainer = document.getElementById('taskAssignedToContainer');
+                const editTaskAssignedToContainer = document.getElementById('editTaskAssignedToContainer');
+                const jobCardTechnicianEmailContainer = document.getElementById('jobCardTechnicianEmailContainer');
+                if (taskAssignedToContainer) taskAssignedToContainer.style.display = 'none';
+                if (editTaskAssignedToContainer) editTaskAssignedToContainer.style.display = 'none';
+                if (jobCardTechnicianEmailContainer) jobCardTechnicianEmailContainer.style.display = 'none';
+            }
+
+            // Tasks
+            document.getElementById('addTaskBtn').addEventListener('click', () => {
+                document.getElementById('createTaskForm').reset();
+                new bootstrap.Modal(document.getElementById('createTaskModal')).show();
+            });
+            document.getElementById('saveTaskBtn').addEventListener('click', createTask);
+            
+            // Notes
+            document.getElementById('addJobNoteBtn').addEventListener('click', addJobNote);
+            document.getElementById('addTaskNoteBtn').addEventListener('click', addTaskNote);
+
+            const applyFilters = () => applyJobCardFilters();
+            [jobCardFilterSearch, jobCardFilterStatus, jobCardFilterOwnership, jobCardFilterDue]
+                .filter(Boolean)
+                .forEach((el) => {
+                    const evt = el.tagName === 'INPUT' ? 'input' : 'change';
+                    el.addEventListener(evt, applyFilters);
+                });
+
+            if (clearJobCardFiltersBtn) {
+                clearJobCardFiltersBtn.addEventListener('click', () => {
+                    if (jobCardFilterSearch) jobCardFilterSearch.value = '';
+                    if (jobCardFilterStatus) jobCardFilterStatus.value = '';
+                    if (jobCardFilterOwnership) jobCardFilterOwnership.value = '';
+                    if (jobCardFilterDue) jobCardFilterDue.value = '';
+                    applyJobCardFilters();
+                });
+            }
+        }
+        
+        function toDateTimeLocalString(isoString) {
+            if (!isoString) return '';
+            // Normalize common Postgres formats to ISO for parsing
+            const normalized = typeof isoString === 'string'
+                ? isoString.replace(' ', 'T')
+                : isoString;
+            const d = new Date(normalized);
+            if (isNaN(d.getTime())) return '';
+            const pad = (n) => String(n).padStart(2, '0');
+            const yyyy = d.getFullYear();
+            const mm = pad(d.getMonth() + 1);
+            const dd = pad(d.getDate());
+            const hh = pad(d.getHours());
+            const min = pad(d.getMinutes());
+            return `${yyyy}-${mm}-${dd}T${hh}:${min}`;
+        }
+
+        function toIsoOrNull(localValue) {
+            if (!localValue) return null;
+            const d = new Date(localValue);
+            if (isNaN(d.getTime())) return null;
+            return d.toISOString();
+        }
+
+        // Add task note (called when opening task detail)
+        async function addJobNote() {
+            console.log(' [DEBUG] addJobNote called');
+            
+            const noteText = document.getElementById('jobCardNotes').value.trim();
+            console.log(' [DEBUG] Note text:', noteText);
+            console.log(' [DEBUG] Current job card:', currentJobCard);
+            console.log(' [DEBUG] Current user:', currentUser);
+            
+            if (!noteText) {
+                console.warn(' [WARNING] Empty note text');
+                showAlert('Please enter a note', 'warning');
+                return;
+            }
+            
+            if (!currentJobCard || !currentJobCard.id) {
+                console.error('❌ [ERROR] No current job card or missing ID');
+                showAlert('No job card selected', 'warning');
+                return;
+            }
+            
+            try {
+                console.log('🔍 [DEBUG] Inserting note into database...');
+                const { data, error } = await supabase
+                    .from('job_card_notes')
+                    .insert([{
+                        job_card_id: currentJobCard.id,
+                        note: noteText,
+                        user_id: currentUser.id
+                    }]);
+                
+                console.log('🔍 [DEBUG] Database response:', { data, error });
+                
+                if (error) {
+                    console.error('❌ [DATABASE ERROR]', error);
+                    throw error;
+                }
+                
+                console.log('✅ [SUCCESS] Note inserted successfully');
+                document.getElementById('jobCardNotes').value = '';
+                await loadJobNotes(currentJobCard.id);
+                showAlert('Note added successfully', 'success');
+            } catch (error) {
+                console.error('❌ [CATCH ERROR] Error adding job note:', error);
+                console.error('❌ [ERROR STACK]', error.stack);
+                showAlert('Error adding note: ' + error.message, 'danger');
+            }
+        }
+        
+        // Add task note (called when opening task detail)
+        async function addTaskNote() {
+            console.log('🔍 [DEBUG] addTaskNote called');
+            
+            if (!currentTask) {
+                console.error('❌ [ERROR] No current task selected');
+                showAlert('No task selected', 'warning');
+                return;
+            }
+            
+            const noteText = document.getElementById('taskNotes').value.trim();
+            console.log('🔍 [DEBUG] Note text:', noteText);
+            console.log('🔍 [DEBUG] Current task:', currentTask);
+            console.log('🔍 [DEBUG] Current user:', currentUser);
+            
+            if (!noteText) {
+                console.warn('⚠️ [WARNING] Empty note text');
+                showAlert('Please enter a note', 'warning');
+                return;
+            }
+            
+            try {
+                console.log('🔍 [DEBUG] Inserting task note into database...');
+                const { data, error } = await supabase
+                    .from('task_notes')
+                    .insert([{
+                        task_id: currentTask.id,
+                        note: noteText,
+                        user_id: currentUser.id
+                    }]);
+                
+                console.log('🔍 [DEBUG] Database response:', { data, error });
+                
+                if (error) {
+                    console.error('❌ [DATABASE ERROR]', error);
+                    throw error;
+                }
+                
+                console.log('✅ [SUCCESS] Task note inserted successfully');
+                document.getElementById('taskNotes').value = '';
+                await loadTaskNotes(currentTask.id);
+                showAlert('Note added successfully', 'success');
+            } catch (error) {
+                console.error('❌ [CATCH ERROR] Error adding task note:', error);
+                console.error('❌ [ERROR STACK]', error.stack);
+                showAlert('Error adding task note: ' + error.message, 'danger');
+            }
+        }
+
+        // Load job cards
+        async function loadJobCards() {
+            if (!currentUser) {
+                console.error('No current user found');
+                return;
+            }
+
+            try {
+                // Admins see all job cards
+                if (isAdmin) {
+                    const { data, error } = await supabase
+                        .from('job_cards')
+                        .select('*')
+                        .order('created_at', { ascending: false });
+
+                    if (error) throw error;
+                    allJobCards = data || [];
+                    applyJobCardFilters();
+                    return;
+                }
+
+                // Non-admins: job cards where user is owner or has shared access
+                const { data: ownerCards, error: ownerError } = await supabase
+                    .from('job_cards')
+                    .select('*')
+                    .eq('owner_id', currentUser.id);
+
+                if (ownerError) throw ownerError;
+
+                const { data: sharedCards, error: sharedError } = await supabase
+                    .from('job_card_users')
+                    .select('job_card_id')
+                    .eq('user_id', currentUser.id);
+
+                if (sharedError) throw sharedError;
+
+                const sharedCardIds = sharedCards?.map(sc => sc.job_card_id) || [];
+                let sharedJobCards = [];
+                if (sharedCardIds.length > 0) {
+                    const { data: sharedJobCardData, error: sharedJobCardError } = await supabase
+                        .from('job_cards')
+                        .select('*')
+                        .in('id', sharedCardIds);
+
+                    if (sharedJobCardError) throw sharedJobCardError;
+                    sharedJobCards = sharedJobCardData || [];
+                }
+
+                const allCards = [...(ownerCards || []), ...sharedJobCards];
+                allJobCards = allCards;
+                const uniqueCards = allCards.filter((card, index, self) => 
+                    index === self.findIndex(c => c.id === card.id)
+                );
+
+                allJobCards = uniqueCards;
+                applyJobCardFilters();
+            } catch (error) {
+                console.error('Error loading job cards:', error);
+                showAlert('Error loading job cards', 'danger');
+            }
+        }
+
+        function applyJobCardFilters() {
+            const q = (jobCardFilterSearch?.value || '').trim().toLowerCase();
+            const status = (jobCardFilterStatus?.value || '').trim().toLowerCase();
+            const ownership = (jobCardFilterOwnership?.value || '').trim().toLowerCase();
+            const due = (jobCardFilterDue?.value || '').trim().toLowerCase();
+
+            const now = new Date();
+            const filtered = (allJobCards || []).filter((card) => {
+                const title = (card.title || '').toLowerCase();
+                const description = (card.description || '').toLowerCase();
+                const cardStatus = (card.status || '').toLowerCase();
+                const isOwned = (card.owner_id || '') === (currentUser?.id || '');
+                const hasDue = !!card.due_date;
+
+                if (q && !title.includes(q) && !description.includes(q)) return false;
+                if (status && cardStatus !== status) return false;
+                if (ownership === 'owned' && !isOwned) return false;
+                if (ownership === 'shared' && isOwned) return false;
+                if (due === 'nodue' && hasDue) return false;
+                if (due === 'overdue') {
+                    if (!hasDue) return false;
+                    const dueDate = new Date(card.due_date);
+                    if (isNaN(dueDate.getTime()) || dueDate.getTime() >= now.getTime()) return false;
+                }
+                return true;
+            });
+
+            displayJobCards(filtered);
+        }
+        
+        // Display job cards
+        function displayJobCards(jobCards) {
+            const container = document.getElementById('jobCardsList');
+            const emptyState = document.getElementById('emptyState');
+            
+            if (jobCards.length === 0) {
+                container.innerHTML = '';
+                emptyState.style.display = 'block';
+                return;
+            }
+            
+            emptyState.style.display = 'none';
+            container.innerHTML = jobCards.map(card => createJobCardHTML(card)).join('');
+            
+            // After rendering, load progress bars for all visible cards
+            try {
+                const ids = jobCards.map(c => c.id).filter(Boolean);
+                if (ids.length > 0) {
+                    loadProgressForCards(ids);
+                }
+            } catch (e) {
+                console.error('Error scheduling progress load:', e);
+            }
+        }
+        
+        // Create job card HTML
+        function createJobCardHTML(card) {
+            const isOwner = card.owner_id === currentUser.id;
+            // For now, assume owner can edit, others can view
+            const canEdit = isOwner;
+            
+            const statusClass = getStatusClass(card.status);
+            const statusIcon = getStatusIcon(card.status);
+            
+            return `
+                <div class="col-md-6 col-lg-4 mb-4">
+                    <div class="card job-card-item" data-job-card-id="${card.id}" style="height: 280px;">
+                        <div class="card-header d-flex justify-content-between align-items-center">
+                            <h6 class="mb-0 text-truncate">${card.title}</h6>
+                            <span class="badge ${statusClass}">
+                                <i class="bi ${statusIcon} me-1"></i>${card.status}
+                            </span>
+                        </div>
+                        <div class="card-body d-flex flex-column">
+                            <div class="card-text text-muted small" style="max-height: 100px; overflow-y: auto; word-wrap: break-word;">${card.description || 'No description'}</div>
+
+                            <div class="mb-2">
+                                <div class="d-flex justify-content-between align-items-center mb-1">
+                                    <small class="text-muted">Progress</small>
+                                    <small class="text-muted" id="progress-${card.id}">0%</small>
+                                </div>
+                                <div class="progress" style="height: 8px;">
+                                    <div class="progress-bar" id="progress-bar-${card.id}" style="width: 0%"></div>
+                                </div>
+                            </div>
+
+                            ${card.branch ? `
+                                <div class="mb-2">
+                                    <small class="text-muted d-block mb-1">Branch:</small>
+                                    <span class="badge bg-info text-white small">${card.branch}</span>
+                                </div>
+                            ` : ''}
+
+                            <div class="d-flex justify-content-between align-items-center">
+                                <small class="text-muted">
+                                    <i class="bi bi-calendar me-1"></i>
+                                    ${card.due_date ? new Date(card.due_date).toLocaleDateString() : 'No due date'}
+                                </small>
+                                    <div class="dropdown">
+                                        <button class="btn btn-sm btn-outline-secondary" data-bs-toggle="dropdown">
+                                            <i class="bi bi-three-dots"></i>
+                                        </button>
+                                        <ul class="dropdown-menu">
+                                        <li><a class="dropdown-item" href="#" onclick="openJobCardDetail('${card.id}')">
+                                                <i class="bi bi-eye me-2"></i>View Details
+                                            </a></li>
+                                        ${isOwner ? `
+                                                <li><a class="dropdown-item" href="#" onclick="editJobCardFromList('${card.id}')">
+                                                    <i class="bi bi-pencil me-2"></i>Edit
+                                                </a></li>
+                                            ${card.status !== 'Closed' ? `
+                                                <li><a class="dropdown-item" href="#" onclick="closeJobCardFromList('${card.id}')">
+                                                    <i class="bi bi-x-circle me-2"></i>Close
+                                                </a></li>
+                                            ` : ''}
+                                                <li><a class="dropdown-item text-danger" href="#" onclick="deleteJobCardFromList('${card.id}')">
+                                                    <i class="bi bi-trash me-2"></i>Delete
+                                                </a></li>
+                                        ` : ''}
+                                        </ul>
+                                    </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+        }
+    
+async function loadDepartments() {
+    const select = document.getElementById('jobCardDepartment');
+
+    try {
+        const { data, error } = await supabase
+            .from('departments')
+            .select('id, name')
+            .order('name', { ascending: true });
+
+        if (error) throw error;
+
+        select.innerHTML = '<option value="">Select department</option>';
+
+        data.forEach(dept => {
+            const option = document.createElement('option');
+            option.value = dept.id;
+            option.textContent = dept.name;
+            if (dept.name === 'ICT Department') {
+                option.classList.add('fw-bold', 'text-dark');
+            } else {
+                option.classList.add('text-muted');
+            }
+            select.appendChild(option);
+        });
+
+    } catch (err) {
+        console.error('Error loading departments:', err);
+        select.innerHTML = '<option value="">Failed to load</option>';
+    }
+}
+
+// Load when modal opens
+document.getElementById('createJobCardModal')
+    .addEventListener('shown.bs.modal', loadDepartments);
+async function uploadAttachments(files) {
+    const formData = new FormData();
+
+    for (let file of files) {
+        formData.append('files[]', file);
+    }
+
+    const response = await fetch('upload-jobcard.php', {
+        method: 'POST',
+        body: formData
+    });
+
+    const result = await response.json();
+
+    if (!result.success) {
+        throw new Error('File upload failed');
+    }
+
+    return result.files; // array of paths
+}
+
+async function uploadTaskAttachments(files) {
+    const formData = new FormData();
+
+    for (let file of files) {
+        formData.append('files[]', file);
+    }
+
+    const response = await fetch('upload-task.php', {
+        method: 'POST',
+        body: formData
+    });
+
+    const result = await response.json();
+
+    if (!result.success) {
+        throw new Error('File upload failed');
+    }
+
+    return result.files; // array of paths
+}
+async function createJobCard() {
+    if (!currentUser) {
+        showAlert('Please log in to create job cards', 'danger');
+        return;
+    }
+
+    try {
+        console.log('Save clicked');
+
+        // ✅ Get values
+        const title = document.getElementById('jobCardTitle').value.trim();
+        const description = jobCardQuill.root.innerHTML;
+        const dueDate = document.getElementById('jobCardDueDate').value;
+        const status = document.getElementById('jobCardStatus').value;
+
+        const departmentId = document.getElementById('jobCardDepartment').value;
+        const category = document.getElementById('jobCardCategory').value;
+        const branch = document.getElementById('jobCardBranch').value;
+        const urgency = document.getElementById('jobCardUrgency').value;
+        const impact = document.getElementById('jobCardImpact').value;
+        const priority = document.getElementById('jobCardPriority').value;
+        const plannedStartDate = document.getElementById('jobCardPlannedStartDate').value;
+        const technicianEmail = document.getElementById('jobCardTechnicianEmail').value;
+        const attachmentInput = document.getElementById('jobCardAttachment');
+        const files = attachmentInput ? attachmentInput.files : [];
+
+        if (!title) {
+            showAlert('Title is required', 'danger');
+            return;
+        }
+
+        // ✅ Upload attachments first
+        let uploadedFiles = [];
+
+        if (files && files.length > 0) {
+            uploadedFiles = await uploadAttachments(files);
+        }
+
+        let result;
+
+        // =========================
+        // UPDATE MODE
+        // =========================
+        if (currentJobCard) {
+
+            const updatePayload = {
+                title,
+                description,
+                status,
+                department_id: departmentId || null,
+                category: category || null,
+                branch: branch || null,
+                urgency: urgency || null,
+                impact: impact || null,
+                priority: priority || null,
+                technician_email: technicianEmail || null,
+                planned_start_date: plannedStartDate || null
+            };
+
+            if (dueDate && dueDate.trim() !== '') {
+                updatePayload.due_date = toIsoOrNull(dueDate);
+            }
+
+            if (uploadedFiles.length > 0) {
+                updatePayload.attachments = uploadedFiles;
+            }
+
+            result = await supabase
+                .from('job_cards')
+                .update(updatePayload)
+                .eq('id', currentJobCard.id)
+                .select();
+
+            // Send email notification if technician changed
+            const oldTechnician = currentJobCard.technician_email;
+            if (technicianEmail && technicianEmail !== oldTechnician && result.data?.length) {
+                try {
+                    const jobCard = result.data[0];
+                    const jobCardUrl = `${window.location.origin}/job_cards?id=${jobCard.id}`;
+
+                    console.log("Sending job card update email to:", technicianEmail);
+
+                    const subject = `Updated Job Card Assigned: ${title}`;
+                    const body = `
+<div style='font-family: Arial, sans-serif; background:#f4f6f9; padding:20px;'>
+   <img
+                src='https://texolenergies.com/assets/Logo-paGHQfRF.svg'
+                alt='Texol Energies'
+                style='width:140px; margin-bottom:10px; display:block; margin-left:auto; margin-right:auto;'
+            />
+    <div style='max-width:650px; margin:0 auto; background:#ffffff; border-radius:12px; overflow:hidden; box-shadow:0 2px 12px rgba(0,0,0,0.08);'>
+
+        <!-- HEADER -->
+        <div style='background:#1f3c88; color:#ffffff; padding:25px; text-align:center;'>
+
+            <h2 style='margin:0; font-size:20px;'>Job Card Re-assignment</h2>
+
+        </div>
+
+        <!-- BODY -->
+        <div style='padding:25px;'>
+
+            <!-- TITLE -->
+            <h3 style='margin:0 0 10px; font-size:18px; color:#333;'>${title}</h3>
+
+            <!-- DESCRIPTION -->
+            <p style='font-size:14px; color:#555; line-height:1.6; margin-bottom:20px;'>
+${description}            </p>
+
+            <!-- BADGES -->
+            <div style='margin-bottom:20px;'>
+                <span style='display:inline-block; padding:6px 12px; border-radius:20px; font-size:12px; background:#e8f0ff; color:#1f3c88; margin:3px;'>
+                    Status: ${jobCard.status || 'N/A'}
+                </span>
+                <span style='display:inline-block; padding:6px 12px; border-radius:20px; font-size:12px; background:#fff4e5; color:#b26a00; margin:3px;'>
+                    Priority: ${jobCard.priority || 'N/A'}
+                </span>
+            </div>
+
+            <p style='font-size:14px; color:#555; line-height:1.6; margin-bottom:20px;'>
+                <a href="${jobCardUrl}" style='color:#1f3c88; text-decoration:none; font-weight:bold;'>View Job Card</a>
+            </p>
+
+            <!-- FOOTER TAGS -->
+            <div style='margin-top:25px; text-align:center;'>
+
+                <span style='display:inline-block; padding:6px 12px; border-radius:20px; font-size:12px; background:#1f3c88; color:#fff; margin:3px;'>
+                    Task Notification
+                </span>
+
+                <span style='display:inline-block; padding:6px 12px; border-radius:20px; font-size:12px; background:#e9f7ef; color:#1e7e34; margin:3px;'>
+                    System Generated
+                </span>
+
+            </div>
+
+        </div>
+
+        <!-- FOOTER -->
+        <div style='background:#f4f6f9; padding:15px; text-align:center; font-size:12px; color:#777;'>
+
+            <p style='margin:0;'>Texol Energies - THI Support </p>
+            <p style='margin:5px 0 0;'>Please do not reply to this email.</p>
+
+        </div>
+
+    </div>
+
+</div>
+                    `;
+
+                    const res = await fetch('sendmail.php', {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+                        body: new URLSearchParams({
+                            to: technicianEmail,
+                            subject: subject,
+                            body: body
+                        })
+                    });
+
+                    const mailResult = await res.text();
+                    console.log("MAIL RESPONSE:", mailResult);
+
+                } catch (emailErr) {
+                    console.error('Error sending job card update email:', emailErr);
+                }
+            }
+        }
+
+        // =========================
+        // CREATE MODE
+        // =========================
+        else {
+
+            const insertPayload = {
+                title,
+                description,
+                due_date: toIsoOrNull(dueDate),
+                status,
+                owner_id: currentUser.id,
+                department_id: departmentId || null,
+                category: category || null,
+                branch: branch || null,
+                urgency: urgency || null,
+                impact: impact || null,
+                priority: priority || null,
+                planned_start_date: plannedStartDate || null,
+                technician_email: technicianEmail || null
+            };
+
+            if (uploadedFiles.length > 0) {
+                insertPayload.attachments = uploadedFiles;
+            }
+
+            result = await supabase
+                .from('job_cards')
+                .insert([insertPayload])
+                .select();
+                
+        }
+
+        const { data, error } = result;
+        if (error) {
+            console.error('Supabase error:', error);
+            console.error('Error message:', error.message);
+            console.error('Error details:', error.details);
+            console.error('Error hint:', error.hint);
+            console.error('Error code:', error.code);
+            throw new Error(error.message || 'Failed to save job card');
+        }
+
+        // =========================
+        // Add owner only on create
+        // =========================
+        if (!currentJobCard && data?.length) {
+            await supabase
+                .from('job_card_users')
+                .insert([{
+                    job_card_id: data[0].id,
+                    user_id: currentUser.id,
+                    role: 'owner'
+                }]);
+        }
+
+        // =========================
+        // Send email notification to technician
+        // =========================
+        if (technicianEmail && data?.length) {
+            try {
+                const jobCard = data[0];
+                const jobCardUrl = `${window.location.origin}/job_cards?id=${jobCard.id}`;
+
+                console.log("Sending job card email to:", technicianEmail);
+
+                const subject = `New Job Card Assigned: ${title}`;
+                const body = `
+<div style='font-family: Arial, sans-serif; background:#f4f6f9; padding:20px;'>
+   <img
+                src='https://texolenergies.com/assets/Logo-paGHQfRF.svg'
+                alt='Texol Energies'
+                style='width:140px; margin-bottom:10px; display:block; margin-left:auto; margin-right:auto;'
+            />
+    <div style='max-width:650px; margin:0 auto; background:#ffffff; border-radius:12px; overflow:hidden; box-shadow:0 2px 12px rgba(0,0,0,0.08);'>
+
+        <!-- HEADER -->
+        <div style='background:#1f3c88; color:#ffffff; padding:25px; text-align:center;'>
+
+            <h2 style='margin:0; font-size:20px;'>New Job Card Assignment</h2>
+
+        </div>
+
+        <!-- BODY -->
+        <div style='padding:25px;'>
+
+            <!-- TITLE -->
+            <h3 style='margin:0 0 10px; font-size:18px; color:#333;'>${title}</h3>
+
+            <!-- DESCRIPTION -->
+            <p style='font-size:14px; color:#555; line-height:1.6; margin-bottom:20px;'>
+${description}            </p>
+
+            <!-- BADGES -->
+            <div style='margin-bottom:20px;'>
+                <span style='display:inline-block; padding:6px 12px; border-radius:20px; font-size:12px; background:#e8f0ff; color:#1f3c88; margin:3px;'>
+                    Status: ${jobCard.status || 'N/A'}
+                </span>
+                <span style='display:inline-block; padding:6px 12px; border-radius:20px; font-size:12px; background:#fff4e5; color:#b26a00; margin:3px;'>
+                    Priority: ${jobCard.priority || 'N/A'}
+                </span>
+            </div>
+
+            <p style='font-size:14px; color:#555; line-height:1.6; margin-bottom:20px;'>
+                <a href="${jobCardUrl}" style='color:#1f3c88; text-decoration:none; font-weight:bold;'>View Job Card</a>
+            </p>
+
+            <!-- FOOTER TAGS -->
+            <div style='margin-top:25px; text-align:center;'>
+
+                <span style='display:inline-block; padding:6px 12px; border-radius:20px; font-size:12px; background:#1f3c88; color:#fff; margin:3px;'>
+                    Task Notification
+                </span>
+
+                <span style='display:inline-block; padding:6px 12px; border-radius:20px; font-size:12px; background:#e9f7ef; color:#1e7e34; margin:3px;'>
+                    System Generated
+                </span>
+
+            </div>
+
+        </div>
+
+        <!-- FOOTER -->
+        <div style='background:#f4f6f9; padding:15px; text-align:center; font-size:12px; color:#777;'>
+
+            <p style='margin:0;'>Texol Energies - THI Support </p>
+            <p style='margin:5px 0 0;'>Please do not reply to this email.</p>
+
+        </div>
+
+    </div>
+
+</div>
+                `;
+
+                const res = await fetch('sendmail.php', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+                    body: new URLSearchParams({
+                        to: technicianEmail,
+                        subject: subject,
+                        body: body
+                    })
+                });
+
+                const result = await res.text();
+                console.log("MAIL RESPONSE:", result);
+
+            } catch (emailErr) {
+                console.error('Error sending job card email:', emailErr);
+            }
+        }
+
+        // =========================
+        // Reset UI
+        // =========================
+        bootstrap.Modal.getInstance(document.getElementById('createJobCardModal')).hide();
+
+        document.getElementById('createJobCardForm').reset();
+
+        document.getElementById('createJobCardModalLabel').textContent = 'Create New Job Card';
+        document.getElementById('saveJobCardBtn').textContent = 'Create Job Card';
+
+        currentJobCard = null;
+
+        await loadJobCards();
+
+        showAlert('Job card saved successfully', 'success');
+
+    } catch (error) {
+        console.error('Error saving job card:', error);
+        showAlert(error.message || 'Error saving job card', 'danger');
+    }
+}
+        
+        // Open job card detail
+        async function openJobCardDetail(jobCardId) {
+            try {
+    const { data, error } = await supabase
+    .from('job_cards')
+    .select('*')
+    .eq('id', jobCardId)
+    .single();
+
+if (error) {
+    console.error('Job card error:', error);
+    return;
+}
+
+let departmentName = '-';
+
+if (data.department) {
+    departmentName = data.department;
+}
+
+document.getElementById('detailJobCardDepartment').textContent = departmentName;
+
+// Format dates in East African Time
+if (data.planned_start_date) {
+    document.getElementById('detailJobCardPlannedStartDate').textContent =
+        new Date(data.planned_start_date).toLocaleString('en-GB', {
+            timeZone: 'Africa/Nairobi',
+            day: '2-digit',
+            month: '2-digit',
+            year: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: false
+        });
+}
+if (data.due_date) {
+    document.getElementById('detailJobCardDueDate').textContent =
+        new Date(data.due_date).toLocaleString('en-GB', {
+            timeZone: 'Africa/Nairobi',
+            day: '2-digit',
+            month: '2-digit',
+            year: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: false
+        });
+}
+
+                if (error) throw error;
+
+                currentJobCard = data;
+                displayJobCardDetail(data);
+                await loadTasks(jobCardId);
+                await loadJobNotes(jobCardId);
+                
+                new bootstrap.Modal(document.getElementById('jobCardDetailModal')).show();
+            } catch (error) {
+                console.error('Error loading job card:', error);
+                showAlert('Error loading job card', 'danger');
+            }
+            function displayJobCardDetail(data) {
+
+    document.getElementById('detailJobCardTitle').textContent = data.title;
+    document.getElementById('detailJobCardDescription').innerHTML = data.description || '-';
+    document.getElementById('detailJobCardStatus').textContent = data.status;
+    document.getElementById('detailJobCardDueDate').textContent = data.due_date ?
+        new Date(data.due_date).toLocaleString('en-GB', { 
+            timeZone: 'Africa/Nairobi',
+            day: '2-digit',
+            month: '2-digit',
+            year: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: false
+        }) : '-';
+document.getElementById('detailJobCardCategory').textContent = data.category || '-';
+document.getElementById('detailJobCardUrgency').textContent = data.urgency || '-';
+document.getElementById('detailJobCardImpact').textContent = data.impact || '-';
+document.getElementById('detailJobCardPriority').textContent = data.priority || '-';
+document.getElementById('detailJobCardPlannedStartDate').textContent = data.planned_start_date ?
+        new Date(data.planned_start_date).toLocaleString('en-GB', {
+            timeZone: 'Africa/Nairobi',
+            day: '2-digit',
+            month: '2-digit',
+            year: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: false
+        }) : '-';
+    // ✅ IMPORTANT: Attachments fix
+    let attachments = data.attachments;
+
+    if (typeof attachments === 'string') {
+        try {
+            attachments = JSON.parse(attachments);
+        } catch (e) {
+            attachments = [];
+        }
+    }
+
+    renderJobCardAttachments(attachments || []);
+}
+        }
+        
+        // Edit job card
+
+async function editJobCard() {
+    if (!currentJobCard) return;
+
+    // ✅ Basic fields
+    document.getElementById('jobCardTitle').value = currentJobCard.title;
+    jobCardQuill.root.innerHTML = currentJobCard.description || '';
+    document.getElementById('jobCardDueDate').value = toDateTimeLocalString(currentJobCard.due_date || '');
+    document.getElementById('jobCardStatus').value = currentJobCard.status;
+
+    // ✅ NEW FIELDS
+    document.getElementById('jobCardDepartment').value = currentJobCard.department_name || '';
+    document.getElementById('jobCardCategory').value = currentJobCard.category || '';
+    document.getElementById('jobCardUrgency').value = currentJobCard.urgency || 'low';
+    document.getElementById('jobCardImpact').value = currentJobCard.impact || 'low';
+    document.getElementById('jobCardPriority').value = currentJobCard.priority || 'low';
+    document.getElementById('jobCardPlannedStartDate').value =
+        toDateTimeLocalString(currentJobCard.planned_start_date || '');
+    document.getElementById('jobCardTechnicianEmail').value = currentJobCard.technician_email || '';
+
+    // ⚠️ Attachments (optional preview only)
+    // You can later render previews if needed
+    // Example:
+    // renderAttachments(currentJobCard.attachments);
+
+    // ✅ Change modal title and button
+    document.getElementById('createJobCardModalLabel').textContent = 'Edit Task';
+    document.getElementById('saveJobCardBtn').textContent = 'Update Task';
+
+    // ✅ Modal handling (avoid backdrop stacking)
+    const detailEl = document.getElementById('jobCardDetailModal');
+    const editEl = document.getElementById('createJobCardModal');
+    const detailInst = detailEl ? bootstrap.Modal.getInstance(detailEl) : null;
+
+    const showEdit = () => {
+        const editInst = new bootstrap.Modal(editEl);
+        editInst.show();
+    };
+
+    if (detailInst) {
+        detailEl.addEventListener('hidden.bs.modal', function handler() {
+            detailEl.removeEventListener('hidden.bs.modal', handler);
+            showEdit();
+        });
+        detailInst.hide();
+    } else {
+        showEdit();
+    }
+}
+
+        // Share job card
+        async function openShareModal() {
+            if (!currentJobCard) return;
+            
+            // Load current shares
+            try {
+                const { data, error } = await supabase
+                    .from('job_card_users')
+                    .select(`
+                        *,
+                        users!inner(email, full_name)
+                    `)
+                    .eq('job_card_id', currentJobCard.id)
+                    .neq('role', 'owner');
+                
+                if (error) throw error;
+                
+                const sharesContainer = document.getElementById('currentShares');
+                if (data && data.length > 0) {
+                    sharesContainer.innerHTML = data.map(share => `
+                        <div class="list-group-item d-flex justify-content-between align-items-center">
+                            <div>
+                                <div class="fw-semibold">${share.users?.full_name || share.users?.email || 'Unknown'}</div>
+                                <small class="text-muted">${share.users?.email || 'Unknown'} • ${share.role}</small>
+                            </div>
+                            <button class="btn btn-sm btn-outline-danger" onclick="removeShare('${share.id}')">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </div>
+                    `).join('');
+                } else {
+                    sharesContainer.innerHTML = '<p class="text-muted text-center">No shares yet</p>';
+                }
+            } catch (error) {
+                console.error('Error loading shares:', error);
+            }
+            
+            new bootstrap.Modal(document.getElementById('shareJobCardModal')).show();
+        }
+        
+        // Delete job card
+        async function deleteJobCard() {
+            if (!currentJobCard) return;
+            
+            if (!confirm('Are you sure you want to delete this job card? This action cannot be undone.')) {
+                return;
+            }
+            
+            try {
+                const { error } = await supabase
+                    .from('job_cards')
+                    .delete()
+                    .eq('id', currentJobCard.id);
+                
+                if (error) throw error;
+                
+                bootstrap.Modal.getInstance(document.getElementById('jobCardDetailModal')).hide();
+                await loadJobCards();
+                showAlert('Job card deleted successfully', 'success');
+            } catch (error) {
+                console.error('Error deleting job card:', error);
+                showAlert('Error deleting job card', 'danger');
+            }
+        }
+        
+        // Load job notes
+        async function loadJobNotes(jobCardId) {
+            console.log('🔍 [DEBUG] Loading job notes for:', jobCardId);
+            
+            try {
+                const { data, error } = await supabase
+                    .from('job_card_notes')
+                    .select(`
+                        *,
+                        users!inner(full_name, email)
+                    `)
+                    .eq('job_card_id', jobCardId)
+                    .order('created_at', { ascending: false });
+                
+                console.log('🔍 [DEBUG] Job notes response:', { data, error });
+                
+                if (error) {
+                    console.error('❌ [DATABASE ERROR]', error);
+                    return;
+                }
+                
+                const notesContainer = document.getElementById('jobCardNotesList');
+                if (data && data.length > 0) {
+                    notesContainer.innerHTML = data.map(note => `
+                        <div class="list-group-item">
+                            <div class="d-flex justify-content-between align-items-start">
+                                <div class="flex-grow-1">
+                                    <div class="fw-semibold">${note.note}</div>
+                                    <small class="text-muted">
+                                        By ${note.users?.full_name || note.users?.email || 'Unknown'} • 
+                                        ${new Date(note.created_at).toLocaleString()}
+                                    </small>
+                                </div>
+                            </div>
+                        </div>
+                    `).join('');
+                } else {
+                    notesContainer.innerHTML = '<p class="text-muted text-center">No notes yet</p>';
+                }
+            } catch (error) {
+                console.error('❌ [CATCH ERROR] Error loading job notes:', error);
+                console.error('❌ [ERROR STACK]', error.stack);
+            }
+        }
+        
+window.removeShare = async function (shareId) {
+    try {
+        const { error } = await supabase
+            .from('job_card_users')
+            .delete()
+            .eq('id', shareId);
+
+        if (error) throw error;
+
+        await openShareModal(); // refresh list
+        showAlert('Share removed successfully', 'success');
+
+    } catch (error) {
+        console.error('Error removing share:', error);
+        showAlert('Error removing share', 'danger');
+    }
+};
+        
+        // Open task detail
+        async function openTaskDetail(taskId) {
+            console.log('🔍 [DEBUG] Opening task detail for:', taskId);
+
+            try {
+                const { data: task, error } = await supabase
+                    .from('tasks')
+                    .select('*')
+                    .eq('id', taskId)
+                    .single();
+
+                if (error) throw error;
+
+                currentTask = task;
+
+                // Display task details
+                document.getElementById('detailTaskTitle').textContent = task.title;
+                document.getElementById('detailTaskDescription').textContent = task.description || 'No description';
+
+                // Status and priority badges
+                const statusBadge = document.getElementById('detailTaskStatus');
+                statusBadge.className = `badge ${getTaskStatusClass(task.status)}`;
+                statusBadge.textContent = task.status;
+
+                const priorityBadge = document.getElementById('detailTaskPriority');
+                priorityBadge.className = `badge ${getTaskPriorityClass(task.priority)}`;
+                priorityBadge.textContent = task.priority;
+
+                // Assignment and due date
+                document.getElementById('detailTaskAssignedTo').textContent = task.assigned_to || 'Unassigned';
+                document.getElementById('detailTaskDueDate').textContent = task.due_date ?
+                    new Date(task.due_date).toLocaleString() : 'No due date';
+
+                // Render attachments
+                let attachments = task.attachment;
+                if (typeof attachments === 'string') {
+                    try {
+                        attachments = JSON.parse(attachments);
+                    } catch (e) {
+                        attachments = [];
+                    }
+                }
+                renderTaskAttachments(attachments || []);
+
+                // Load task notes
+                await loadTaskNotes(taskId);
+
+                // Show modal
+                new bootstrap.Modal(document.getElementById('taskDetailModal')).show();
+            } catch (error) {
+                console.error('❌ [ERROR] Error loading task:', error);
+                showAlert('Error loading task', 'danger');
+            }
+            function openTaskDetail(task) {
+    currentTask = task;
+}
+        }
+        
+        // Display job card detail
+        function displayJobCardDetail(card) {
+            const isOwner = card.owner_id === currentUser.id;
+            // For now, assume owner can edit, others can view
+            const canEdit = isOwner;
+            
+            const hiddenId = document.getElementById('detailJobCardId');
+            if (hiddenId) hiddenId.value = card.id || '';
+            document.getElementById('detailJobCardTitle').textContent = card.title;
+            document.getElementById('detailJobCardDescription').innerHTML = card.description || 'No description';
+            
+            // Display branch
+            const branchEl = document.getElementById('detailJobCardBranch');
+            if (branchEl) {
+                if (card.branch) {
+                    branchEl.innerHTML = `<span class="badge bg-info"><i class="bi bi-building me-1"></i>${card.branch}</span>`;
+                    branchEl.classList.remove('d-none');
+                } else {
+                    branchEl.classList.add('d-none');
+                }
+            }
+            
+            document.getElementById('detailJobCardDueDate').textContent = card.due_date ?
+                new Date(card.due_date).toLocaleString('en-GB', {
+                    timeZone: 'Africa/Nairobi',
+                    day: '2-digit',
+                    month: '2-digit',
+                    year: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    hour12: false
+                }) : 'No due date';
+            
+            // Status badge
+            const statusBadge = document.getElementById('detailJobCardStatus');
+            statusBadge.className = `badge ${getStatusClass(card.status)}`;
+            statusBadge.innerHTML = `<i class="bi ${getStatusIcon(card.status)} me-1"></i>${card.status}`;
+            
+            // Show/hide actions based on permissions
+            document.getElementById('jobCardActions').style.display = canEdit ? 'block' : 'none';
+            document.getElementById('editJobCardBtn').style.display = isOwner ? 'block' : 'none';
+            document.getElementById('deleteJobCardBtn').style.display = isOwner ? 'block' : 'none';
+            document.getElementById('shareJobCardBtn').style.display = isOwner ? 'block' : 'none';
+            document.getElementById('addTaskBtn').style.display = canEdit ? 'block' : 'none';
+            const closeBtn = document.getElementById('closeJobCardBtn');
+            if (closeBtn) {
+                const shouldShowClose = isOwner && card.status !== 'Closed';
+                closeBtn.classList.toggle('d-none', !shouldShowClose);
+            }
+        }
+        
+        // Load tasks
+        async function loadTasks(jobCardId) {
+            try {
+                const { data, error } = await supabase
+                    .from('tasks')
+                    .select('*')
+                    .eq('job_card_id', jobCardId)
+                    .order('created_at', { ascending: true });
+            
+                if (error) throw error;
+            
+                displayTasks(data);
+                updateProgress(jobCardId, data);
+            } catch (error) {
+                console.error('Error loading tasks:', error);
+            }
+        }
+        
+        // Display tasks
+        function displayTasks(tasks) {
+            const container = document.getElementById('tasksList');
+            
+            if (tasks.length === 0) {
+                container.innerHTML = '<p class="text-muted text-center">No tasks yet</p>';
+                return;
+            }
+            
+            container.innerHTML = tasks.map(task => createTaskHTML(task)).join('');
+            
+            // Add click listeners
+            document.querySelectorAll('.task-item').forEach(item => {
+                item.addEventListener('click', () => openTaskDetail(item.dataset.taskId));
+            });
+        }
+        
+        // Create task HTML
+        function createTaskHTML(task) {
+            const statusClass = getTaskStatusClass(task.status);
+            const priorityClass = getTaskPriorityClass(task.priority);
+            
+            return `
+                <div class="card mb-2 task-item" data-task-id="${task.id}" style="cursor: pointer;">
+                    <div class="card-body py-2">
+                        <div class="d-flex justify-content-between align-items-start">
+                            <div class="flex-grow-1">
+                                <div class="d-flex align-items-center gap-2 mb-2">
+                                    <h6 class="mb-0">${task.title}</h6>
+                                    <input type="checkbox" class="form-check-input" ${task.status === 'Done' ? 'checked' : ''} 
+                                           onchange="toggleTaskStatus('${task.id}', this.checked)" 
+                                           title="Mark as done">
+                                </div>
+                                <p class="text-muted small mb-2">${task.description || 'No description'}</p>
+                                <div class="d-flex gap-2">
+                                    <span class="badge ${statusClass}">${task.status}</span>
+                                    <span class="badge ${priorityClass}">${task.priority}</span>
+                                    ${task.assigned_to ? `
+                                        <span class="badge bg-secondary">
+                                            <i class="bi bi-person me-1"></i>${task.assigned_to}
+                                        </span>
+                                    ` : ''}
+                                    ${task.branch ? `
+                                        <span class="badge bg-info">
+                                            <i class="bi bi-building me-1"></i>${task.branch}
+                                        </span>
+                                    ` : ''}
+                                </div>
+                            </div>
+                        </div>
+                        <div class="text-end">
+                            ${task.due_date ? `
+                                <small class="text-muted d-block">
+                                    <i class="bi bi-calendar"></i>
+                                    ${new Date(task.due_date).toLocaleDateString()}
+                                </small>
+                            ` : ''}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+        }
+        
+        // Create task
+        async function createTask() {
+            const titleInput = document.getElementById('taskTitle');
+            const descriptionInput = document.getElementById('taskDescription');
+            const statusInput = document.getElementById('taskStatus');
+            const priorityInput = document.getElementById('taskPriority');
+            const assignedToInput = document.getElementById('taskAssignedTo');
+            const dueDateInput = document.getElementById('taskDueDate');
+            const attachmentInput = document.getElementById('taskAttachment');
+
+            const title = titleInput ? titleInput.value.trim() : '';
+            const description = descriptionInput ? descriptionInput.value.trim() : '';
+            const status = statusInput ? statusInput.value : 'pending';
+            const priority = priorityInput ? priorityInput.value : 'medium';
+            const assignedTo = assignedToInput ? assignedToInput.value : '';
+            const dueDate = dueDateInput ? dueDateInput.value : '';
+            const files = attachmentInput ? attachmentInput.files : [];
+
+            if (!title) {
+                showAlert('Task title is required', 'danger');
+                return;
+            }
+
+            try {
+                // Upload attachments first
+                let uploadedFiles = [];
+                if (files && files.length > 0) {
+                    uploadedFiles = await uploadTaskAttachments(files);
+                }
+
+                const { data, error } = await supabase
+                    .from('tasks')
+                    .insert([{
+                        title,
+                        description,
+                        status,
+                        priority,
+                        job_card_id: currentJobCard.id,
+                        assigned_to: assignedTo || null,
+                        due_date: dueDate || null,
+                        attachment: uploadedFiles.length ? uploadedFiles : []
+                    }])
+                    .select();
+            
+                if (error) throw error;
+
+                // Send email notification to assigned technician
+              if (assignedTo && data && data[0]) {
+    try {
+        const task = data[0];
+        const jobCardUrl = `${window.location.origin}/job_cards?id=${currentJobCard.id}`;
+
+        // ✅ GET EMAIL HERE
+        const taskSelect = document.getElementById('taskAssignedTo');
+        const technicianEmail = taskSelect ? taskSelect.value : null;
+
+        console.log("Sending email to:", technicianEmail); // debug
+
+        const subject = `New Task Assigned: ${title}`;
+        const body = `
+<div style='font-family: Arial, sans-serif; background:#f4f6f9; padding:20px;'>
+   <img
+                src='https://texolenergies.com/assets/Logo-paGHQfRF.svg'
+                alt='Texol Energies'
+                style='width:140px; margin-bottom:10px; display:block; margin-left:auto; margin-right:auto;'
+            />
+    <div style='max-width:650px; margin:0 auto; background:#ffffff; border-radius:12px; overflow:hidden; box-shadow:0 2px 12px rgba(0,0,0,0.08);'>
+
+        <!-- HEADER -->
+        <div style='background:#1f3c88; color:#ffffff; padding:25px; text-align:center;'>
+
+            <h2 style='margin:0; font-size:20px;'>New Task Assignment</h2>
+
+        </div>
+
+        <!-- BODY -->
+        <div style='padding:25px;'>
+
+            <!-- TITLE -->
+            <h3 style='margin:0 0 10px; font-size:18px; color:#333;'>${title}</h3>
+
+            <!-- DESCRIPTION -->
+            <p style='font-size:14px; color:#555; line-height:1.6; margin-bottom:20px;'>
+${description}            </p>
+
+            <!-- BADGES -->
+            <div style='margin-bottom:20px;'>
+                <span style='display:inline-block; padding:6px 12px; border-radius:20px; font-size:12px; background:#e8f0ff; color:#1f3c88; margin:3px;'>
+                    Status: ${task.status || 'N/A'}
+                </span>
+                <span style='display:inline-block; padding:6px 12px; border-radius:20px; font-size:12px; background:#fff4e5; color:#b26a00; margin:3px;'>
+                    Priority: ${task.priority || 'N/A'}
+                </span>
+            </div>
+
+            <p style='font-size:14px; color:#555; line-height:1.6; margin-bottom:20px;'>
+                <a href="${jobCardUrl}" style='color:#1f3c88; text-decoration:none; font-weight:bold;'>View Job Card</a>
+            </p>
+
+            <!-- FOOTER TAGS -->
+            <div style='margin-top:25px; text-align:center;'>
+
+                <span style='display:inline-block; padding:6px 12px; border-radius:20px; font-size:12px; background:#1f3c88; color:#fff; margin:3px;'>
+                    Task Notification
+                </span>
+
+                <span style='display:inline-block; padding:6px 12px; border-radius:20px; font-size:12px; background:#e9f7ef; color:#1e7e34; margin:3px;'>
+                    System Generated
+                </span>
+
+            </div>
+
+        </div>
+
+        <!-- FOOTER -->
+        <div style='background:#f4f6f9; padding:15px; text-align:center; font-size:12px; color:#777;'>
+
+            <p style='margin:0;'>Texol Energies - THI Support </p>
+            <p style='margin:5px 0 0;'>Please do not reply to this email.</p>
+
+        </div>
+
+    </div>
+
+</div>
+        `;
+
+   const res = await fetch('sendmail.php', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+    body: new URLSearchParams({
+        to: technicianEmail,
+        subject: subject,
+        body: body
+    })
+});
+
+const result = await res.text();
+console.log("MAIL RESPONSE:", result);
+
+    } catch (emailErr) {
+        console.error('Error sending task email:', emailErr);
+    }
+}
+
+                bootstrap.Modal.getInstance(document.getElementById('createTaskModal')).hide();
+                document.getElementById('createTaskForm').reset();
+                await loadTasks(currentJobCard.id);
+                showAlert('Task created successfully', 'success');
+            } catch (error) {
+                console.error('Error creating task:', error);
+                showAlert('Error creating task', 'danger');
+            }
+        }
+
+        // Toggle task status
+        async function toggleTaskStatus(taskId, isDone) {
+            try {
+                const newStatus = isDone ? 'Done' : 'To Do';
+                
+                const { error } = await supabase
+                    .from('tasks')
+                    .update({ status: newStatus })
+                    .eq('id', taskId);
+                
+                if (error) throw error;
+                
+                // Reload tasks to update progress
+                await loadTasks(currentJobCard.id);
+                showAlert(`Task marked as ${newStatus}`, 'success');
+            } catch (error) {
+                console.error('Error updating task status:', error);
+                showAlert('Error updating task status', 'danger');
+            }
+        }
+        
+        // Update progress
+        function updateProgress(jobCardId, tasks) {
+            const total = tasks.length;
+            const completed = tasks.filter(task => task.status === 'Done').length;
+            const percentage = total > 0 ? Math.round((completed / total) * 100) : 0;
+            
+            // Update detail modal
+            const progressBar = document.getElementById('detailProgressBar');
+            const progressText = document.getElementById('detailProgressText');
+            if (progressBar) {
+                progressBar.style.width = `${percentage}%`;
+                progressBar.textContent = `${percentage}%`;
+            }
+            if (progressText) {
+                progressText.textContent = `${completed} of ${total} tasks completed`;
+            }
+            
+            // Update card list
+            const cardProgressBar = document.getElementById(`progress-bar-${jobCardId}`);
+            const cardProgressText = document.getElementById(`progress-${jobCardId}`);
+            if (cardProgressBar) {
+                cardProgressBar.style.width = `${percentage}%`;
+            }
+            if (cardProgressText) {
+                cardProgressText.textContent = `${percentage}%`;
+            }
+        }
+        
+        // Load and set progress for a list of job card IDs (for the cards grid)
+        async function loadProgressForCards(jobCardIds) {
+            try {
+                // Fetch task statuses for all given cards in one go
+                const { data, error } = await supabase
+                    .from('tasks')
+                    .select('job_card_id,status')
+                    .in('job_card_id', jobCardIds);
+                
+                if (error) {
+                    console.error('Error loading tasks for progress:', error);
+                    return;
+                }
+                
+                // Aggregate counts per job_card_id
+                const counts = new Map(); // job_card_id -> { total, done }
+                (data || []).forEach((t) => {
+                    const id = t.job_card_id;
+                    if (!id) return;
+                    if (!counts.has(id)) counts.set(id, { total: 0, done: 0 });
+                    const entry = counts.get(id);
+                    entry.total += 1;
+                    if ((t.status || '').toLowerCase() === 'done') entry.done += 1;
+                });
+                
+                // Apply to DOM
+                jobCardIds.forEach((id) => {
+                    const entry = counts.get(id) || { total: 0, done: 0 };
+                    const total = entry.total;
+                    const done = entry.done;
+                    const pct = total > 0 ? Math.round((done / total) * 100) : 0;
+                    const bar = document.getElementById(`progress-bar-${id}`);
+                    const txt = document.getElementById(`progress-${id}`);
+                    if (bar) bar.style.width = `${pct}%`;
+                    if (txt) txt.textContent = `${pct}%`;
+                });
+            } catch (e) {
+                console.error('Unexpected error computing progress:', e);
+            }
+        }
+        
+        // Helper functions
+        function getStatusClass(status) {
+            switch (status) {
+                case 'Pending': return 'bg-warning';
+                case 'In Progress': return 'bg-info';
+                case 'Completed': return 'bg-success';
+                case 'Closed': return 'bg-secondary';
+                default: return 'bg-secondary';
+            }
+        }
+        
+        // Load task notes
+        async function loadTaskNotes(taskId) {
+            console.log('🔍 [DEBUG] Loading task notes for:', taskId);
+            
+            try {
+                const { data, error } = await supabase
+                    .from('task_notes')
+                    .select(`
+                        *,
+                        users!inner(full_name, email)
+                    `)
+                    .eq('task_id', taskId)
+                    .order('created_at', { ascending: false });
+                
+                console.log('🔍 [DEBUG] Task notes response:', { data, error });
+                
+                if (error) {
+                    console.error('❌ [DATABASE ERROR]', error);
+                    return;
+                }
+                
+                const notesContainer = document.getElementById('taskNotesList');
+                if (data && data.length > 0) {
+                    notesContainer.innerHTML = data.map(note => `
+                        <div class="list-group-item">
+                            <div class="d-flex justify-content-between align-items-start">
+                                <div class="flex-grow-1">
+                                    <div class="fw-semibold">${note.note}</div>
+                                    <small class="text-muted">
+                                        By ${note.users?.full_name || note.users?.email || 'Unknown'} • 
+                                        ${new Date(note.created_at).toLocaleString()}
+                                    </small>
+                                </div>
+                            </div>
+                        </div>
+                    `).join('');
+                } else {
+                    notesContainer.innerHTML = '<p class="text-muted text-center">No notes yet</p>';
+                }
+            } catch (error) {
+                console.error('❌ [CATCH ERROR] Error loading task notes:', error);
+                console.error('❌ [ERROR STACK]', error.stack);
+            }
+        }
+        
+        function getStatusIcon(status) {
+            switch (status) {
+                case 'Pending': return 'bi-clock';
+                case 'In Progress': return 'bi-arrow-repeat';
+                case 'Completed': return 'bi-check-circle';
+                case 'Closed': return 'bi-x-circle';
+                default: return 'bi-circle';
+            }
+        }
+        
+        function getTaskStatusClass(status) {
+            switch (status) {
+                case 'To Do': return 'bg-secondary';
+                case 'Doing': return 'bg-primary';
+                case 'Done': return 'bg-success';
+                default: return 'bg-secondary';
+            }
+        }
+        
+        function getTaskPriorityClass(priority) {
+            switch (priority) {
+                case 'high': return 'bg-danger';
+                case 'medium': return 'bg-warning';
+                case 'low': return 'bg-info';
+                default: return 'bg-secondary';
+            }
+        }
+        
+        function showAlert(message, type) {
+            const alert = document.getElementById('jobCardAlert');
+            alert.className = `alert alert-${type} py-2 px-3 mb-3`;
+            alert.textContent = message;
+            alert.style.display = 'block';
+            
+            setTimeout(() => {
+                alert.style.display = 'none';
+            }, 5000);
+        }
+        
+        // Global functions for dropdown actions
+        window.openJobCardDetail = openJobCardDetail;
+        window.editJobCardFromList = editJobCard;
+        window.deleteJobCardFromList = deleteJobCard;
+        window.closeJobCardFromList = async (jobCardId) => {
+            try {
+                const confirmClose = confirm('Mark this job card as Closed?');
+                if (!confirmClose) return;
+                const { data, error } = await supabase
+                    .from('job_cards')
+                    .update({ status: 'Closed' })
+                    .eq('id', jobCardId)
+                    .select();
+                if (error) throw error;
+                if (!data || data.length === 0) {
+                    throw new Error('No rows updated. Please check permissions and job card ID.');
+                }
+                await loadJobCards();
+                showAlert('Job card closed', 'success');
+            } catch (e) {
+                console.error('Error closing job card:', e);
+                showAlert('Error closing job card', 'danger');
+            }
+        };
+        
+        async function closeJobCard() {
+            const hiddenIdEl = document.getElementById('detailJobCardId');
+            const safeId = hiddenIdEl?.value || (currentJobCard ? currentJobCard.id : null);
+            if (!safeId) {
+                showAlert('Unable to determine job card ID.', 'danger');
+                return;
+            }
+            try {
+                const confirmClose = confirm('Mark this job card as Closed?');
+                if (!confirmClose) return;
+                const { data, error } = await supabase
+                    .from('job_cards')
+                    .update({ status: 'Closed' })
+                    .eq('id', safeId)
+                    .select();
+                if (error) throw error;
+                if (!data || data.length === 0) {
+                    throw new Error('No rows updated. Please check permissions and job card ID.');
+                }
+                // Refresh detail and list
+                const refreshed = await supabase.from('job_cards').select('*').eq('id', safeId).single();
+                if (!refreshed.error) {
+                    currentJobCard = refreshed.data;
+                    displayJobCardDetail(currentJobCard);
+                }
+                await loadJobCards();
+                showAlert('Job card closed', 'success');
+            } catch (e) {
+                console.error('Error closing job card:', e);
+                showAlert('Error closing job card', 'danger');
+            }
+        }
+        window.toggleTaskStatus = toggleTaskStatus;
+
+        // Handle opening create modal from notification
+        const openCreateModalFromNotification = <?php echo $openCreateModal ? 'true' : 'false'; ?>;
+        if (openCreateModalFromNotification) {
+            // Wait a bit for everything to load
+            setTimeout(() => {
+                const createBtn = document.getElementById('openCreateJobCardBtn');
+                if (createBtn) {
+                    // Focus on create form
+                    createBtn.scrollIntoView({ behavior: 'smooth' });
+                    createBtn.click();
+                }
+            }, 500);
+        }
+    </script>
+
+    <!-- Bootstrap 5 JS Bundle -->
+    <script
+        src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"
+        integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz"
+        crossorigin="anonymous"
+    ></script>
+    <!-- Custom JS -->
+    <script src="  app.js"></script>
+</body>
+</html></arg_value>
+<arg_key>EmptyFile</arg_key>
+<arg_value>false</arg_value>
+</tool_call>

@@ -1,0 +1,19 @@
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+
+    # Adjust this if your project folder name changes
+    RewriteBase /texol/
+
+    # 1) If the request is for an existing file or directory at the project root,
+    #    serve it directly (e.g. assets, existing .php or .html files).
+    RewriteCond %{REQUEST_FILENAME} -f [OR]
+    RewriteCond %{REQUEST_FILENAME} -d
+    RewriteRule ^ - [L]
+
+    # 2) Otherwise, transparently forward everything to /public
+    #    without showing /public in the browser URL.
+    #    Guard against infinite "public/public/..." loops.
+    RewriteCond %{REQUEST_URI} !^/texol/public/
+    RewriteRule ^(.*)$ public/$1 [L]
+</IfModule>
+

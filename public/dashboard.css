@@ -1,0 +1,93 @@
+/* dashboard.css
+ * Dashboard content styling for Work Card System
+ * --------------------------------------------- */
+
+/* Global body background */
+.dashboard-body {
+    background-color: #f3f4f6;
+}
+
+/* Main navbar */
+.main-navbar {
+    min-height: 3.25rem;
+    position: sticky;
+    top: 0;
+    z-index: 1020;
+}
+
+/* Brand logo used in navbars */
+.brand-logo {
+    height: 26px;
+    width: auto;
+}
+
+/* Avatar initials pill */
+.avatar-initials {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border-radius: 999px;
+    background-color: #e5edff;
+    color: #1d4ed8;
+    font-size: 0.75rem;
+    font-weight: 600;
+}
+
+/* Content area */
+.content-area {
+    background: radial-gradient(circle at top left, #eff6ff 0, #f9fafb 50%, #e5e7eb 100%);
+}
+
+/* Fix for sidebar overlap - add padding to account for fixed sidebar */
+.d-flex.flex-nowrap {
+    position: relative;
+}
+
+.flex-grow-1.d-flex.flex-column {
+    margin-left: var(--sidebar-width-desktop);
+}
+
+@media (max-width: 991.98px) {
+    .flex-grow-1.d-flex.flex-column {
+        margin-left: 0;
+    }
+}
+
+/* Summary cards */
+.summary-card {
+    border-radius: 1rem;
+    background-color: #ffffff;
+}
+
+.summary-icon-wrap {
+    width: 40px;
+    height: 40px;
+    border-radius: 0.9rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.2rem;
+}
+
+/* Table styling refinements */
+.table thead th {
+    border-bottom-width: 1px;
+}
+
+.table-hover tbody tr:hover {
+    background-color: rgba(249, 250, 251, 0.9);
+}
+
+/* Small device spacing */
+@media (max-width: 767.98px) {
+    .content-area {
+        padding-inline: 0.75rem !important;
+    }
+
+    .summary-card {
+        border-radius: 0.9rem;
+    }
+}
+
