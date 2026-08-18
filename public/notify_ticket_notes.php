@@ -79,7 +79,7 @@ function supabaseGet($url, $key) {
 // FETCH TICKET
 // ==========================
 $ticket = supabaseGet(
-    "$supabase_url/rest/v1/tickets?id=eq.$ticket_id&select=id,title,requested_by",
+    "$supabase_url/rest/v1/tickets?id=eq.$ticket_id&select=id,title,description,requested_by",
     $supabase_key
 );
 
@@ -93,7 +93,9 @@ if (!$ticket) {
     exit;
 }
 
+$ticket_id_display = $ticket['id'];
 $title = $ticket['title'];
+$description = $ticket['description'] ?? 'No description';
 $requested_by_id = $ticket['requested_by'];
 
 // ==========================
@@ -106,6 +108,7 @@ $requester = supabaseGet(
 
 $requester = $requester[0] ?? null;
 $requester_email = $requester['email'] ?? null;
+$requester_name = $requester['full_name'] ?? $requester_email;
 
 // ==========================
 // FETCH USERS
@@ -135,32 +138,77 @@ $recipients = array_unique($recipients);
 // ==========================
 // EMAIL CONTENT
 // ==========================
-$subject = "New Ticket Note: $title";
+$subject = "New Note Added to Ticket: $title";
 
 $body = "
 <div style='font-family: Arial, sans-serif; background:#f4f6f9; padding:20px;'>
-   <img 
-                src='https://www.texolenergies.com/assets/Logo-paGHQfRF.svg'
+   <img
+                src='https://texolenergies.com/assets/Logo-paGHQfRF.svg'
                 alt='Texol Energies'
-                style='width:140px; margin-bottom:10px;'
+                style='width:140px; margin-bottom:10px; display:block; margin-left:auto; margin-right:auto;'
             />
-    <div style='max-width:600px; margin:0 auto; background:#ffffff; border-radius:10px;'>
+    <div style='max-width:650px; margin:0 auto; background:#ffffff; border-radius:12px; overflow:hidden; box-shadow:0 2px 12px rgba(0,0,0,0.08);'>
 
-        <div style='background:#1f3c88; color:#fff; padding:20px; text-align:center;'>
-            <h2>Ticket Note Added</h2>
+        <!-- HEADER -->
+        <div style='background:#1f3c88; color:#ffffff; padding:25px; text-align:center;'>
+
+            <h2 style='margin:0; font-size:20px;'>New Note Added to Ticket</h2>
+
         </div>
 
+        <!-- BODY -->
         <div style='padding:25px;'>
-            <p><strong>Ticket:</strong> $title</p>
 
-            <div style='background:#f7f9fc; padding:15px; border-radius:8px;'>
-                <strong>Note:</strong><br><br>
-                $note
+            <!-- TICKET ID -->
+            <p style='font-size:14px; color:#555; line-height:1.6; margin-bottom:10px;'>
+                <strong>Ticket ID:</strong> $ticket_id_display
+            </p>
+
+            <!-- TITLE -->
+            <h3 style='margin:0 0 10px; font-size:18px; color:#333;'>$title</h3>
+
+            <!-- DESCRIPTION -->
+            <p style='font-size:14px; color:#555; line-height:1.6; margin-bottom:10px;'>
+                <strong>Description:</strong><br>
+                $description
+            </p>
+
+            <!-- REQUESTED BY -->
+            <p style='font-size:14px; color:#555; line-height:1.6; margin-bottom:20px;'>
+                <strong>Requested By:</strong> $requester_name
+            </p>
+
+            <!-- NOTE -->
+            <div style='background:#f7f9fc; padding:15px; border-radius:8px; margin-bottom:20px;'>
+                <strong style='color:#1f3c88; font-size:16px;'>New Note:</strong><br><br>
+                <p style='font-size:14px; color:#555; line-height:1.6; margin:0;'>$note</p>
             </div>
+
+            <p style='font-size:14px; color:#555; line-height:1.6; margin-bottom:20px;'>
+                <a href=\"https://support.texolenergies.com/tickets\" style='color:#1f3c88; text-decoration:none; font-weight:bold;'>View Ticket</a>
+            </p>
+
+            <!-- FOOTER TAGS -->
+            <div style='margin-top:25px; text-align:center;'>
+
+                <span style='display:inline-block; padding:6px 12px; border-radius:20px; font-size:12px; background:#1f3c88; color:#fff; margin:3px;'>
+                    Ticket Note Notification
+                </span>
+
+                <span style='display:inline-block; padding:6px 12px; border-radius:20px; font-size:12px; background:#e9f7ef; color:#1e7e34; margin:3px;'>
+                    System Generated
+                </span>
+
+            </div>
+
         </div>
 
-        <div style='padding:15px; text-align:center; font-size:12px; color:#777;'>
-            THI Support System
+        <!-- FOOTER -->
+        <div style='background:#f4f6f9; padding:15px; text-align:center; font-size:12px; color:#777;'>
+
+            <p style='margin:0;'>Texol Energies - THI Support </p>
+            <p style='margin:5px 0 0;'>Please do not reply to this email.</p>
+
         </div>
 
     </div>
