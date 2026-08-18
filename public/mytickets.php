@@ -1571,6 +1571,21 @@ ${description}            </p>
 
                     if (error) throw error;
 
+                    // Send email notification
+                    try {
+                        await fetch('notify_ticket_notes.php', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                ticket_id: ticketId,
+                                notes: noteText,
+                                action: 'note'
+                            })
+                        });
+                    } catch (emailErr) {
+                        console.error('Failed to send email notification:', emailErr);
+                    }
+
                     document.getElementById('ticketNoteTextarea').value = '';
                     loadTicketNotes(ticketId);
 

@@ -1448,6 +1448,21 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY') && SUPABASE_URL !== 
                         return;
                     }
 
+                    // Send email notification
+                    try {
+                        await fetch('notify_ticket_notes.php', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                ticket_id: ticketId,
+                                notes: body,
+                                action: 'note'
+                            })
+                        });
+                    } catch (emailErr) {
+                        console.error('Failed to send email notification:', emailErr);
+                    }
+
                     if (ticketNoteTextarea) ticketNoteTextarea.value = '';
                     await loadNotes(ticketId);
                 } catch (err) {
