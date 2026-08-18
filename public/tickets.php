@@ -1445,7 +1445,7 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY') && SUPABASE_URL !== 
                     if (error) {
                         console.error(error);
                         showNotesAlert('danger', error.message || 'Failed to save note.');
-                        return;
+                        throw error;
                     }
 
                     // Send email notification
