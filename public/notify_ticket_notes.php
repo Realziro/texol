@@ -1,11 +1,14 @@
-2<?php
-
+<?php
 use PHPMailer\PHPMailer\PHPMailer;
 use PHPMailer\PHPMailer\Exception;
 
 require 'PHPMailer/src/Exception.php';
 require 'PHPMailer/src/PHPMailer.php';
 require 'PHPMailer/src/SMTP.php';
+
+// Enable PHP error reporting
+error_reporting(E_ALL);
+ini_set('display_errors', 1);
 
 header('Content-Type: application/json');
 
@@ -54,10 +57,13 @@ function supabaseGet($url, $key) {
         "Authorization: Bearer $key",
         "Content-Type: application/json"
     ]);
+    curl_setopt($ch, CURLOPT_TIMEOUT, 10);
+    curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 5);
 
     $response = curl_exec($ch);
 
     if (curl_errno($ch)) {
+        error_log('Curl error: ' . curl_error($ch));
         curl_close($ch);
         return [];
     }
@@ -168,7 +174,7 @@ $body = "
 $mail = new PHPMailer(true);
 
 try {
-
+    $mail->SMTPDebug = 0;
     $mail->isSMTP();
     $mail->Host = 'mail.texolenergies.com';
     $mail->SMTPAuth = true;
@@ -190,6 +196,7 @@ try {
     $mail->isHTML(true);
     $mail->Subject = $subject;
     $mail->Body = $body;
+    $mail->AltBody = strip_tags($body);
 
     $mail->send();
 
