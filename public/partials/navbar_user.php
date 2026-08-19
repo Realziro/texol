@@ -86,6 +86,17 @@ if (!empty($_SESSION['user_name'])) {
 }
 ?>
 
+<!-- Theme toggle button -->
+<button
+    class="btn btn-sm btn-outline-secondary me-2"
+    id="themeToggleBtn"
+    type="button"
+    aria-label="Toggle dark mode"
+    title="Toggle dark mode"
+>
+    <i class="bi bi-moon" id="themeIcon"></i>
+</button>
+
 <div class="dropdown">
     <button
         class="btn btn-sm btn-outline-primary d-flex align-items-center gap-2"
@@ -94,8 +105,8 @@ if (!empty($_SESSION['user_name'])) {
         aria-expanded="false"
     >
         <?php if (!empty($profilePicture)) : ?>
-            <img src="<?php echo htmlspecialchars($profilePicture, ENT_QUOTES, 'UTF-8'); ?>" 
-                 alt="Profile" 
+            <img src="<?php echo htmlspecialchars($profilePicture, ENT_QUOTES, 'UTF-8'); ?>"
+                 alt="Profile"
                  class="avatar-initials"
                  style="width: 32px; height: 32px; border-radius: 50%; object-fit: cover; border: 2px solid #e5e7eb;">
         <?php else : ?>
@@ -114,3 +125,43 @@ if (!empty($_SESSION['user_name'])) {
         <li><a class="dropdown-item small" href="logout">Logout</a></li>
     </ul>
 </div>
+
+<script>
+// Theme toggle functionality using Bootstrap 5.3 data-bs-theme
+(function() {
+    const themeToggleBtn = document.getElementById('themeToggleBtn');
+    const themeIcon = document.getElementById('themeIcon');
+    const html = document.documentElement;
+
+    // Check for saved theme preference or default to light
+    const savedTheme = localStorage.getItem('theme') || 'light';
+    if (savedTheme === 'dark') {
+        html.setAttribute('data-bs-theme', 'dark');
+        themeIcon.classList.remove('bi-moon');
+        themeIcon.classList.add('bi-sun');
+    } else {
+        html.setAttribute('data-bs-theme', 'light');
+    }
+
+    if (themeToggleBtn) {
+        themeToggleBtn.addEventListener('click', function() {
+            const currentTheme = html.getAttribute('data-bs-theme');
+            const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+
+            html.setAttribute('data-bs-theme', newTheme);
+
+            // Update icon
+            if (newTheme === 'dark') {
+                themeIcon.classList.remove('bi-moon');
+                themeIcon.classList.add('bi-sun');
+            } else {
+                themeIcon.classList.remove('bi-sun');
+                themeIcon.classList.add('bi-moon');
+            }
+
+            // Save preference
+            localStorage.setItem('theme', newTheme);
+        });
+    }
+})();
+</script>

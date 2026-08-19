@@ -29,6 +29,7 @@ if (!$data) {
 $ticket_id = $data['ticket_id'] ?? null;
 $note = $data['notes'] ?? '';
 $action = $data['action'] ?? 'note';
+$added_by = $data['added_by'] ?? 'Unknown User';
 
 if (!$ticket_id || !$note) {
     echo json_encode([
@@ -79,7 +80,7 @@ function supabaseGet($url, $key) {
 // FETCH TICKET
 // ==========================
 $ticket = supabaseGet(
-    "$supabase_url/rest/v1/tickets?id=eq.$ticket_id&select=id,title,description,requested_by",
+    "$supabase_url/rest/v1/tickets?id=eq.$ticket_id&select=ticket_id,title,description,requested_by",
     $supabase_key
 );
 
@@ -93,7 +94,7 @@ if (!$ticket) {
     exit;
 }
 
-$ticket_id_display = $ticket['id'];
+$ticket_id_display = $ticket['ticket_id'];
 $title = $ticket['title'];
 $description = $ticket['description'] ?? 'No description';
 $requested_by_id = $ticket['requested_by'];
@@ -182,10 +183,13 @@ $body = "
             <div style='background:#f7f9fc; padding:15px; border-radius:8px; margin-bottom:20px;'>
                 <strong style='color:#1f3c88; font-size:16px;'>New Note:</strong><br><br>
                 <p style='font-size:14px; color:#555; line-height:1.6; margin:0;'>$note</p>
+                <p style='font-size:12px; color:#777; line-height:1.6; margin:10px 0 0 0;'>
+                    <em>Added by: $added_by</em>
+                </p>
             </div>
 
             <p style='font-size:14px; color:#555; line-height:1.6; margin-bottom:20px;'>
-                <a href=\"https://support.texolenergies.com/tickets\" style='color:#1f3c88; text-decoration:none; font-weight:bold;'>View Ticket</a>
+                <a href=\"https://support.texolenergies.com/tickets?ticket_id=$ticket_id_display\" style='color:#1f3c88; text-decoration:none; font-weight:bold;'>View Ticket</a>
             </p>
 
             <!-- FOOTER TAGS -->

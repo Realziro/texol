@@ -1,15 +1,26 @@
 /* sidebar.css
  * Fixed / collapsible sidebar for Work Card System
+ * Version: 3.0
  * ----------------------------------------------- */
 
 :root {
+    --sidebar-bg: #f3f4f6;
+    --sidebar-bg-alt: #e5e7eb;
+    --sidebar-text: #1f2937;
+    --sidebar-text-muted: #6b7280;
+    --sidebar-active-bg: #dbeafe;
+    --sidebar-active-border: #3b82f6;
+    --sidebar-width-desktop: 240px;
+}
+
+/* Bootstrap 5.3 dark mode support */
+[data-bs-theme="dark"] {
     --sidebar-bg: #020617;
     --sidebar-bg-alt: #0f172a;
     --sidebar-text: #e5e7eb;
     --sidebar-text-muted: #9ca3af;
     --sidebar-active-bg: #111827;
     --sidebar-active-border: #3b82f6;
-    --sidebar-width-desktop: 240px;
 }
 
 /* Base sidebar styling */
@@ -18,13 +29,13 @@
     inset-block: 0;
     left: 0;
     width: var(--sidebar-width-desktop);
-    background: radial-gradient(circle at top left, #0b1120 0, var(--sidebar-bg-alt) 40%, var(--sidebar-bg) 100%);
+    background: var(--sidebar-bg);
     color: var(--sidebar-text);
     z-index: 1040; /* above content, below navbar dropdowns */
     display: flex;
     flex-direction: column;
     transform: translateX(0);
-    transition: transform 0.25s ease-in-out;
+    transition: transform 0.25s ease-in-out, background-color 0.3s ease, color 0.3s ease;
 }
 
 /* On small screens, sidebar is hidden by default via .sidebar-collapsed class on body */
@@ -40,6 +51,7 @@ body.sidebar-collapsed .sidebar {
 .sidebar-brand-text {
     letter-spacing: 0.08em;
     text-transform: uppercase;
+    color: var(--sidebar-text);
 }
 
 /* Divider */
@@ -71,15 +83,15 @@ body.sidebar-collapsed .sidebar {
 
 /* Hover state */
 .sidebar .nav-link:hover {
-    color: #f9fafb;
-    background-color: rgba(55, 65, 81, 0.7);
+    color: var(--sidebar-text);
+    background-color: var(--sidebar-bg-alt);
     transform: translateX(1px);
 }
 
 /* Active state */
 .sidebar .nav-link.active {
-    color: #f9fafb;
-    background: linear-gradient(90deg, #1d4ed8, rgba(37, 99, 235, 0.15));
+    color: var(--sidebar-text);
+    background: var(--sidebar-active-bg);
     box-shadow: inset 3px 0 0 var(--sidebar-active-border);
 }
 

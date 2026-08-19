@@ -787,7 +787,7 @@ try {
         .filter(email => email)
         .join(",");
 
-    const ticketUrl = `https://support.texolenergies.com/mytickets?open=${ticketId}`;
+    const ticketUrl = `https://support.texolenergies.com/mytickets?ticket_id=${ticketId}`;
 
     const body = `
 <div style="font-family: Arial, sans-serif; background:#f4f6f9; padding:20px;">
@@ -1213,7 +1213,7 @@ try {
         .join(",");
 
     const ticketId = currentTicket.ticket_id || "";
-    const ticketUrl = `https://support.texolenergies.com/mytickets?open=${ticketId}`;
+    const ticketUrl = `https://support.texolenergies.com/mytickets?ticket_id=${ticketId}`;
 
     const body = `
 <div style="font-family: Arial, sans-serif; background:#f4f6f9; padding:20px;">
@@ -1573,13 +1573,15 @@ ${description}            </p>
 
                     // Send email notification
                     try {
+                        const userName = '<?php echo isset($_SESSION['user_name']) ? addslashes($_SESSION['user_name']) : 'Unknown User'; ?>';
                         await fetch('notify_ticket_notes.php', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({
                                 ticket_id: ticketId,
                                 notes: noteText,
-                                action: 'note'
+                                action: 'note',
+                                added_by: userName
                             })
                         });
                     } catch (emailErr) {

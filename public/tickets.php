@@ -1450,13 +1450,15 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY') && SUPABASE_URL !== 
 
                     // Send email notification
                     try {
+                        const userName = '<?php echo isset($_SESSION['user_name']) ? addslashes($_SESSION['user_name']) : 'Unknown User'; ?>';
                         await fetch('notify_ticket_notes.php', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({
                                 ticket_id: ticketId,
                                 notes: body,
-                                action: 'note'
+                                action: 'note',
+                                added_by: userName
                             })
                         });
                     } catch (emailErr) {
@@ -3511,7 +3513,7 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY') && SUPABASE_URL !== 
             </div>
 
             <p style='font-size:14px; color:#555; line-height:1.6; margin-bottom:20px;'>
-                <a href="https://support.texolenergies.com/tickets" style='color:#1f3c88; text-decoration:none; font-weight:bold;'>View Ticket</a>
+                <a href="https://support.texolenergies.com/tickets?ticket_id=${ticketId}" style='color:#1f3c88; text-decoration:none; font-weight:bold;'>View Ticket</a>
             </p>
 
             <!-- FOOTER TAGS -->
@@ -3783,7 +3785,7 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY') && SUPABASE_URL !== 
                             }
                           // Prepare values
 const title = editTicketTitle?.value || '';
-const ticketUrl = `${window.location.origin}/tickets?ticket=${encodeURIComponent(id)}`;
+const ticketUrl = `${window.location.origin}/tickets?ticket_id=${encodeURIComponent(ticketId)}`;
 
 const subject = `${title}`;
 const body = `

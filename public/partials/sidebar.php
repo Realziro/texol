@@ -3,23 +3,28 @@
 // Use $activeMenu (e.g. 'dashboard', 'users', 'tickets') before including this file.
 
 $activeMenu = $activeMenu ?? 'dashboard';
+$sidebarVersion = '3.0';
+$dashboardVersion = '3.1';
 
 function texol_is_active(string $menu, string $active): string
 {
     return $menu === $active ? ' active' : '';
 }
 ?>
+<!-- Cache-busted CSS files -->
+<link rel="stylesheet" href="sidebar.css?v=<?php echo $sidebarVersion; ?>" />
+<link rel="stylesheet" href="dashboard.css?v=<?php echo $dashboardVersion; ?>" />
 <!-- Sidebar -->
 <nav id="sidebar" class="sidebar d-flex flex-column flex-shrink-0">
     <div class="sidebar-header d-flex align-items-center justify-content-between px-3 px-lg-4 py-3">
-        <span class="fs-6 fw-semibold text-white sidebar-brand-text">
+        <span class="fs-6 fw-semibold sidebar-brand-text">
         <img
                         src="https://www.texolenergies.com/assets/Logo-paGHQfRF.svg"
                         alt="Texol Energies"
                         class="brand-logo"
                     />        </span>
         <button
-            class="btn btn-sm btn-outline-light d-lg-none"
+            class="btn btn-sm btn-outline-secondary d-lg-none"
             id="sidebarCloseBtn"
             type="button"
             aria-label="Close sidebar"

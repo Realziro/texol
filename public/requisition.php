@@ -491,6 +491,105 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     curl_close($ch);
                 }
 
+                // Send email notification to shared_with users
+                if (!empty($sharedWithArray)) {
+                    // Fetch email addresses of shared_with users
+                    $sharedWithIds = implode(',', array_map(function($id) {
+                        return 'eq.' . trim($id);
+                    }, $sharedWithArray));
+                    $query = http_build_query(['select' => 'email,full_name', 'id' => "in.($sharedWithIds)"]);
+                    $ch = curl_init();
+                    curl_setopt_array($ch, [
+                        CURLOPT_URL => $supabaseUrl . '/rest/v1/users?' . $query,
+                        CURLOPT_RETURNTRANSFER => true,
+                        CURLOPT_HTTPHEADER => [
+                            'apikey: ' . $supabaseKey,
+                            'Authorization: Bearer ' . $supabaseKey,
+                            'Accept: application/json',
+                        ],
+                    ]);
+                    $response = curl_exec($ch);
+                    $sharedWithUsers = json_decode($response, true);
+                    curl_close($ch);
+
+                    if (!empty($sharedWithUsers)) {
+                        $sharedWithEmails = array_map(function($user) {
+                            return $user['email'];
+                        }, $sharedWithUsers);
+
+                        // Send email using PHPMailer
+                        require_once __DIR__ . '/../vendor/autoload.php';
+                        $mail = new PHPMailer\PHPMailer\PHPMailer(true);
+
+                        try {
+                            $mail->isSMTP();
+                            $mail->Host = 'mail.texolenergies.com';
+                            $mail->SMTPAuth = true;
+                            $mail->Username = 'support@texolenergies.com';
+                            $mail->Password = 'realziro@1997';
+                            $mail->SMTPSecure = PHPMailer\PHPMailer\PHPMailer::ENCRYPTION_STARTTLS;
+                            $mail->Port = 587;
+
+                            $mail->setFrom('support@texolenergies.com', 'THI Support');
+                            foreach ($sharedWithEmails as $email) {
+                                $mail->addAddress($email);
+                            }
+
+                            $mail->isHTML(true);
+                            $mail->Subject = 'New Requisition Created: ' . $requisitionNumber;
+
+                            $mailBody = "
+                            <div style='font-family: Arial, sans-serif; background:#f4f6f9; padding:20px;'>
+                                <img src='https://texolenergies.com/assets/Logo-paGHQfRF.svg' alt='Texol Energies' style='width:140px; margin:0 auto 15px; display:block;' />
+                                <div style='max-width:650px; margin:0 auto; background:#ffffff; border-radius:12px; overflow:hidden; box-shadow:0 2px 12px rgba(0,0,0,0.08);'>
+                                    <div style='background:#1f3c88; color:#ffffff; padding:25px; text-align:center;'>
+                                        <h2 style='margin:0;'>New Requisition Created</h2>
+                                    </div>
+                                    <div style='padding:25px;'>
+                                        <p style='font-size:14px; color:#555; line-height:1.6; margin-bottom:10px;'>
+                                            <strong>Requisition Number:</strong> $requisitionNumber
+                                        </p>
+                                        <p style='font-size:14px; color:#555; line-height:1.6; margin-bottom:10px;'>
+                                            <strong>Department:</strong> $department
+                                        </p>
+                                        <p style='font-size:14px; color:#555; line-height:1.6; margin-bottom:10px;'>
+                                            <strong>Required Date:</strong> $requiredDate
+                                        </p>
+                                        <div style='margin-bottom:20px;'>
+                                            <span style='display:inline-block; padding:6px 12px; border-radius:20px; font-size:12px; background:#e8f0ff; color:#1f3c88; margin:3px;'>
+                                                Status: Pending
+                                            </span>
+                                            <span style='display:inline-block; padding:6px 12px; border-radius:20px; font-size:12px; background:#f0f0f0; color:#555; margin:3px;'>
+                                                Department: $department
+                                            </span>
+                                        </div>
+                                        <p style='font-size:14px; color:#555; line-height:1.6; margin-bottom:20px;'>
+                                            <a href='https://support.texolenergies.com/requisition' style='color:#1f3c88; text-decoration:none; font-weight:bold;'>View Requisition</a>
+                                        </p>
+                                        <div style='margin-top:25px; text-align:center;'>
+                                            <span style='display:inline-block; padding:6px 12px; border-radius:20px; font-size:12px; background:#1f3c88; color:#fff; margin:3px;'>
+                                                Requisition Notification
+                                            </span>
+                                            <span style='display:inline-block; padding:6px 12px; border-radius:20px; font-size:12px; background:#e9f7ef; color:#1e7e34; margin:3px;'>
+                                                System Generated
+                                            </span>
+                                        </div>
+                                    </div>
+                                    <div style='background:#f4f6f9; padding:15px; text-align:center; font-size:12px; color:#777;'>
+                                        <p style='margin:0;'>Texol Energies - THI Support</p>
+                                        <p style='margin:5px 0 0;'>Please do not reply to this email.</p>
+                                    </div>
+                                </div>
+                            </div>";
+
+                            $mail->Body = $mailBody;
+                            $mail->send();
+                        } catch (Exception $e) {
+                            error_log('Email sending failed: ' . $mail->ErrorInfo);
+                        }
+                    }
+                }
+
                 echo json_encode(['success' => true, 'message' => 'Requisition created successfully!']);
             } else {
                 $errorMessage = 'Failed to create requisition.';
@@ -505,6 +604,95 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         } else {
             echo json_encode(['success' => false, 'message' => 'Supabase configuration not found.']);
+        }
+        exit;
+    } elseif ($action === 'send_requisition_email') {
+        // Send email notification for requisition creation
+        header('Content-Type: application/json');
+
+        $requisitionNumber = $_POST['requisition_number'] ?? '';
+        $department = $_POST['department'] ?? '';
+        $requiredDate = $_POST['required_date'] ?? '';
+        $sharedEmails = $_POST['shared_emails'] ?? '';
+
+        if (empty($sharedEmails)) {
+            echo json_encode(['success' => false, 'message' => 'No recipients provided.']);
+            exit;
+        }
+
+        // Send email using PHPMailer
+        require_once __DIR__ . '/../vendor/autoload.php';
+        $mail = new PHPMailer\PHPMailer\PHPMailer(true);
+
+        try {
+            $mail->isSMTP();
+            $mail->Host = 'mail.texolenergies.com';
+            $mail->SMTPAuth = true;
+            $mail->Username = 'support@texolenergies.com';
+            $mail->Password = 'realziro@1997';
+            $mail->SMTPSecure = PHPMailer\PHPMailer\PHPMailer::ENCRYPTION_STARTTLS;
+            $mail->Port = 587;
+
+            $mail->setFrom('support@texolenergies.com', 'THI Support');
+            $emailArray = explode(',', $sharedEmails);
+            foreach ($emailArray as $email) {
+                $mail->addAddress(trim($email));
+            }
+
+            $mail->isHTML(true);
+            $mail->Subject = 'New Requisition Created: ' . $requisitionNumber;
+
+            $mailBody = "
+            <div style='font-family: Arial, sans-serif; background:#f4f6f9; padding:20px;'>
+                <img src='https://texolenergies.com/assets/Logo-paGHQfRF.svg' alt='Texol Energies' style='width:140px; margin:0 auto 15px; display:block;' />
+                <div style='max-width:650px; margin:0 auto; background:#ffffff; border-radius:12px; overflow:hidden; box-shadow:0 2px 12px rgba(0,0,0,0.08);'>
+                    <div style='background:#1f3c88; color:#ffffff; padding:25px; text-align:center;'>
+                        <h2 style='margin:0;'>New Requisition Created</h2>
+                    </div>
+                    <div style='padding:25px;'>
+                        <p style='font-size:14px; color:#555; line-height:1.6; margin-bottom:10px;'>
+                            <strong>Requisition Number:</strong> $requisitionNumber
+                        </p>
+                        <p style='font-size:14px; color:#555; line-height:1.6; margin-bottom:10px;'>
+                            <strong>Department:</strong> $department
+                        </p>
+                        <p style='font-size:14px; color:#555; line-height:1.6; margin-bottom:10px;'>
+                            <strong>Required Date:</strong> $requiredDate
+                        </p>
+                        <div style='margin-bottom:20px;'>
+                            <span style='display:inline-block; padding:6px 12px; border-radius:20px; font-size:12px; background:#e8f0ff; color:#1f3c88; margin:3px;'>
+                                Status: Pending
+                            </span>
+                            <span style='display:inline-block; padding:6px 12px; border-radius:20px; font-size:12px; background:#f0f0f0; color:#555; margin:3px;'>
+                                Department: $department
+                            </span>
+                        </div>
+                        <p style='font-size:14px; color:#555; line-height:1.6; margin-bottom:20px;'>
+                            <a href='https://support.texolenergies.com/requisition' style='color:#1f3c88; text-decoration:none; font-weight:bold;'>View Requisition</a>
+                        </p>
+                        <div style='margin-top:25px; text-align:center;'>
+                            <span style='display:inline-block; padding:6px 12px; border-radius:20px; font-size:12px; background:#1f3c88; color:#fff; margin:3px;'>
+                                Requisition Notification
+                            </span>
+                            <span style='display:inline-block; padding:6px 12px; border-radius:20px; font-size:12px; background:#e9f7ef; color:#1e7e34; margin:3px;'>
+                                System Generated
+                            </span>
+                        </div>
+                    </div>
+                    <div style='background:#f4f6f9; padding:15px; text-align:center; font-size:12px; color:#777;'>
+                        <p style='margin:0;'>Texol Energies - THI Support</p>
+                        <p style='margin:5px 0 0;'>Please do not reply to this email.</p>
+                    </div>
+                </div>
+            </div>";
+
+            $mail->Body = $mailBody;
+            $mail->send();
+
+            echo json_encode(['success' => true, 'message' => 'Email sent successfully.']);
+        } catch (Exception $e) {
+            error_log('Email sending failed: ' . $mail->ErrorInfo);
+            echo json_encode(['success' => false, 'message' => 'Failed to send email.']);
         }
         exit;
     }
@@ -627,22 +815,32 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
         error_log('Requisitions count before filter: ' . count($requisitions));
     }
 
-    // Filter requisitions: show where user is requester OR in shared_with
+    // Filter requisitions based on permissions
+    // If user has 'requisitions_view_all' permission, show all requisitions
+    // Otherwise, show where user is requester OR in shared_with
     if ($currentUserId && !$ticketId) {
-        $filteredRequisitions = [];
-        foreach ($requisitions as $req) {
-            if (!is_array($req)) continue;
-            $isRequester = ($req['requested_by'] ?? '') === $currentUserId;
-            $sharedWith = $req['shared_with'] ?? '';
-            $sharedWithArray = !empty($sharedWith) ? explode(',', $sharedWith) : [];
-            $isInSharedWith = in_array($currentUserId, $sharedWithArray);
+        $canViewAllRequisitions = check_permission('requisitions_view_all', 'view');
 
-            if ($isRequester || $isInSharedWith) {
-                $filteredRequisitions[] = $req;
+        if ($canViewAllRequisitions) {
+            // Show all requisitions
+            error_log('Requisitions count (showing all - user has requisitions_view_all permission): ' . count($requisitions));
+        } else {
+            // Filter to show only user's requisitions
+            $filteredRequisitions = [];
+            foreach ($requisitions as $req) {
+                if (!is_array($req)) continue;
+                $isRequester = ($req['requested_by'] ?? '') === $currentUserId;
+                $sharedWith = $req['shared_with'] ?? '';
+                $sharedWithArray = !empty($sharedWith) ? explode(',', $sharedWith) : [];
+                $isInSharedWith = in_array($currentUserId, $sharedWithArray);
+
+                if ($isRequester || $isInSharedWith) {
+                    $filteredRequisitions[] = $req;
+                }
             }
+            $requisitions = $filteredRequisitions;
+            error_log('Requisitions count after filter (user-specific): ' . count($requisitions));
         }
-        $requisitions = $filteredRequisitions;
-        error_log('Requisitions count after filter: ' . count($requisitions));
     }
     
     // Fetch items for each requisition
@@ -1096,12 +1294,22 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
                                                             break;
                                                         }
                                                     }
-                                                    // User can approve if: in shared_with AND hasn't approved AND status not approved
+                                                    // Check if current user is one of the first 2 in shared_with (only they can approve/reject)
+                                                    $currentUserIndex = array_search($currentUserId, $sharedWithArray);
+                                                    $isFirstOrSecondApprover = $currentUserIndex !== false && $currentUserIndex < 2;
+                                                    // User can approve if: in shared_with AND hasn't approved AND status not approved or rejected AND is first or second approver
                                                     // Requester can only approve if they are explicitly in the shared_with list
-                                                    $canApprove = $currentUserInShared && !$currentUserApproved && ($req['status'] ?? '') !== 'approved';
+                                                    $canApprove = $currentUserInShared && !$currentUserApproved && !in_array(($req['status'] ?? ''), ['approved', 'rejected']) && $isFirstOrSecondApprover;
+                                                    // User can reject if: in shared_with AND status is pending or partially_approved AND is first or second approver
+                                                    $canReject = $currentUserInShared && in_array(($req['status'] ?? ''), ['pending', 'partially_approved']) && $isFirstOrSecondApprover;
                                                     if ($canApprove): ?>
                                                         <button type="button" class="btn btn-sm btn-outline-success me-1" onclick="openApproveModal('<?php echo htmlspecialchars($req['id']); ?>')">
                                                             <i class="bi bi-check-circle"></i>
+                                                        </button>
+                                                    <?php endif; ?>
+                                                    <?php if ($canReject): ?>
+                                                        <button type="button" class="btn btn-sm btn-outline-danger me-1" onclick="openRejectModal('<?php echo htmlspecialchars($req['id']); ?>')">
+                                                            <i class="bi bi-x-circle"></i>
                                                         </button>
                                                     <?php endif; ?>
                                                 </td>
@@ -1524,7 +1732,40 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
                             }
                         }
                     }
-                    
+
+                    // Send email notification to shared_with users
+                    if (sharedWith) {
+                        const sharedWithIds = sharedWith.split(',').map(id => id.trim());
+                        if (sharedWithIds.length > 0) {
+                            // Fetch email addresses of shared_with users
+                            const { data: sharedWithUsers, error: usersError } = await supabase
+                                .from('users')
+                                .select('email, full_name')
+                                .in('id', sharedWithIds);
+
+                            if (!usersError && sharedWithUsers && sharedWithUsers.length > 0) {
+                                const sharedWithEmails = sharedWithUsers.map(u => u.email).join(',');
+
+                                // Send email notification via PHP
+                                const emailFormData = new FormData();
+                                emailFormData.append('action', 'send_requisition_email');
+                                emailFormData.append('requisition_number', requisitionNumber);
+                                emailFormData.append('department', department);
+                                emailFormData.append('required_date', requiredDate);
+                                emailFormData.append('shared_emails', sharedWithEmails);
+
+                                try {
+                                    await fetch('requisition.php', {
+                                        method: 'POST',
+                                        body: emailFormData
+                                    });
+                                } catch (emailErr) {
+                                    console.error('Failed to send email notification:', emailErr);
+                                }
+                            }
+                        }
+                    }
+
                     alert('Requisition created successfully!');
                     window.location.reload();
                 } catch (error) {
@@ -1773,11 +2014,21 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
             const req = window.currentRequisition;
             if (!req) return;
 
+            // Helper function to format date as day/month/year (dd/mm/yy)
+            const formatDateDMY = (dateString) => {
+                if (!dateString) return '-';
+                const date = new Date(dateString);
+                const day = String(date.getDate()).padStart(2, '0');
+                const month = String(date.getMonth() + 1).padStart(2, '0');
+                const year = String(date.getFullYear()).slice(-2); // Get last 2 digits
+                return `${day}/${month}/${year}`;
+            };
+
             // Get requester info
             const requestedByName = req.requested_by_user ? (req.requested_by_user.full_name || req.requested_by_user.email) : '-';
             const requesterDepartment = req.department || '-';
-            const createdDate = req.created_at ? new Date(req.created_at).toLocaleDateString() : '-';
-            const requiredDate = req.required_date || '-';
+            const createdDate = formatDateDMY(req.created_at);
+            const requiredDate = req.required_date ? formatDateDMY(req.required_date) : '-';
 
             // Calculate grand total
             let grandTotal = 0;
@@ -1789,7 +2040,7 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
 
             // Get approver info
             const approverName = req.approved_by_user ? (req.approved_by_user.full_name || req.approved_by_user.email) : '';
-            const approvedDate = req.approved_at ? new Date(req.approved_at).toLocaleDateString() : '';
+            const approvedDate = formatDateDMY(req.approved_at);
             const approverSignature = (req.approved_by_user && req.approved_by_user.signature) ? req.approved_by_user.signature : '';
 
             // Parse approved_by_users to get actual approvers (not just shared_with)
@@ -1812,8 +2063,8 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
             const secondApprover = actualApprovers.length > 1 ? actualApprovers[1] : null;
 
             // Format approval dates
-            const firstApprovalDate = firstApprover && firstApprover.approved_at ? new Date(firstApprover.approved_at).toLocaleDateString() : '';
-            const secondApprovalDate = secondApprover && secondApprover.approved_at ? new Date(secondApprover.approved_at).toLocaleDateString() : '';
+            const firstApprovalDate = firstApprover && firstApprover.approved_at ? formatDateDMY(firstApprover.approved_at) : '';
+            const secondApprovalDate = secondApprover && secondApprover.approved_at ? formatDateDMY(secondApprover.approved_at) : '';
 
             // Get requester signature
             const requesterSignature = (req.requested_by_user && req.requested_by_user.signature) ? req.requested_by_user.signature : '';
@@ -1887,7 +2138,7 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
                   .header-title {
                     text-align: center;
                     font-weight: bold;
-                    font-size: 13px;
+                    font-size: 10px;
                     letter-spacing: 0.5px;
                   }
                   .logo-cell {
@@ -1917,24 +2168,24 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
                   }
                   .form-name-cell {
                     text-align: center;
-                    font-size: 13px;
+                    font-size: 10px;
                     font-weight: normal;
                   }
                   .meta-cell {
-                    font-size: 11px;
+                    font-size: 10px;
                     text-align: left;
                     line-height: 1.6;
                   }
                   .meta-cell b { font-weight: bold; }
                   .page-cell {
                     text-align: center;
-                    font-size: 11px;
+                    font-size: 10px;
                   }
 
                   /* Main title */
                   .main-title {
                     text-align: center;
-                    font-size: 22px;
+                    font-size: 11px;
                     font-weight: 800;
                     letter-spacing: 0.5px;
                     margin: 18px 0 20px 0;
@@ -1946,7 +2197,7 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
                     border-collapse: collapse;
                     border: 1px solid #000;
                     margin-bottom: 14px;
-                    font-size: 13px;
+                    font-size: 10px;
                   }
                   .info-table td {
                     border: 1px solid #000;
@@ -1955,7 +2206,7 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
                   }
 
                   .request-line {
-                    font-size: 13px;
+                    font-size: 11px;
                     margin: 10px 0 6px 0;
                   }
 
@@ -1964,14 +2215,14 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
                     width: 100%;
                     border-collapse: collapse;
                     border: 1px solid #000;
-                    font-size: 12px;
+                    font-size: 10px;
                     margin-bottom: 20px;
                   }
                   .items-table th {
                     border: 1px solid #000;
                     background: #a6a6a6;
                     padding: 6px 4px;
-                    font-size: 12px;
+                    font-size: 10px;
                     text-align: left;
                   }
                   .items-table td {
@@ -1988,7 +2239,7 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
                     width: 100%;
                     border-collapse: collapse;
                     border: 1px solid #000;
-                    font-size: 11px;
+                    font-size: 10px;
                     margin-bottom: 18px;
                   }
                   .bottom-table th {
@@ -1996,7 +2247,7 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
                     border: 1px solid #000;
                     padding: 5px 6px;
                     text-align: left;
-                    font-size: 11px;
+                    font-size: 10px;
                   }
                   .bottom-table td {
                     border: 1px solid #000;
@@ -2017,7 +2268,7 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
 
                   /* Reason for procurement */
                   .reason-block {
-                    font-size: 13px;
+                    font-size: 11px;
                     margin-bottom: 18px;
                   }
                   .dotted-line {
@@ -2030,7 +2281,7 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
                     width: 100%;
                     border-collapse: collapse;
                     border: 1px solid #000;
-                    font-size: 12px;
+                    font-size: 10px;
                     margin-bottom: 40px;
                   }
                   .sig-table th {
@@ -2216,7 +2467,11 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
                 }
 
                 if (dateElement && approver.approved_at) {
-                    dateElement.textContent = new Date(approver.approved_at).toLocaleDateString();
+                    const date = new Date(approver.approved_at);
+                    const day = String(date.getDate()).padStart(2, '0');
+                    const month = String(date.getMonth() + 1).padStart(2, '0');
+                    const year = String(date.getFullYear()).slice(-2);
+                    dateElement.textContent = `${day}/${month}/${year}`;
                 }
             } catch (err) {
                 console.error('Error fetching user details for print:', err);
@@ -2611,6 +2866,15 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
             bootstrapModal.show();
         };
 
+        // Open reject modal
+        window.openRejectModal = function(reqId) {
+            const modal = document.getElementById('rejectModal');
+            const reqIdInput = document.getElementById('rejectReqId');
+            reqIdInput.value = reqId;
+            const bootstrapModal = new bootstrap.Modal(modal);
+            bootstrapModal.show();
+        };
+
         // Open upload modal
         window.openUploadModal = function(reqId) {
             const modal = document.getElementById('uploadModal');
@@ -2833,6 +3097,52 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
                 submitBtn.textContent = originalBtnText;
             });
         });
+
+        // Submit reject form
+        document.getElementById('rejectForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            const reqId = document.getElementById('rejectReqId').value;
+            const errorDiv = document.getElementById('rejectError');
+            const submitBtn = this.querySelector('button[type="submit"]');
+            const originalBtnText = submitBtn.textContent;
+            errorDiv.classList.add('d-none');
+
+            // Show loading state
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Rejecting...';
+
+            const formData = new FormData();
+            formData.append('action', 'reject');
+            formData.append('req_id', reqId);
+
+            fetch('requisition.php', {
+                method: 'POST',
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest'
+                },
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // Success - reload page
+                    location.reload();
+                } else {
+                    // Show error
+                    errorDiv.textContent = data.message;
+                    errorDiv.classList.remove('d-none');
+                    submitBtn.disabled = false;
+                    submitBtn.textContent = originalBtnText;
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                errorDiv.textContent = 'Failed to reject requisition';
+                errorDiv.classList.remove('d-none');
+                submitBtn.disabled = false;
+                submitBtn.textContent = originalBtnText;
+            });
+        });
     </script>
 </body>
 </html>
@@ -2856,6 +3166,29 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
                     <div class="modal-footer px-0 pb-0">
                         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
                         <button type="submit" class="btn btn-success">Approve</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Reject Modal -->
+<div class="modal fade" id="rejectModal" tabindex="-1" aria-labelledby="rejectModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="rejectModalLabel">Reject Requisition</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div id="rejectError" class="alert alert-danger d-none mb-3"></div>
+                <p>Are you sure you want to reject this requisition? This action cannot be undone.</p>
+                <form id="rejectForm">
+                    <input type="hidden" id="rejectReqId" name="req_id">
+                    <div class="modal-footer px-0 pb-0">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                        <button type="submit" class="btn btn-danger">Reject</button>
                     </div>
                 </form>
             </div>

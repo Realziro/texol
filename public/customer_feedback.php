@@ -16,6 +16,97 @@ if (!check_permission('customer_feedback', 'view') && (!isset($_SESSION['user_ro
     exit;
 }
 
+// Handle email notification action
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'send_feedback_email') {
+    header('Content-Type: application/json');
+
+    $cfid = $_POST['cfid'] ?? '';
+    $clientName = $_POST['client_name'] ?? '';
+    $station = $_POST['station'] ?? '';
+    $sharedEmails = $_POST['shared_emails'] ?? '';
+
+    if (empty($sharedEmails)) {
+        echo json_encode(['success' => false, 'message' => 'No recipients provided.']);
+        exit;
+    }
+
+    // Send email using PHPMailer
+    require_once __DIR__ . '/../vendor/autoload.php';
+    $mail = new PHPMailer\PHPMailer\PHPMailer(true);
+
+    try {
+        $mail->isSMTP();
+        $mail->Host = 'mail.texolenergies.com';
+        $mail->SMTPAuth = true;
+        $mail->Username = 'support@texolenergies.com';
+        $mail->Password = 'realziro@1997';
+        $mail->SMTPSecure = PHPMailer\PHPMailer\PHPMailer::ENCRYPTION_STARTTLS;
+        $mail->Port = 587;
+
+        $mail->setFrom('support@texolenergies.com', 'THI Support');
+        $emailArray = explode(',', $sharedEmails);
+        foreach ($emailArray as $email) {
+            $mail->addAddress(trim($email));
+        }
+
+        $mail->isHTML(true);
+        $mail->Subject = 'New Customer Feedback: ' . $cfid;
+
+        $mailBody = "
+        <div style='font-family: Arial, sans-serif; background:#f4f6f9; padding:20px;'>
+            <img src='https://texolenergies.com/assets/Logo-paGHQfRF.svg' alt='Texol Energies' style='width:140px; margin:0 auto 15px; display:block;' />
+            <div style='max-width:650px; margin:0 auto; background:#ffffff; border-radius:12px; overflow:hidden; box-shadow:0 2px 12px rgba(0,0,0,0.08);'>
+                <div style='background:#1f3c88; color:#ffffff; padding:25px; text-align:center;'>
+                    <h2 style='margin:0;'>New Customer Feedback</h2>
+                </div>
+                <div style='padding:25px;'>
+                    <p style='font-size:14px; color:#555; line-height:1.6; margin-bottom:10px;'>
+                        <strong>Feedback ID:</strong> $cfid
+                    </p>
+                    <p style='font-size:14px; color:#555; line-height:1.6; margin-bottom:10px;'>
+                        <strong>Client Name:</strong> $clientName
+                    </p>
+                    <p style='font-size:14px; color:#555; line-height:1.6; margin-bottom:10px;'>
+                        <strong>Station:</strong> $station
+                    </p>
+                    <div style='margin-bottom:20px;'>
+                        <span style='display:inline-block; padding:6px 12px; border-radius:20px; font-size:12px; background:#e8f0ff; color:#1f3c88; margin:3px;'>
+                            Status: New
+                        </span>
+                        <span style='display:inline-block; padding:6px 12px; border-radius:20px; font-size:12px; background:#f0f0f0; color:#555; margin:3px;'>
+                            Station: $station
+                        </span>
+                    </div>
+                    <p style='font-size:14px; color:#555; line-height:1.6; margin-bottom:20px;'>
+                        <a href='https://support.texolenergies.com/customer_feedback' style='color:#1f3c88; text-decoration:none; font-weight:bold;'>View Feedback</a>
+                    </p>
+                    <div style='margin-top:25px; text-align:center;'>
+                        <span style='display:inline-block; padding:6px 12px; border-radius:20px; font-size:12px; background:#1f3c88; color:#fff; margin:3px;'>
+                            Customer Feedback Notification
+                        </span>
+                        <span style='display:inline-block; padding:6px 12px; border-radius:20px; font-size:12px; background:#e9f7ef; color:#1e7e34; margin:3px;'>
+                            System Generated
+                        </span>
+                    </div>
+                </div>
+                <div style='background:#f4f6f9; padding:15px; text-align:center; font-size:12px; color:#777;'>
+                    <p style='margin:0;'>Texol Energies - THI Support</p>
+                    <p style='margin:5px 0 0;'>Please do not reply to this email.</p>
+                </div>
+            </div>
+        </div>";
+
+        $mail->Body = $mailBody;
+        $mail->send();
+
+        echo json_encode(['success' => true, 'message' => 'Email sent successfully.']);
+    } catch (Exception $e) {
+        error_log('Email sending failed: ' . $mail->ErrorInfo);
+        echo json_encode(['success' => false, 'message' => 'Failed to send email.']);
+    }
+    exit;
+}
+
 $isCallCenterAgent = isset($_SESSION['user_role']) && strtolower($_SESSION['user_role']) === 'call center agent';
 $hasFeedbackPermission = check_permission('customer_feedback', 'view');
 
@@ -1302,6 +1393,39 @@ $activeMenu = 'customer_feedback';
 
                     const { data, error } = result;
                     if (error) throw error;
+
+                    // Send email notification to shared_with users
+                    if (sharedWith && !editId) {
+                        const sharedWithIds = sharedWith.split(',').map(id => id.trim());
+                        if (sharedWithIds.length > 0) {
+                            // Fetch email addresses of shared_with users
+                            const { data: sharedWithUsers, error: usersError } = await supabaseClient
+                                .from('users')
+                                .select('email, full_name')
+                                .in('id', sharedWithIds);
+
+                            if (!usersError && sharedWithUsers && sharedWithUsers.length > 0) {
+                                const sharedWithEmails = sharedWithUsers.map(u => u.email).join(',');
+
+                                // Send email notification via PHP
+                                const emailFormData = new FormData();
+                                emailFormData.append('action', 'send_feedback_email');
+                                emailFormData.append('cfid', cfid);
+                                emailFormData.append('client_name', clientName);
+                                emailFormData.append('station', station);
+                                emailFormData.append('shared_emails', sharedWithEmails);
+
+                                try {
+                                    await fetch('customer_feedback.php', {
+                                        method: 'POST',
+                                        body: emailFormData
+                                    });
+                                } catch (emailErr) {
+                                    console.error('Failed to send email notification:', emailErr);
+                                }
+                            }
+                        }
+                    }
 
                     showAlert('success', editId ? 'Feedback updated successfully!' : 'Feedback submitted successfully!');
                     document.getElementById('customerFeedbackForm').reset();

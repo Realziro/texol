@@ -178,7 +178,7 @@ if (!check_permission('permissions', 'view')) {
         const permissionsContainer = document.getElementById('permissionsContainer');
         const noUserSelected = document.getElementById('noUserSelected');
 
-        const modules = ['dashboard', 'job_cards', 'tickets', 'mytickets', 'users', 'departments', 'categories', 'roles', 'permissions', 'requisition_approval', 'customer_feedback'];
+        const modules = ['dashboard', 'job_cards', 'tickets', 'mytickets', 'users', 'departments', 'categories', 'roles', 'permissions', 'requisition_approval', 'requisitions_view_all', 'customer_feedback'];
         const actions = ['view', 'create', 'edit', 'delete', 'all'];
 
         let currentUserEmail = null;
