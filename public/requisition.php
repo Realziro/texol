@@ -1,6 +1,8 @@
 <?php
 error_reporting(E_ALL);
-ini_set('display_errors', 1);
+ini_set('display_errors', 0);
+ini_set('log_errors', 1);
+ini_set('error_log', __DIR__ . '/php-error.log');
 session_start();
 
 // Load env/config (Supabase keys, etc.)
@@ -28,11 +30,7 @@ $suppliers = [];
 $userEmail = $_SESSION['user_email'] ?? '';
 $ticketId = $_GET['ticket_id'] ?? '';
 
-// Log for debugging
-error_log('requisition.php START - User email: ' . $userEmail);
-error_log('requisition.php START - SUPABASE_URL defined: ' . (defined('SUPABASE_URL') ? 'yes' : 'no'));
-error_log('requisition.php START - GET params: ' . json_encode($_GET));
-error_log('requisition.php START - ticket_id from URL: ' . $ticketId);
+
 
 // Handle form submission
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -511,83 +509,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $response = curl_exec($ch);
                     $sharedWithUsers = json_decode($response, true);
                     curl_close($ch);
-
-                    if (!empty($sharedWithUsers)) {
-                        $sharedWithEmails = array_map(function($user) {
-                            return $user['email'];
-                        }, $sharedWithUsers);
-
-                        // Send email using PHPMailer
-                        require_once __DIR__ . '/../vendor/autoload.php';
-                        $mail = new PHPMailer\PHPMailer\PHPMailer(true);
-
-                        try {
-                            $mail->isSMTP();
-                            $mail->Host = 'mail.texolenergies.com';
-                            $mail->SMTPAuth = true;
-                            $mail->Username = 'support@texolenergies.com';
-                            $mail->Password = 'realziro@1997';
-                            $mail->SMTPSecure = PHPMailer\PHPMailer\PHPMailer::ENCRYPTION_STARTTLS;
-                            $mail->Port = 587;
-
-                            $mail->setFrom('support@texolenergies.com', 'THI Support');
-                            foreach ($sharedWithEmails as $email) {
-                                $mail->addAddress($email);
-                            }
-
-                            $mail->isHTML(true);
-                            $mail->Subject = 'New Requisition Created: ' . $requisitionNumber;
-
-                            $mailBody = "
-                            <div style='font-family: Arial, sans-serif; background:#f4f6f9; padding:20px;'>
-                                <img src='https://texolenergies.com/assets/Logo-paGHQfRF.svg' alt='Texol Energies' style='width:140px; margin:0 auto 15px; display:block;' />
-                                <div style='max-width:650px; margin:0 auto; background:#ffffff; border-radius:12px; overflow:hidden; box-shadow:0 2px 12px rgba(0,0,0,0.08);'>
-                                    <div style='background:#1f3c88; color:#ffffff; padding:25px; text-align:center;'>
-                                        <h2 style='margin:0;'>New Requisition Created</h2>
-                                    </div>
-                                    <div style='padding:25px;'>
-                                        <p style='font-size:14px; color:#555; line-height:1.6; margin-bottom:10px;'>
-                                            <strong>Requisition Number:</strong> $requisitionNumber
-                                        </p>
-                                        <p style='font-size:14px; color:#555; line-height:1.6; margin-bottom:10px;'>
-                                            <strong>Department:</strong> $department
-                                        </p>
-                                        <p style='font-size:14px; color:#555; line-height:1.6; margin-bottom:10px;'>
-                                            <strong>Required Date:</strong> $requiredDate
-                                        </p>
-                                        <div style='margin-bottom:20px;'>
-                                            <span style='display:inline-block; padding:6px 12px; border-radius:20px; font-size:12px; background:#e8f0ff; color:#1f3c88; margin:3px;'>
-                                                Status: Pending
-                                            </span>
-                                            <span style='display:inline-block; padding:6px 12px; border-radius:20px; font-size:12px; background:#f0f0f0; color:#555; margin:3px;'>
-                                                Department: $department
-                                            </span>
-                                        </div>
-                                        <p style='font-size:14px; color:#555; line-height:1.6; margin-bottom:20px;'>
-                                            <a href='https://support.texolenergies.com/requisition' style='color:#1f3c88; text-decoration:none; font-weight:bold;'>View Requisition</a>
-                                        </p>
-                                        <div style='margin-top:25px; text-align:center;'>
-                                            <span style='display:inline-block; padding:6px 12px; border-radius:20px; font-size:12px; background:#1f3c88; color:#fff; margin:3px;'>
-                                                Requisition Notification
-                                            </span>
-                                            <span style='display:inline-block; padding:6px 12px; border-radius:20px; font-size:12px; background:#e9f7ef; color:#1e7e34; margin:3px;'>
-                                                System Generated
-                                            </span>
-                                        </div>
-                                    </div>
-                                    <div style='background:#f4f6f9; padding:15px; text-align:center; font-size:12px; color:#777;'>
-                                        <p style='margin:0;'>Texol Energies - THI Support</p>
-                                        <p style='margin:5px 0 0;'>Please do not reply to this email.</p>
-                                    </div>
-                                </div>
-                            </div>";
-
-                            $mail->Body = $mailBody;
-                            $mail->send();
-                        } catch (Exception $e) {
-                            error_log('Email sending failed: ' . $mail->ErrorInfo);
-                        }
-                    }
                 }
 
                 echo json_encode(['success' => true, 'message' => 'Requisition created successfully!']);
@@ -604,95 +525,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         } else {
             echo json_encode(['success' => false, 'message' => 'Supabase configuration not found.']);
-        }
-        exit;
-    } elseif ($action === 'send_requisition_email') {
-        // Send email notification for requisition creation
-        header('Content-Type: application/json');
-
-        $requisitionNumber = $_POST['requisition_number'] ?? '';
-        $department = $_POST['department'] ?? '';
-        $requiredDate = $_POST['required_date'] ?? '';
-        $sharedEmails = $_POST['shared_emails'] ?? '';
-
-        if (empty($sharedEmails)) {
-            echo json_encode(['success' => false, 'message' => 'No recipients provided.']);
-            exit;
-        }
-
-        // Send email using PHPMailer
-        require_once __DIR__ . '/../vendor/autoload.php';
-        $mail = new PHPMailer\PHPMailer\PHPMailer(true);
-
-        try {
-            $mail->isSMTP();
-            $mail->Host = 'mail.texolenergies.com';
-            $mail->SMTPAuth = true;
-            $mail->Username = 'support@texolenergies.com';
-            $mail->Password = 'realziro@1997';
-            $mail->SMTPSecure = PHPMailer\PHPMailer\PHPMailer::ENCRYPTION_STARTTLS;
-            $mail->Port = 587;
-
-            $mail->setFrom('support@texolenergies.com', 'THI Support');
-            $emailArray = explode(',', $sharedEmails);
-            foreach ($emailArray as $email) {
-                $mail->addAddress(trim($email));
-            }
-
-            $mail->isHTML(true);
-            $mail->Subject = 'New Requisition Created: ' . $requisitionNumber;
-
-            $mailBody = "
-            <div style='font-family: Arial, sans-serif; background:#f4f6f9; padding:20px;'>
-                <img src='https://texolenergies.com/assets/Logo-paGHQfRF.svg' alt='Texol Energies' style='width:140px; margin:0 auto 15px; display:block;' />
-                <div style='max-width:650px; margin:0 auto; background:#ffffff; border-radius:12px; overflow:hidden; box-shadow:0 2px 12px rgba(0,0,0,0.08);'>
-                    <div style='background:#1f3c88; color:#ffffff; padding:25px; text-align:center;'>
-                        <h2 style='margin:0;'>New Requisition Created</h2>
-                    </div>
-                    <div style='padding:25px;'>
-                        <p style='font-size:14px; color:#555; line-height:1.6; margin-bottom:10px;'>
-                            <strong>Requisition Number:</strong> $requisitionNumber
-                        </p>
-                        <p style='font-size:14px; color:#555; line-height:1.6; margin-bottom:10px;'>
-                            <strong>Department:</strong> $department
-                        </p>
-                        <p style='font-size:14px; color:#555; line-height:1.6; margin-bottom:10px;'>
-                            <strong>Required Date:</strong> $requiredDate
-                        </p>
-                        <div style='margin-bottom:20px;'>
-                            <span style='display:inline-block; padding:6px 12px; border-radius:20px; font-size:12px; background:#e8f0ff; color:#1f3c88; margin:3px;'>
-                                Status: Pending
-                            </span>
-                            <span style='display:inline-block; padding:6px 12px; border-radius:20px; font-size:12px; background:#f0f0f0; color:#555; margin:3px;'>
-                                Department: $department
-                            </span>
-                        </div>
-                        <p style='font-size:14px; color:#555; line-height:1.6; margin-bottom:20px;'>
-                            <a href='https://support.texolenergies.com/requisition' style='color:#1f3c88; text-decoration:none; font-weight:bold;'>View Requisition</a>
-                        </p>
-                        <div style='margin-top:25px; text-align:center;'>
-                            <span style='display:inline-block; padding:6px 12px; border-radius:20px; font-size:12px; background:#1f3c88; color:#fff; margin:3px;'>
-                                Requisition Notification
-                            </span>
-                            <span style='display:inline-block; padding:6px 12px; border-radius:20px; font-size:12px; background:#e9f7ef; color:#1e7e34; margin:3px;'>
-                                System Generated
-                            </span>
-                        </div>
-                    </div>
-                    <div style='background:#f4f6f9; padding:15px; text-align:center; font-size:12px; color:#777;'>
-                        <p style='margin:0;'>Texol Energies - THI Support</p>
-                        <p style='margin:5px 0 0;'>Please do not reply to this email.</p>
-                    </div>
-                </div>
-            </div>";
-
-            $mail->Body = $mailBody;
-            $mail->send();
-
-            echo json_encode(['success' => true, 'message' => 'Email sent successfully.']);
-        } catch (Exception $e) {
-            error_log('Email sending failed: ' . $mail->ErrorInfo);
-            echo json_encode(['success' => false, 'message' => 'Failed to send email.']);
         }
         exit;
     }
@@ -743,10 +575,11 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
     }
     curl_close($ch);
     
-    // Fetch requisitions with related data
+    // Fetch requisitions with related data (with pagination)
     $queryParams = [
         'select' => '*',
-        'order' => 'created_at.desc'
+        'order' => 'created_at.desc',
+        'limit' => 100
     ];
 
     // Get current user ID
@@ -772,8 +605,6 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
         curl_close($ch);
     }
 
-    error_log('Current user ID for requisition filter: ' . ($currentUserId ?? 'null'));
-
     // Filter by ticket_id if provided
     if ($ticketId) {
         $queryParams['ticket_id'] = 'eq.' . $ticketId;
@@ -787,10 +618,7 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
         }
     }
 
-    error_log('Requisition query params: ' . json_encode($queryParams));
-
     $query = http_build_query($queryParams);
-    error_log('Requisition full query URL: ' . $supabaseUrl . '/rest/v1/requisitions?' . $query);
 
     $ch = curl_init();
     curl_setopt_array($ch, [
@@ -803,16 +631,13 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
         ],
     ]);
     $response = curl_exec($ch);
-    error_log('Requisitions fetch raw response: ' . $response);
     $requisitions = json_decode($response, true);
     curl_close($ch);
-    
+
     // Handle error response
     if (!is_array($requisitions)) {
         error_log('Requisitions fetch error: ' . $response);
         $requisitions = [];
-    } else {
-        error_log('Requisitions count before filter: ' . count($requisitions));
     }
 
     // Filter requisitions based on permissions
@@ -823,7 +648,6 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
 
         if ($canViewAllRequisitions) {
             // Show all requisitions
-            error_log('Requisitions count (showing all - user has requisitions_view_all permission): ' . count($requisitions));
         } else {
             // Filter to show only user's requisitions
             $filteredRequisitions = [];
@@ -839,131 +663,156 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
                 }
             }
             $requisitions = $filteredRequisitions;
-            error_log('Requisitions count after filter (user-specific): ' . count($requisitions));
         }
     }
-    
-    // Fetch items for each requisition
+
+    // Fetch all requisition items and attachments in single queries (N+1 optimization)
+    $reqIds = array_filter(array_column($requisitions, 'id'));
+    $allItems = [];
+    $allAttachments = [];
+
+    if (!empty($reqIds)) {
+        // Fetch all items for these requisitions
+        $reqIdsString = implode(',', $reqIds);
+        $query = http_build_query([
+            'select' => '*,item:items(id,name,unit)',
+            'requisition_id' => 'in.(' . $reqIdsString . ')'
+        ]);
+        $ch = curl_init();
+        curl_setopt_array($ch, [
+            CURLOPT_URL => $supabaseUrl . '/rest/v1/requisition_items?' . $query,
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_HTTPHEADER => [
+                'apikey: ' . $supabaseKey,
+                'Authorization: Bearer ' . $supabaseKey,
+                'Accept: application/json',
+            ],
+        ]);
+        $response = curl_exec($ch);
+        $allItems = json_decode($response, true) ?: [];
+        curl_close($ch);
+
+        // Fetch all attachments for these requisitions
+        $query = http_build_query([
+            'select' => '*',
+            'requisition_id' => 'in.(' . $reqIdsString . ')',
+            'order' => 'created_at.desc'
+        ]);
+        $ch = curl_init();
+        curl_setopt_array($ch, [
+            CURLOPT_URL => $supabaseUrl . '/rest/v1/requisition_attachments?' . $query,
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_HTTPHEADER => [
+                'apikey: ' . $supabaseKey,
+                'Authorization: Bearer ' . $supabaseKey,
+                'Accept: application/json',
+            ],
+        ]);
+        $response = curl_exec($ch);
+        $allAttachments = json_decode($response, true) ?: [];
+        curl_close($ch);
+    }
+
+    // Group items and attachments by requisition_id
+    $itemsByReq = [];
+    foreach ($allItems as $item) {
+        $reqId = $item['requisition_id'] ?? null;
+        if ($reqId) {
+            $itemsByReq[$reqId][] = $item;
+        }
+    }
+
+    $attachmentsByReq = [];
+    foreach ($allAttachments as $attachment) {
+        $reqId = $attachment['requisition_id'] ?? null;
+        if ($reqId) {
+            $attachmentsByReq[$reqId][] = $attachment;
+        }
+    }
+
+    // Assign items and attachments to requisitions
     foreach ($requisitions as &$req) {
-        // Skip if req is not an array
         if (!is_array($req)) {
             continue;
         }
-        
-        $req['items'] = [];
-        $req['attachments'] = [];
+
+        $req['items'] = $itemsByReq[$req['id']] ?? [];
+        $req['attachments'] = $attachmentsByReq[$req['id']] ?? [];
         $req['supplier'] = null;
         $req['requested_by_user'] = null;
-        
-        if (!empty($req['id'])) {
-            // Fetch requisition items
-            $query = http_build_query([
-                'select' => '*,item:items(id,name,unit)',
-                'requisition_id' => 'eq.' . $req['id']
-            ]);
-            $ch = curl_init();
-            curl_setopt_array($ch, [
-                CURLOPT_URL => $supabaseUrl . '/rest/v1/requisition_items?' . $query,
-                CURLOPT_RETURNTRANSFER => true,
-                CURLOPT_HTTPHEADER => [
-                    'apikey: ' . $supabaseKey,
-                    'Authorization: Bearer ' . $supabaseKey,
-                    'Accept: application/json',
-                ],
-            ]);
-            $response = curl_exec($ch);
-            $req['items'] = json_decode($response, true) ?: [];
-            curl_close($ch);
-            
-            // Fetch attachments
-            $query = http_build_query([
-                'select' => '*',
-                'requisition_id' => 'eq.' . $req['id'],
-                'order' => 'created_at.desc'
-            ]);
-            $ch = curl_init();
-            curl_setopt_array($ch, [
-                CURLOPT_URL => $supabaseUrl . '/rest/v1/requisition_attachments?' . $query,
-                CURLOPT_RETURNTRANSFER => true,
-                CURLOPT_HTTPHEADER => [
-                    'apikey: ' . $supabaseKey,
-                    'Authorization: Bearer ' . $supabaseKey,
-                    'Accept: application/json',
-                ],
-            ]);
-            $response = curl_exec($ch);
-            $req['attachments'] = json_decode($response, true) ?: [];
-            curl_close($ch);
-            
-            // Fetch supplier
-            if (!empty($req['supplier_id'])) {
-                $query = http_build_query([
-                    'select' => 'id,name',
-                    'id' => 'eq.' . $req['supplier_id']
-                ]);
-                $ch = curl_init();
-                curl_setopt_array($ch, [
-                    CURLOPT_URL => $supabaseUrl . '/rest/v1/suppliers?' . $query,
-                    CURLOPT_RETURNTRANSFER => true,
-                    CURLOPT_HTTPHEADER => [
-                        'apikey: ' . $supabaseKey,
-                        'Authorization: Bearer ' . $supabaseKey,
-                        'Accept: application/json',
-                    ],
-                ]);
-                $response = curl_exec($ch);
-                $supplierData = json_decode($response, true);
-                $req['supplier'] = is_array($supplierData) && !empty($supplierData[0]) ? $supplierData[0] : null;
-                curl_close($ch);
-            }
-            
-            // Fetch requested by user
-            if (!empty($req['requested_by'])) {
-                $query = http_build_query([
-                    'select' => 'id,full_name,email,signature',
-                    'id' => 'eq.' . $req['requested_by']
-                ]);
-                $ch = curl_init();
-                curl_setopt_array($ch, [
-                    CURLOPT_URL => $supabaseUrl . '/rest/v1/users?' . $query,
-                    CURLOPT_RETURNTRANSFER => true,
-                    CURLOPT_HTTPHEADER => [
-                        'apikey: ' . $supabaseKey,
-                        'Authorization: Bearer ' . $supabaseKey,
-                        'Accept: application/json',
-                    ],
-                ]);
-                $response = curl_exec($ch);
-                $userData = json_decode($response, true);
-                $req['requested_by_user'] = is_array($userData) && !empty($userData[0]) ? $userData[0] : null;
-                curl_close($ch);
-            }
-
-            // Fetch approved by user with signature
-            if (!empty($req['approved_by'])) {
-                $query = http_build_query([
-                    'select' => 'id,full_name,email,signature',
-                    'id' => 'eq.' . $req['approved_by']
-                ]);
-                $ch = curl_init();
-                curl_setopt_array($ch, [
-                    CURLOPT_URL => $supabaseUrl . '/rest/v1/users?' . $query,
-                    CURLOPT_RETURNTRANSFER => true,
-                    CURLOPT_HTTPHEADER => [
-                        'apikey: ' . $supabaseKey,
-                        'Authorization: Bearer ' . $supabaseKey,
-                        'Accept: application/json',
-                    ],
-                ]);
-                $response = curl_exec($ch);
-                $userData = json_decode($response, true);
-                $req['approved_by_user'] = is_array($userData) && !empty($userData[0]) ? $userData[0] : null;
-                curl_close($ch);
-            }
-        }
-        // Unset the reference to avoid issues
-        unset($req);
+        $req['approved_by_user'] = null;
     }
+
+    // Fetch all suppliers and users in single queries (N+1 optimization)
+    $supplierIds = array_filter(array_unique(array_column($requisitions, 'supplier_id')));
+    $userIds = array_filter(array_unique(array_column($requisitions, 'requested_by')));
+    $approvedByIds = array_filter(array_unique(array_column($requisitions, 'approved_by')));
+    $allUserIds = array_unique(array_merge($userIds, $approvedByIds));
+
+    $suppliersById = [];
+    if (!empty($supplierIds)) {
+        $supplierIdsString = implode(',', $supplierIds);
+        $query = http_build_query([
+            'select' => 'id,name',
+            'id' => 'in.(' . $supplierIdsString . ')'
+        ]);
+        $ch = curl_init();
+        curl_setopt_array($ch, [
+            CURLOPT_URL => $supabaseUrl . '/rest/v1/suppliers?' . $query,
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_HTTPHEADER => [
+                'apikey: ' . $supabaseKey,
+                'Authorization: Bearer ' . $supabaseKey,
+                'Accept: application/json',
+            ],
+        ]);
+        $response = curl_exec($ch);
+        $suppliersData = json_decode($response, true) ?: [];
+        curl_close($ch);
+
+        foreach ($suppliersData as $supplier) {
+            $suppliersById[$supplier['id']] = $supplier;
+        }
+    }
+
+    $usersById = [];
+    if (!empty($allUserIds)) {
+        $userIdsString = implode(',', $allUserIds);
+        $query = http_build_query([
+            'select' => 'id,full_name,email,signature',
+            'id' => 'in.(' . $userIdsString . ')'
+        ]);
+        $ch = curl_init();
+        curl_setopt_array($ch, [
+            CURLOPT_URL => $supabaseUrl . '/rest/v1/users?' . $query,
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_HTTPHEADER => [
+                'apikey: ' . $supabaseKey,
+                'Authorization: Bearer ' . $supabaseKey,
+                'Accept: application/json',
+            ],
+        ]);
+        $response = curl_exec($ch);
+        $usersData = json_decode($response, true) ?: [];
+        curl_close($ch);
+
+        foreach ($usersData as $user) {
+            $usersById[$user['id']] = $user;
+        }
+    }
+
+    // Assign suppliers and users to requisitions
+    foreach ($requisitions as &$req) {
+        if (!is_array($req)) {
+            continue;
+        }
+
+        $req['supplier'] = $suppliersById[$req['supplier_id']] ?? null;
+        $req['requested_by_user'] = $usersById[$req['requested_by']] ?? null;
+        $req['approved_by_user'] = $usersById[$req['approved_by']] ?? null;
+    }
+    // Unset the reference to avoid issues
+    unset($req);
 }
 ?>
 <!DOCTYPE html>
@@ -1339,6 +1188,7 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
             $('#requisitionsTable').DataTable({
                 pageLength: 10,
                 lengthMenu: [5, 10, 25, 50, 100],
+                order: [], // Disable initial sorting to preserve server-side order (created_at desc)
                 language: {
                     search: "_INPUT_",
                     searchPlaceholder: "Search requisitions..."
@@ -1744,21 +1594,82 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
                                 .in('id', sharedWithIds);
 
                             if (!usersError && sharedWithUsers && sharedWithUsers.length > 0) {
-                                const sharedWithEmails = sharedWithUsers.map(u => u.email).join(',');
+                                const sharedWithEmails = sharedWithUsers.map(u => u.email);
 
-                                // Send email notification via PHP
-                                const emailFormData = new FormData();
-                                emailFormData.append('action', 'send_requisition_email');
-                                emailFormData.append('requisition_number', requisitionNumber);
-                                emailFormData.append('department', department);
-                                emailFormData.append('required_date', requiredDate);
-                                emailFormData.append('shared_emails', sharedWithEmails);
+                                // Send email notification via notify_requisition.php
+                                const mailBody = `
+                                <div style='font-family: Arial, sans-serif; background:#f4f6f9; padding:20px;'>
+                                    <img src='https://texolenergies.com/assets/Logo-paGHQfRF.svg' alt='Texol Energies' style='width:140px; margin:0 auto 15px; display:block;' />
+                                    <div style='max-width:650px; margin:0 auto; background:#ffffff; border-radius:12px; overflow:hidden; box-shadow:0 2px 12px rgba(0,0,0,0.08);'>
+                                        <div style='background:#1f3c88; color:#ffffff; padding:25px; text-align:center;'>
+                                            <h2 style='margin:0;'>New Requisition Created</h2>
+                                        </div>
+                                        <div style='padding:25px;'>
+                                            <p style='font-size:14px; color:#555; line-height:1.6; margin-bottom:10px;'>
+                                                <strong>Requisition Number:</strong> ${requisitionNumber}
+                                            </p>
+                                            <p style='font-size:14px; color:#555; line-height:1.6; margin-bottom:10px;'>
+                                                <strong>Department:</strong> ${department}
+                                            </p>
+                                            <p style='font-size:14px; color:#555; line-height:1.6; margin-bottom:10px;'>
+                                                <strong>Required Date:</strong> ${requiredDate}
+                                            </p>
+                                            <div style='margin-bottom:20px;'>
+                                                <span style='display:inline-block; padding:6px 12px; border-radius:20px; font-size:12px; background:#e8f0ff; color:#1f3c88; margin:3px;'>
+                                                    Status: Pending
+                                                </span>
+                                                <span style='display:inline-block; padding:6px 12px; border-radius:20px; font-size:12px; background:#f0f0f0; color:#555; margin:3px;'>
+                                                    Department: ${department}
+                                                </span>
+                                            </div>
+                                            <p style='font-size:14px; color:#555; line-height:1.6; margin-bottom:20px;'>
+                                                <a href='https://support.texolenergies.com/requisition' style='color:#1f3c88; text-decoration:none; font-weight:bold;'>View Requisition</a>
+                                            </p>
+                                            <div style='margin-top:25px; text-align:center;'>
+                                                <span style='display:inline-block; padding:6px 12px; border-radius:20px; font-size:12px; background:#1f3c88; color:#fff; margin:3px;'>
+                                                    Requisition Notification
+                                                </span>
+                                                <span style='display:inline-block; padding:6px 12px; border-radius:20px; font-size:12px; background:#e9f7ef; color:#1e7e34; margin:3px;'>
+                                                    System Generated
+                                                </span>
+                                            </div>
+                                        </div>
+                                        <div style='background:#f4f6f9; padding:15px; text-align:center; font-size:12px; color:#777;'>
+                                            <p style='margin:0;'>Texol Energies - THI Support</p>
+                                            <p style='margin:5px 0 0;'>Please do not reply to this email.</p>
+                                        </div>
+                                    </div>
+                                </div>`;
+
+                                const toEmail = sharedWithEmails[0] || '';
+                                const ccEmails = sharedWithEmails.length > 1 ? sharedWithEmails.slice(1).join(',') : '';
+
+                                const emailData = {
+                                    type: 'requisition',
+                                    to: toEmail,
+                                    cc: ccEmails,
+                                    subject: 'New Requisition Created: ' + requisitionNumber,
+                                    body: mailBody
+                                };
 
                                 try {
-                                    await fetch('requisition.php', {
+                                    const emailResponse = await fetch('notify_requisition.php', {
                                         method: 'POST',
-                                        body: emailFormData
+                                        headers: {
+                                            'Content-Type': 'application/json'
+                                        },
+                                        body: JSON.stringify(emailData)
                                     });
+                                    const responseText = await emailResponse.text();
+                                    console.log('Email notification response:', responseText);
+                                    if (responseText) {
+                                        try {
+                                            const emailResult = JSON.parse(responseText);
+                                            console.log('Email notification result:', emailResult);
+                                        } catch (jsonErr) {
+                                            console.error('Failed to parse email response:', responseText);
+                                        }
+                                    }
                                 } catch (emailErr) {
                                     console.error('Failed to send email notification:', emailErr);
                                 }
@@ -2496,7 +2407,14 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
                 method: 'POST',
                 body: formData
             })
-            .then(response => response.json())
+            .then(async response => {
+                const responseText = await response.text();
+                console.log('Restore requisition response:', responseText);
+                if (!responseText) {
+                    throw new Error('Empty response from server');
+                }
+                return JSON.parse(responseText);
+            })
             .then(data => {
                 if (data.success) {
                     alert(data.message);
@@ -2638,7 +2556,14 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
                     method: 'POST',
                     body: formData
                 })
-                .then(response => response.json())
+                .then(async response => {
+                    const responseText = await response.text();
+                    console.log('Create requisition modal response:', responseText);
+                    if (!responseText) {
+                        throw new Error('Empty response from server');
+                    }
+                    return JSON.parse(responseText);
+                })
                 .then(data => {
                     if (data.success) {
                         alert(data.message);
@@ -3011,7 +2936,14 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
                     method: 'POST',
                     body: formData
                 })
-                .then(response => response.json())
+                .then(async response => {
+                    const responseText = await response.text();
+                    console.log('Upload attachment response for', file.name, ':', responseText);
+                    if (!responseText) {
+                        throw new Error('Empty response from server');
+                    }
+                    return JSON.parse(responseText);
+                })
                 .then(result => ({ success: result.success, file: file.name }))
                 .catch(error => {
                     console.error('Error uploading file:', error);
@@ -3076,7 +3008,14 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
                 },
                 body: formData
             })
-            .then(response => response.json())
+            .then(async response => {
+                const responseText = await response.text();
+                console.log('Approve requisition response:', responseText);
+                if (!responseText) {
+                    throw new Error('Empty response from server');
+                }
+                return JSON.parse(responseText);
+            })
             .then(data => {
                 if (data.success) {
                     // Success - reload page
@@ -3122,7 +3061,14 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
                 },
                 body: formData
             })
-            .then(response => response.json())
+            .then(async response => {
+                const responseText = await response.text();
+                console.log('Reject requisition response:', responseText);
+                if (!responseText) {
+                    throw new Error('Empty response from server');
+                }
+                return JSON.parse(responseText);
+            })
             .then(data => {
                 if (data.success) {
                     // Success - reload page
