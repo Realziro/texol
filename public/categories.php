@@ -13,6 +13,37 @@ if (!check_permission('categories', 'view')) {
     header('Location:   404');
     exit;
 }
+
+// Fetch departments from database
+$departments = [];
+if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY') && SUPABASE_URL !== '' && SUPABASE_ANON_KEY !== '') {
+    $supabaseUrl = rtrim(SUPABASE_URL, '/');
+    $supabaseKey = SUPABASE_ANON_KEY;
+
+    $query = http_build_query([
+        'select' => 'id,name',
+        'order' => 'name.asc'
+    ]);
+
+    $ch = curl_init();
+    curl_setopt_array($ch, [
+        CURLOPT_URL => $supabaseUrl . '/rest/v1/departments?' . $query,
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_HTTPHEADER => [
+            'apikey: ' . $supabaseKey,
+            'Authorization: Bearer ' . $supabaseKey,
+            'Accept: application/json',
+        ],
+    ]);
+
+    $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+
+    if ($httpCode === 200 && $response) {
+        $departments = json_decode($response, true) ?: [];
+    }
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -94,6 +125,18 @@ if (!check_permission('categories', 'view')) {
                                             <textarea class="form-control form-control-sm" id="categoryDescription" rows="3" placeholder="" required></textarea>
                                         </div>
 
+                                        <div class="col-12">
+                                            <label class="form-label small fw-semibold" for="categoryDepartment">Department</label>
+                                            <select class="form-select form-select-sm" id="categoryDepartment" required>
+                                                <option value="">Select Department</option>
+                                                <?php foreach ($departments as $dept): ?>
+                                                    <option value="<?php echo htmlspecialchars($dept['id'], ENT_QUOTES, 'UTF-8'); ?>">
+                                                        <?php echo htmlspecialchars($dept['name'], ENT_QUOTES, 'UTF-8'); ?>
+                                                    </option>
+                                                <?php endforeach; ?>
+                                            </select>
+                                        </div>
+
                                         <div class="col-12 d-flex justify-content-end mt-2">
                                             <button type="button" class="btn btn-sm btn-outline-secondary me-2" id="resetCategoryForm">Reset</button>
                                             <button type="submit" class="btn btn-sm btn-primary" id="saveCategoryBtn">Save Category</button>
@@ -122,12 +165,13 @@ if (!check_permission('categories', 'view')) {
                                                 <tr>
                                                     <th class="small text-uppercase text-muted">Name</th>
                                                     <th class="small text-uppercase text-muted">Description</th>
+                                                    <th class="small text-uppercase text-muted">Department</th>
                                                     <th class="small text-uppercase text-muted text-end">Actions</th>
                                                 </tr>
                                             </thead>
                                             <tbody id="categoriesTableBody">
                                                 <tr>
-                                                    <td colspan="3" class="text-center small text-muted py-3">
+                                                    <td colspan="4" class="text-center small text-muted py-3">
                                                         Loading categories...
                                                     </td>
                                                 </tr>
@@ -163,6 +207,18 @@ if (!check_permission('categories', 'view')) {
         <div class="mb-2">
           <label class="form-label">Description</label>
           <textarea class="form-control" id="editCategoryDescription"></textarea>
+        </div>
+
+        <div class="mb-2">
+          <label class="form-label">Department</label>
+          <select class="form-select" id="editCategoryDepartment">
+            <option value="">Select Department</option>
+            <?php foreach ($departments as $dept): ?>
+              <option value="<?php echo htmlspecialchars($dept['id'], ENT_QUOTES, 'UTF-8'); ?>">
+                <?php echo htmlspecialchars($dept['name'], ENT_QUOTES, 'UTF-8'); ?>
+              </option>
+            <?php endforeach; ?>
+          </select>
         </div>
       </div>
 
@@ -227,19 +283,19 @@ if (!check_permission('categories', 'view')) {
             if (!tableBody) return;
             tableBody.innerHTML = `
                 <tr>
-                    <td colspan="3" class="text-center small text-muted py-3">Loading categories...</td>
+                    <td colspan="4" class="text-center small text-muted py-3">Loading categories...</td>
                 </tr>`;
 
             try {
                 const { data, error } = await supabase
                     .from('categories')
-                    .select('id, name, description, created_at')
+                    .select('id, name, description, department_id')
                     .order('created_at', { ascending: false });
 
                 if (error) {
                     tableBody.innerHTML = `
                         <tr>
-                            <td colspan="3" class="text-center small text-danger py-3">${escapeHtml(error.message || 'Failed to load categories.')}</td>
+                            <td colspan="4" class="text-center small text-danger py-3">${escapeHtml(error.message || 'Failed to load categories.')}</td>
                         </tr>`;
                     return;
                 }
@@ -247,23 +303,38 @@ if (!check_permission('categories', 'view')) {
                 if (!data || data.length === 0) {
                     tableBody.innerHTML = `
                         <tr>
-                            <td colspan="3" class="text-center small text-muted py-3">No categories found yet.</td>
+                            <td colspan="4" class="text-center small text-muted py-3">No categories found yet.</td>
                         </tr>`;
                     return;
+                }
+
+                // Fetch departments for mapping
+                const { data: deptData, error: deptError } = await supabase
+                    .from('departments')
+                    .select('id, name');
+
+                const deptMap = {};
+                if (!deptError && deptData) {
+                    deptData.forEach(dept => {
+                        deptMap[dept.id] = dept.name;
+                    });
                 }
 
                 tableBody.innerHTML = '';
                data.forEach((cat) => {
     const tr = document.createElement('tr');
+    const departmentName = cat.department_id && deptMap[cat.department_id] ? deptMap[cat.department_id] : '';
 
     tr.innerHTML = `
         <td class="small fw-semibold">${escapeHtml(cat.name)}</td>
         <td class="small text-muted">${escapeHtml(cat.description)}</td>
+        <td class="small text-muted">${escapeHtml(departmentName)}</td>
         <td class="text-end">
             <button class="btn btn-sm btn-outline-primary edit-cat-btn"
                 data-id="${cat.id}"
                 data-name="${escapeHtml(cat.name)}"
-                data-description="${escapeHtml(cat.description)}">
+                data-description="${escapeHtml(cat.description)}"
+                data-department-id="${cat.department_id || ''}">
                 <i class="bi bi-pencil"></i>
             </button>
         </td>
@@ -274,7 +345,7 @@ if (!check_permission('categories', 'view')) {
             } catch (err) {
                 tableBody.innerHTML = `
                     <tr>
-                        <td colspan="3" class="text-center small text-danger py-3">Unexpected error loading categories.</td>
+                        <td colspan="4" class="text-center small text-danger py-3">Unexpected error loading categories.</td>
                     </tr>`;
             }
         }
@@ -297,8 +368,9 @@ if (!check_permission('categories', 'view')) {
 
                 const name = document.getElementById('categoryName')?.value.trim() || '';
                 const description = document.getElementById('categoryDescription')?.value.trim() || '';
+                const departmentId = document.getElementById('categoryDepartment')?.value || '';
 
-                if (!name || !description) {
+                if (!name || !description || !departmentId) {
                     showAlert('warning', 'Please fill in all required fields.');
                     return;
                 }
@@ -311,7 +383,8 @@ if (!check_permission('categories', 'view')) {
                         .from('categories')
                         .insert([{
                             name,
-                            description
+                            description,
+                            department_id: departmentId
                         }]);
 
                     if (error) {
@@ -339,6 +412,7 @@ document.addEventListener('click', (e) => {
     document.getElementById('editCategoryId').value = btn.dataset.id;
     document.getElementById('editCategoryName').value = btn.dataset.name;
     document.getElementById('editCategoryDescription').value = btn.dataset.description;
+    document.getElementById('editCategoryDepartment').value = btn.dataset.departmentId || '';
 
     catModal.show();
 });
@@ -353,15 +427,16 @@ document.getElementById('updateCategoryBtn').addEventListener('click', async () 
 
     const name = document.getElementById('editCategoryName').value.trim();
     const description = document.getElementById('editCategoryDescription').value.trim();
+    const departmentId = document.getElementById('editCategoryDepartment').value;
 
-    if (!name || !description) {
+    if (!name || !description || !departmentId) {
         alert('Fill all fields');
         return;
     }
 
     const { error } = await supabase
         .from('categories')
-        .update({ name, description })
+        .update({ name, description, department_id: departmentId })
         .eq('id', id);
 
     if (error) {

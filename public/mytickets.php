@@ -57,7 +57,7 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY') && SUPABASE_URL !== 
     $supabaseKey = SUPABASE_ANON_KEY;
 
     $query = http_build_query([
-        'select' => 'id,name',
+        'select' => 'id,name,department_id',
         'order' => 'name.asc'
     ]);
 
@@ -290,13 +290,23 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY') && SUPABASE_URL !== 
 
                         <div class="col-12 col-md-6">
                             <label class="form-label small fw-semibold" for="ticketDepartment">
-                                Department
+                                Department *
                             </label>
-                            <select class="form-select form-select-sm" id="ticketDepartment">
+                            <select class="form-select form-select-sm" id="ticketDepartment" required>
                                 <option value="">Select Department</option>
-                                    <option value="ICT Department">
-                                        ICT Department
+                                <?php
+                                // Only show ICT Department and Operations & Retail Department
+                                $allowedDepartments = ['ICT Department', 'Operations & Retail Department'];
+                                foreach ($departments as $dept):
+                                    if (in_array($dept['name'], $allowedDepartments)):
+                                ?>
+                                    <option value="<?php echo htmlspecialchars($dept['name'], ENT_QUOTES, 'UTF-8'); ?>" data-id="<?php echo htmlspecialchars($dept['id'], ENT_QUOTES, 'UTF-8'); ?>">
+                                        <?php echo htmlspecialchars($dept['name'], ENT_QUOTES, 'UTF-8'); ?>
                                     </option>
+                                <?php
+                                    endif;
+                                endforeach;
+                                ?>
                             </select>
                         </div>
 
@@ -307,7 +317,7 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY') && SUPABASE_URL !== 
                             <select class="form-select form-select-sm" id="ticketCategory">
                                 <option value="">Select Category</option>
                                 <?php foreach ($categories as $cat): ?>
-                                    <option value="<?php echo htmlspecialchars($cat['name'], ENT_QUOTES, 'UTF-8'); ?>">
+                                    <option value="<?php echo htmlspecialchars($cat['name'], ENT_QUOTES, 'UTF-8'); ?>" data-department-id="<?php echo htmlspecialchars($cat['department_id'] ?? '', ENT_QUOTES, 'UTF-8'); ?>">
                                         <?php echo htmlspecialchars($cat['name'], ENT_QUOTES, 'UTF-8'); ?>
                                     </option>
                                 <?php endforeach; ?>
@@ -395,8 +405,19 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY') && SUPABASE_URL !== 
                             <label class="form-label small fw-semibold" for="editTicketDepartment">Department *</label>
                             <select class="form-select form-select-sm" id="editTicketDepartment" required>
                                 <option value="">Select department</option>
-                                    <option value="ICT Department">
-ICT                                    </option>
+                                <?php
+                                // Only show ICT Department and Operations & Retail Department
+                                $allowedDepartments = ['ICT Department', 'Operations & Retail Department'];
+                                foreach ($departments as $dept):
+                                    if (in_array($dept['name'], $allowedDepartments)):
+                                ?>
+                                    <option value="<?php echo htmlspecialchars($dept['name'], ENT_QUOTES, 'UTF-8'); ?>" data-id="<?php echo htmlspecialchars($dept['id'], ENT_QUOTES, 'UTF-8'); ?>">
+                                        <?php echo htmlspecialchars($dept['name'], ENT_QUOTES, 'UTF-8'); ?>
+                                    </option>
+                                <?php
+                                    endif;
+                                endforeach;
+                                ?>
                             </select>
                         </div>
 
@@ -405,7 +426,7 @@ ICT                                    </option>
                             <select class="form-select form-select-sm" id="editTicketCategory">
                                 <option value="">Select category</option>
                                 <?php foreach ($categories as $cat): ?>
-                                    <option value="<?php echo htmlspecialchars($cat['name'], ENT_QUOTES, 'UTF-8'); ?>">
+                                    <option value="<?php echo htmlspecialchars($cat['name'], ENT_QUOTES, 'UTF-8'); ?>" data-department-id="<?php echo htmlspecialchars($cat['department_id'] ?? '', ENT_QUOTES, 'UTF-8'); ?>">
                                         <?php echo htmlspecialchars($cat['name'], ENT_QUOTES, 'UTF-8'); ?>
                                     </option>
                                 <?php endforeach; ?>
@@ -769,9 +790,33 @@ ICT                                    </option>
 
                     console.log('🔍 [DEBUG] Final ticketId for email:', ticketId);
 
-                  // Send email notification to current user with all admins as CC
+                  // Send email notification to current user with HOD of selected department as CC
 try {
-    // Get all admin email addresses
+    // Get HOD email addresses for the selected department
+    const department = document.getElementById('ticketDepartment')?.value || '';
+    console.log('Selected department for email:', department);
+
+    let ccEmails = '';
+
+    if (department) {
+        const { data: hodData, error: hodError } = await supabase
+            .from("users")
+            .select("email")
+            .eq("role", "HOD")
+            .eq("department", department);
+
+        if (hodError) {
+            console.error("Error fetching HOD emails:", hodError);
+        } else {
+            ccEmails = (hodData || [])
+                .map(user => user.email?.trim())
+                .filter(email => email)
+                .join(",");
+            console.log('HOD emails for department:', ccEmails);
+        }
+    }
+
+    // Also add admins as CC
     const { data: adminData, error: adminError } = await supabase
         .from("users")
         .select("email")
@@ -781,11 +826,13 @@ try {
         console.error("Error fetching admin emails:", adminError);
     }
 
-    // Create comma-separated list of admin emails
     const adminEmails = (adminData || [])
         .map(user => user.email?.trim())
         .filter(email => email)
         .join(",");
+
+    // Combine HOD and admin emails
+    const allCcEmails = [ccEmails, adminEmails].filter(email => email).join(",");
 
     const ticketUrl = `https://support.texolenergies.com/mytickets?ticket_id=${ticketId}`;
 
@@ -873,9 +920,9 @@ try {
         body: body
     });
 
-    // Add all admins as CC
-    if (adminEmails) {
-        params.append("cc", adminEmails);
+    // Add HOD and admins as CC
+    if (allCcEmails) {
+        params.append("cc", allCcEmails);
     }
 
     // Send email
@@ -1630,6 +1677,69 @@ ${description}            </p>
                             ['clean']
                         ]
                     }
+                });
+            }
+
+            // Filter categories based on selected department
+            const ticketDepartment = document.getElementById('ticketDepartment');
+            const ticketCategory = document.getElementById('ticketCategory');
+
+            if (ticketDepartment && ticketCategory) {
+                ticketDepartment.addEventListener('change', function() {
+                    const selectedDeptId = this.options[this.selectedIndex].getAttribute('data-id');
+                    const categoryOptions = ticketCategory.querySelectorAll('option');
+
+                    categoryOptions.forEach(option => {
+                        if (option.value === '') {
+                            // Keep the default "Select Category" option
+                            return;
+                        }
+
+                        const categoryDeptId = option.getAttribute('data-department-id');
+                        if (selectedDeptId && categoryDeptId) {
+                            // Show category if it matches the selected department
+                            option.style.display = (categoryDeptId === selectedDeptId) ? '' : 'none';
+                        } else {
+                            // If no department selected or category has no department, hide it
+                            option.style.display = 'none';
+                        }
+                    });
+
+                    // Reset category selection
+                    ticketCategory.value = '';
+                });
+
+                // Initial filter on page load
+                ticketDepartment.dispatchEvent(new Event('change'));
+            }
+
+            // Filter categories in edit modal based on selected department
+            const editTicketDepartment = document.getElementById('editTicketDepartment');
+            const editTicketCategory = document.getElementById('editTicketCategory');
+
+            if (editTicketDepartment && editTicketCategory) {
+                editTicketDepartment.addEventListener('change', function() {
+                    const selectedDeptId = this.options[this.selectedIndex].getAttribute('data-id');
+                    const categoryOptions = editTicketCategory.querySelectorAll('option');
+
+                    categoryOptions.forEach(option => {
+                        if (option.value === '') {
+                            // Keep the default "Select category" option
+                            return;
+                        }
+
+                        const categoryDeptId = option.getAttribute('data-department-id');
+                        if (selectedDeptId && categoryDeptId) {
+                            // Show category if it matches the selected department
+                            option.style.display = (categoryDeptId === selectedDeptId) ? '' : 'none';
+                        } else {
+                            // If no department selected or category has no department, hide it
+                            option.style.display = 'none';
+                        }
+                    });
+
+                    // Reset category selection
+                    editTicketCategory.value = '';
                 });
             }
 

@@ -10,10 +10,45 @@ if (! isset($_SESSION['user_email'])) {
     exit;
 }
 
-// Redirect non-admins to mytickets page
-if (!isset($_SESSION['user_role']) || strtolower($_SESSION['user_role']) !== 'admin') {
+// Redirect non-admins and non-HODs to mytickets page
+$userRole = isset($_SESSION['user_role']) ? strtolower($_SESSION['user_role']) : '';
+if ($userRole !== 'admin' && $userRole !== 'hod') {
     header('Location:   mytickets');
     exit;
+}
+
+// Get current user's department if they are HOD
+$userDepartment = null;
+if ($userRole === 'hod' && isset($_SESSION['user_email'])) {
+    // Fetch user's department from Supabase
+    if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
+        $supabaseUrl = rtrim(SUPABASE_URL, '/');
+        $supabaseKey = SUPABASE_ANON_KEY;
+        $userEmail = $_SESSION['user_email'];
+
+        $query = http_build_query([
+            'select' => 'department',
+            'email' => 'eq.' . $userEmail
+        ]);
+
+        $ch = curl_init();
+        curl_setopt_array($ch, [
+            CURLOPT_URL => $supabaseUrl . '/rest/v1/users?' . $query,
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_HTTPHEADER => [
+                'apikey: ' . $supabaseKey,
+                'Authorization: Bearer ' . $supabaseKey,
+                'Accept: application/json',
+            ],
+        ]);
+        $response = curl_exec($ch);
+        $userData = json_decode($response, true);
+        curl_close($ch);
+
+        if (is_array($userData) && !empty($userData[0])) {
+            $userDepartment = $userData[0]['department'] ?? null;
+        }
+    }
 }
 
 // Handle notification ticket notes request
@@ -75,7 +110,7 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY') && SUPABASE_URL !== 
     $supabaseKey = SUPABASE_ANON_KEY;
 
     $query = http_build_query([
-        'select' => 'id,name',
+        'select' => 'id,name,department_id',
         'order' => 'name.asc'
     ]);
 
@@ -517,12 +552,19 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY') && SUPABASE_URL !== 
                                                 required
                                             >
                                                 <option value="">Select department</option>
-                                                <?php foreach ($departments as $department): ?>
-                                                    <option value="<?php echo htmlspecialchars($department['name'], ENT_QUOTES, 'UTF-8'); ?>" 
-                                                        class="<?php echo ($department['name'] === 'ICT Department') ? 'fw-bold text-dark' : 'text-muted'; ?>">
+                                                <?php
+                                                // Only show ICT Department and Operations & Retail Department
+                                                $allowedDepartments = ['ICT Department', 'Operations & Retail Department'];
+                                                foreach ($departments as $department):
+                                                    if (in_array($department['name'], $allowedDepartments)):
+                                                ?>
+                                                    <option value="<?php echo htmlspecialchars($department['name'], ENT_QUOTES, 'UTF-8'); ?>" data-id="<?php echo htmlspecialchars($department['id'], ENT_QUOTES, 'UTF-8'); ?>">
                                                         <?php echo htmlspecialchars($department['name'], ENT_QUOTES, 'UTF-8'); ?>
                                                     </option>
-                                                <?php endforeach; ?>
+                                                <?php
+                                                    endif;
+                                                endforeach;
+                                                ?>
                                             </select>
                                         </div>
 
@@ -533,7 +575,7 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY') && SUPABASE_URL !== 
                                             <select class="form-select form-select-sm" id="ticketCategory">
                                                 <option value="">Select category</option>
                                                 <?php foreach ($categories as $category): ?>
-                                                    <option value="<?php echo htmlspecialchars($category['name'], ENT_QUOTES, 'UTF-8'); ?>">
+                                                    <option value="<?php echo htmlspecialchars($category['name'], ENT_QUOTES, 'UTF-8'); ?>" data-department-id="<?php echo htmlspecialchars($category['department_id'] ?? '', ENT_QUOTES, 'UTF-8'); ?>">
                                                         <?php echo htmlspecialchars($category['name'], ENT_QUOTES, 'UTF-8'); ?>
                                                     </option>
                                                 <?php endforeach; ?>
@@ -937,12 +979,19 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY') && SUPABASE_URL !== 
                             <label class="form-label small fw-semibold" for="editTicketDepartment">Department *</label>
                             <select class="form-select form-select-sm" id="editTicketDepartment" required>
                                 <option value="">Select department</option>
-                                <?php foreach ($departments as $department): ?>
-                                    <option value="<?php echo htmlspecialchars($department['name'], ENT_QUOTES, 'UTF-8'); ?>" 
-                                        class="<?php echo ($department['name'] === 'ICT') ? 'fw-bold text-dark' : 'text-muted'; ?>">
+                                <?php
+                                // Only show ICT Department and Operations & Retail Department
+                                $allowedDepartments = ['ICT Department', 'Operations & Retail Department'];
+                                foreach ($departments as $department):
+                                    if (in_array($department['name'], $allowedDepartments)):
+                                ?>
+                                    <option value="<?php echo htmlspecialchars($department['name'], ENT_QUOTES, 'UTF-8'); ?>" data-id="<?php echo htmlspecialchars($department['id'], ENT_QUOTES, 'UTF-8'); ?>">
                                         <?php echo htmlspecialchars($department['name'], ENT_QUOTES, 'UTF-8'); ?>
                                     </option>
-                                <?php endforeach; ?>
+                                <?php
+                                    endif;
+                                endforeach;
+                                ?>
                             </select>
                         </div>
 
@@ -951,7 +1000,7 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY') && SUPABASE_URL !== 
                             <select class="form-select form-select-sm" id="editTicketCategory">
                                 <option value="">Select category</option>
                                 <?php foreach ($categories as $category): ?>
-                                    <option value="<?php echo htmlspecialchars($category['name'], ENT_QUOTES, 'UTF-8'); ?>">
+                                    <option value="<?php echo htmlspecialchars($category['name'], ENT_QUOTES, 'UTF-8'); ?>" data-department-id="<?php echo htmlspecialchars($category['department_id'] ?? '', ENT_QUOTES, 'UTF-8'); ?>">
                                         <?php echo htmlspecialchars($category['name'], ENT_QUOTES, 'UTF-8'); ?>
                                     </option>
                                 <?php endforeach; ?>
@@ -1215,10 +1264,14 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY') && SUPABASE_URL !== 
         const currentUserId = <?php echo json_encode($_SESSION['user_email'] ?? ''); ?>;
         const currentUserRole = <?php echo json_encode($_SESSION['user_role'] ?? ''); ?>;
         const isAdmin = (currentUserRole || '').toLowerCase() === 'admin';
+        const isHOD = (currentUserRole || '').toLowerCase() === 'hod';
+        const userDepartment = <?php echo json_encode($userDepartment ?? ''); ?>;
 
         console.log('Current User ID:', currentUserId || 'NOT SET');
         console.log('Current User Role:', currentUserRole || 'NOT SET');
         console.log('Is Admin:', isAdmin);
+        console.log('Is HOD:', isHOD);
+        console.log('User Department:', userDepartment || 'NOT SET');
 
         // Read view filter from query string (?view=unassigned|overdue|today)
         const urlParams = new URLSearchParams(window.location.search);
@@ -3258,6 +3311,12 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY') && SUPABASE_URL !== 
                         .from('tickets')
                         .select('*, ticket_assignees(technician_email)');
 
+                    // For HOD users, filter by their department
+                    if (isHOD && userDepartment) {
+                        query = query.eq('department', userDepartment);
+                        console.log('Filtering tickets for HOD department:', userDepartment);
+                    }
+
                     // Apply filters for admin views based on ?view=
                     if (currentView === 'open') {
                         query = query.eq('status', 'Open');
@@ -4088,6 +4147,70 @@ try {
                     await applyAdminFilters();
                 });
             }
+        }
+
+        // Filter categories based on selected department
+        const ticketDepartment = document.getElementById('ticketDepartment');
+        const ticketCategory = document.getElementById('ticketCategory');
+
+        if (ticketDepartment && ticketCategory) {
+            ticketDepartment.addEventListener('change', function() {
+                const selectedDeptId = this.options[this.selectedIndex].getAttribute('data-id');
+                console.log('Selected department ID:', selectedDeptId);
+                const categoryOptions = ticketCategory.querySelectorAll('option');
+
+                categoryOptions.forEach(option => {
+                    if (option.value === '') {
+                        // Keep the default "Select category" option
+                        return;
+                    }
+
+                    const categoryDeptId = option.getAttribute('data-department-id');
+                    console.log('Category:', option.value, 'Dept ID:', categoryDeptId, 'Match:', categoryDeptId === selectedDeptId);
+                    if (selectedDeptId && categoryDeptId) {
+                        // Show category if it matches the selected department
+                        option.style.display = (categoryDeptId === selectedDeptId) ? '' : 'none';
+                    } else {
+                        // If no department selected or category has no department, hide it
+                        option.style.display = 'none';
+                    }
+                });
+
+                // Reset category selection
+                ticketCategory.value = '';
+            });
+
+            // Initial filter on page load
+            ticketDepartment.dispatchEvent(new Event('change'));
+        }
+
+        // Filter categories in edit modal based on selected department
+        const editTicketCategory = document.getElementById('editTicketCategory');
+
+        if (editTicketDepartment && editTicketCategory) {
+            editTicketDepartment.addEventListener('change', function() {
+                const selectedDeptId = this.options[this.selectedIndex].getAttribute('data-id');
+                const categoryOptions = editTicketCategory.querySelectorAll('option');
+
+                categoryOptions.forEach(option => {
+                    if (option.value === '') {
+                        // Keep the default "Select category" option
+                        return;
+                    }
+
+                    const categoryDeptId = option.getAttribute('data-department-id');
+                    if (selectedDeptId && categoryDeptId) {
+                        // Show category if it matches the selected department
+                        option.style.display = (categoryDeptId === selectedDeptId) ? '' : 'none';
+                    } else {
+                        // If no department selected or category has no department, hide it
+                        option.style.display = 'none';
+                    }
+                });
+
+                // Reset category selection
+                editTicketCategory.value = '';
+            });
         }
 
         // Initial load

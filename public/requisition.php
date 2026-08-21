@@ -1644,6 +1644,10 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
                                 const toEmail = sharedWithEmails[0] || '';
                                 const ccEmails = sharedWithEmails.length > 1 ? sharedWithEmails.slice(1).join(',') : '';
 
+                                console.log('Shared with emails:', sharedWithEmails);
+                                console.log('To email:', toEmail);
+                                console.log('CC emails:', ccEmails);
+
                                 const emailData = {
                                     type: 'requisition',
                                     to: toEmail,
@@ -1651,6 +1655,8 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
                                     subject: 'New Requisition Created: ' + requisitionNumber,
                                     body: mailBody
                                 };
+
+                                console.log('Email data being sent:', emailData);
 
                                 try {
                                     const emailResponse = await fetch('notify_requisition.php', {

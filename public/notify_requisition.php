@@ -10,15 +10,19 @@ header('Content-Type: application/json');
 // SAFE INPUT PARSE
 // ==========================
 $raw = file_get_contents("php://input");
+error_log('Raw input received: ' . $raw);
 $data = json_decode($raw, true);
 
 if (!$data) {
+    error_log('JSON decode failed. Raw input: ' . $raw);
     echo json_encode([
         'status' => 'error',
         'message' => 'Invalid JSON input'
     ]);
     exit;
 }
+
+error_log('Decoded data: ' . json_encode($data));
 
 $type = $data['type'] ?? ''; // 'requisition' or 'feedback'
 $to_email = $data['to'] ?? '';
