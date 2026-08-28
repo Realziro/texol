@@ -375,6 +375,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         $department = $_POST['department'] ?? '';
         $requiredDate = $_POST['required_date'] ?? '';
+        $description = $_POST['description'] ?? '';
         $supplierId = $_POST['supplier_id'] ?? '';
         $sharedWith = $_POST['shared_with'] ?? '';
         $ticketId = $_POST['ticket_id'] ?? '';
@@ -384,7 +385,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $units = $_POST['unit'] ?? [];
         $unitPrices = $_POST['unit_price'] ?? [];
 
-        if (empty($department) || empty($requiredDate) || empty($itemIds) || empty($quantities)) {
+        if (empty($requiredDate) || empty($itemIds) || empty($quantities)) {
             echo json_encode(['success' => false, 'message' => 'Please fill in all required fields.']);
             exit;
         }
@@ -393,8 +394,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $supabaseUrl = rtrim(SUPABASE_URL, '/');
             $supabaseKey = SUPABASE_ANON_KEY;
 
-            // Get current user ID
-            $query = http_build_query(['select' => 'id', 'email' => 'eq.' . $userEmail]);
+            // Get current user ID and department
+            $query = http_build_query(['select' => 'id,department', 'email' => 'eq.' . $userEmail]);
             $ch = curl_init();
             curl_setopt_array($ch, [
                 CURLOPT_URL => $supabaseUrl . '/rest/v1/users?' . $query,
@@ -408,11 +409,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $response = curl_exec($ch);
             $userData = json_decode($response, true);
             $userId = $userData[0]['id'] ?? null;
+            $userDepartment = $userData[0]['department'] ?? '';
             curl_close($ch);
 
             if (!$userId) {
                 echo json_encode(['success' => false, 'message' => 'User not found.']);
                 exit;
+            }
+
+            // Use user's department from database if not provided in form
+            if (empty($department)) {
+                $department = $userDepartment;
             }
 
             // Calculate approval progress
@@ -429,6 +436,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'requested_by' => $userId,
                 'department' => $department,
                 'required_date' => $requiredDate,
+                'description' => $description,
                 'supplier_id' => $supplierId ?: null,
                 'shared_with' => $sharedWith ?: null,
                 'ticket_id' => $ticketId ?: null,
@@ -675,7 +683,7 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
         // Fetch all items for these requisitions
         $reqIdsString = implode(',', $reqIds);
         $query = http_build_query([
-            'select' => '*,item:items(id,name,unit)',
+            'select' => '*,item:items(id,name,unit,description)',
             'requisition_id' => 'in.(' . $reqIdsString . ')'
         ]);
         $ch = curl_init();
@@ -936,12 +944,12 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
                     <div class="card-body">
                         <form id="requisitionForm" class="row g-3">
                             <div class="col-md-6">
-                                <label class="form-label small fw-semibold">Department / Branch</label>
-                                <input type="text" class="form-control form-control-sm" name="department" placeholder="e.g., Production, Warehouse">
-                            </div>
-                            <div class="col-md-6">
                                 <label class="form-label small fw-semibold">Required Date</label>
                                 <input type="date" class="form-control form-control-sm" name="required_date">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label small fw-semibold">Description</label>
+                                <input type="text" class="form-control form-control-sm" name="description" placeholder="Short description of requisition">
                             </div>
                             <input type="hidden" name="ticket_id" value="<?php echo htmlspecialchars($_GET['ticket_id']); ?>">
                             <div class="col-md-6">
@@ -1018,6 +1026,7 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
                             </div>
                             <div class="col-12">
                                 <label class="form-label small fw-semibold">Attachments</label>
+                                <small class="text-muted d-block mb-1">Please attach quotation and any other related documents</small>
                                 <input type="file" class="form-control form-control-sm" name="attachments[]" multiple>
                             </div>
                             <div class="col-12">
@@ -1047,7 +1056,7 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
                                     <tr>
                                         <th class="small text-uppercase text-muted">RQ #</th>
                                         <th class="small text-uppercase text-muted">Ticket ID</th>
-                                        <th class="small text-uppercase text-muted">Department</th>
+                                        <th class="small text-uppercase text-muted">Description</th>
                                         <th class="small text-uppercase text-muted">Required Date</th>
                                         <th class="small text-uppercase text-muted">Status</th>
                                         <th class="small text-uppercase text-muted">Approval Progress</th>
@@ -1077,7 +1086,7 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
                                                         -
                                                     <?php endif; ?>
                                                 </td>
-                                                <td class="small"><?php echo htmlspecialchars($req['department'] ?? '-'); ?></td>
+                                                <td class="small"><?php echo htmlspecialchars($req['description'] ?? '-'); ?></td>
                                                 <td class="small"><?php echo htmlspecialchars($req['required_date'] ?? '-'); ?></td>
                                                 <td class="small">
                                                     <span class="badge rounded-pill <?php
@@ -1350,14 +1359,17 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
                 }
             });
 
-            // Close dropdown when clicking outside
-            document.addEventListener('click', function(e) {
-                if (!input.contains(e.target) && !dropdown.contains(e.target)) {
-                    dropdown.classList.remove('show');
-                }
-            });
-
             function addUserToSelection(user) {
+                // Prevent user from adding themselves as approver
+                if (user.id === currentUserId) {
+                    const alertModal = document.getElementById('alertModal');
+                    const alertMessage = document.getElementById('alertModalMessage');
+                    alertMessage.textContent = 'You cannot add yourself as an approver.';
+                    const bsModal = new bootstrap.Modal(alertModal);
+                    bsModal.show();
+                    return;
+                }
+
                 // Check if user already selected
                 if (localSelectedUsers.find(u => u.id === user.id)) {
                     return;
@@ -1369,6 +1381,13 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
 
                 updateSelectedUsersDisplay();
             }
+
+            // Close dropdown when clicking outside
+            document.addEventListener('click', function(e) {
+                if (!input.contains(e.target) && !dropdown.contains(e.target)) {
+                    dropdown.classList.remove('show');
+                }
+            });
 
             function removeUserFromSelection(userId) {
                 localSelectedUsers = localSelectedUsers.filter(u => u.id !== userId);
@@ -1472,10 +1491,10 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
                 // Get current user
                 const { data: userData } = await supabase
                     .from('users')
-                    .select('id')
+                    .select('id, department')
                     .eq('email', userEmail)
                     .single();
-                
+
                 if (!userData) {
                     alert('User not found');
                     submitBtn.disabled = false;
@@ -1485,8 +1504,9 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
 
                 // Collect form data
                 const formData = new FormData(requisitionForm);
-                const department = formData.get('department');
+                const department = userData.department || '';
                 const requiredDate = formData.get('required_date');
+                const description = formData.get('description');
                 const supplierId = formData.get('supplier_id');
                 const ticketIdFromForm = formData.get('ticket_id');
                 const sharedWith = formData.get('shared_with');
@@ -1514,6 +1534,7 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
                         requested_by: userData.id,
                         department: department || null,
                         required_date: requiredDate || null,
+                        description: description || null,
                         supplier_id: supplierId || null,
                         shared_with: sharedWith || null,
                         status: 'pending'
@@ -1727,12 +1748,14 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
                                 <th>Unit</th>
                                 <th>Unit Price</th>
                                 <th>Total</th>
+                                <th>Description</th>
                             </tr>
                         </thead>
                         <tbody>
                             ${req.items.map(item => {
                                 const itemTotal = (parseFloat(item.quantity) || 0) * (parseFloat(item.unit_price) || 0);
                                 const itemName = item.item ? item.item.name : 'Unknown';
+                                const itemDescription = item.item ? (item.item.description || '') : '';
                                 return `
                                     <tr>
                                         <td>${itemName}</td>
@@ -1740,11 +1763,12 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
                                         <td>${item.unit}</td>
                                         <td>${item.unit_price || 0}</td>
                                         <td>${itemTotal.toFixed(2)}</td>
+                                        <td>${itemDescription}</td>
                                     </tr>
                                 `;
                             }).join('')}
                             <tr class="table-light fw-semibold">
-                                <td colspan="4" class="text-end">Grand Total:</td>
+                                <td colspan="5" class="text-end">Grand Total:</td>
                                 <td>${total.toFixed(2)}</td>
                             </tr>
                         </tbody>
@@ -1835,8 +1859,8 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
                         <div class="fw-semibold">${req.status || '-'}</div>
                     </div>
                     <div class="col-6">
-                        <small class="text-muted">Department:</small>
-                        <div>${req.department || '-'}</div>
+                        <small class="text-muted">Description:</small>
+                        <div>${req.description || '-'}</div>
                     </div>
                     <div class="col-6">
                         <small class="text-muted">Required Date:</small>
@@ -1943,7 +1967,7 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
 
             // Get requester info
             const requestedByName = req.requested_by_user ? (req.requested_by_user.full_name || req.requested_by_user.email) : '-';
-            const requesterDepartment = req.department || '-';
+            const requesterDescription = req.description || '-';
             const createdDate = formatDateDMY(req.created_at);
             const requiredDate = req.required_date ? formatDateDMY(req.required_date) : '-';
 
@@ -1993,11 +2017,12 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
                     const itemName = item.item ? item.item.name : 'Unknown';
                     const quantity = item.quantity || 0;
                     const unit = item.unit || '';
+                    const itemDescription = item.item ? (item.item.description || '') : '';
                     return `
                         <tr>
                             <td class="no-col">${index + 1}</td>
                             <td class="item-col">${itemName}</td>
-                            <td class="desc-col"></td>
+                            <td class="desc-col">${itemDescription}</td>
                             <td class="qty-col">${quantity} ${unit}</td>
                         </tr>
                     `;
@@ -2270,7 +2295,7 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
                       <td>Date: ${createdDate}</td>
                     </tr>
                     <tr>
-                      <td>Department: ${requesterDepartment}</td>
+                      <td>Description: ${requesterDescription}</td>
                       <td>Items Required by when: ${requiredDate}</td>
                     </tr>
                   </table>
@@ -2448,12 +2473,12 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
                             <div class="modal-body">
                                 <form id="standaloneRequisitionForm" class="row g-3">
                                     <div class="col-md-6">
-                                        <label class="form-label small fw-semibold">Department / Branch</label>
-                                        <input type="text" class="form-control form-control-sm" name="department" placeholder="e.g., Production, Warehouse" required>
-                                    </div>
-                                    <div class="col-md-6">
                                         <label class="form-label small fw-semibold">Required Date</label>
                                         <input type="date" class="form-control form-control-sm" name="required_date" required>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label small fw-semibold">Description</label>
+                                        <input type="text" class="form-control form-control-sm" name="description" placeholder="Short description of requisition">
                                     </div>
                                     <input type="hidden" name="ticket_id" value="">
                                     <div class="col-md-6">
@@ -2529,6 +2554,7 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
                                     </div>
                                     <div class="col-12">
                                         <label class="form-label small fw-semibold">Attachments</label>
+                                        <small class="text-muted d-block mb-1">Please attach quotation and any other related documents.</small>
                                         <input type="file" class="form-control form-control-sm" name="attachments[]" multiple>
                                     </div>
                                     <div class="col-12">
@@ -2553,24 +2579,42 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
             initUserSearch('standaloneSharedWithInput', 'standaloneSharedWithDropdown', 'standaloneSelectedUsers', 'standaloneSharedWith');
 
             // Handle form submission
-            document.getElementById('standaloneRequisitionForm').addEventListener('submit', function(e) {
+            document.getElementById('standaloneRequisitionForm').addEventListener('submit', async function(e) {
                 e.preventDefault();
                 const formData = new FormData(this);
                 formData.append('action', 'create');
 
-                fetch('requisition.php', {
-                    method: 'POST',
-                    body: formData
-                })
-                .then(async response => {
+                const submitBtn = this.querySelector('button[type="submit"]');
+                const originalBtnText = submitBtn.innerHTML;
+
+                // Show loading state
+                submitBtn.disabled = true;
+                submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Creating...';
+
+                try {
+                    // Get current user department
+                    const { data: userData } = await supabase
+                        .from('users')
+                        .select('department')
+                        .eq('email', userEmail)
+                        .single();
+
+                    if (userData && userData.department) {
+                        formData.append('department', userData.department);
+                    }
+
+                    const response = await fetch('requisition.php', {
+                        method: 'POST',
+                        body: formData
+                    });
+
                     const responseText = await response.text();
                     console.log('Create requisition modal response:', responseText);
                     if (!responseText) {
                         throw new Error('Empty response from server');
                     }
-                    return JSON.parse(responseText);
-                })
-                .then(data => {
+                    const data = JSON.parse(responseText);
+
                     if (data.success) {
                         alert(data.message);
                         bootstrap.Modal.getInstance(document.getElementById('createRequisitionModal')).hide();
@@ -2578,11 +2622,14 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
                     } else {
                         alert(data.message);
                     }
-                })
-                .catch(error => {
+                } catch (error) {
                     console.error('Error:', error);
                     alert('An error occurred while creating the requisition.');
-                });
+                } finally {
+                    // Reset button state
+                    submitBtn.disabled = false;
+                    submitBtn.innerHTML = originalBtnText;
+                }
             });
         };
 
@@ -3178,9 +3225,50 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
     </div>
 </div>
 
+<!-- Alert Modal -->
+<div class="modal fade" id="alertModal" tabindex="-1" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
+    <div class="modal-dialog modal-sm modal-dialog-centered">
+        <div class="modal-content" style="border: 2px solid #3b82f6;">
+            <div class="modal-header" style="border-color: #3b82f6;">
+                <h5 class="modal-title" style="color: #1f2937;">
+                    <i class="bi bi-info-circle-fill me-2" style="color: #3b82f6;"></i>Alert
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="text-center py-3">
+                    <i class="bi bi-info-circle" style="color: #3b82f6; font-size: 3rem;" class="mb-3"></i>
+                    <p class="mb-0 text-secondary" id="alertModalMessage"></p>
+                </div>
+            </div>
+            <div class="modal-footer" style="border-color: #3b82f6;">
+                <button type="button" class="btn" style="background-color: #3b82f6; color: white;" data-bs-dismiss="modal">OK</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <style>
     #dropZone.dragover {
         border-color: #0d6efd;
         background-color: #f8f9fa;
+    }
+    #alertModal {
+        z-index: 9999;
+    }
+    #alertModal .modal-backdrop {
+        z-index: 9998;
+    }
+    #alertModal .modal-content {
+        border-radius: 12px;
+        box-shadow: 0 10px 40px rgba(59, 130, 246, 0.2);
+    }
+    #alertModal .modal-header {
+        border-top-left-radius: 12px;
+        border-top-right-radius: 12px;
+    }
+    #alertModal .modal-footer {
+        border-bottom-left-radius: 12px;
+        border-bottom-right-radius: 12px;
     }
 </style>

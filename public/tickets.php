@@ -103,6 +103,37 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY') && SUPABASE_URL !== 
     }
 }
 
+// Fetch branches from database
+$branches = [];
+if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY') && SUPABASE_URL !== '' && SUPABASE_ANON_KEY !== '') {
+    $supabaseUrl = rtrim(SUPABASE_URL, '/');
+    $supabaseKey = SUPABASE_ANON_KEY;
+
+    $query = http_build_query([
+        'select' => 'id,name',
+        'order' => 'name.asc'
+    ]);
+
+    $ch = curl_init();
+    curl_setopt_array($ch, [
+        CURLOPT_URL => $supabaseUrl . '/rest/v1/branches?' . $query,
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_HTTPHEADER => [
+            'apikey: ' . $supabaseKey,
+            'Authorization: Bearer ' . $supabaseKey,
+            'Accept: application/json',
+        ],
+    ]);
+
+    $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+
+    if ($httpCode === 200 && $response) {
+        $branches = json_decode($response, true) ?: [];
+    }
+}
+
 // Fetch categories from database
 $categories = [];
 if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY') && SUPABASE_URL !== '' && SUPABASE_ANON_KEY !== '') {
@@ -631,6 +662,20 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY') && SUPABASE_URL !== 
                                         </div>
 
                                         <div class="col-12 col-md-6">
+                                            <label class="form-label small fw-semibold" for="ticketBranch">
+                                                Branch
+                                            </label>
+                                            <select class="form-select form-select-sm" id="ticketBranch">
+                                                <option value="">Select branch</option>
+                                                <?php foreach ($branches as $branch): ?>
+                                                    <option value="<?php echo htmlspecialchars($branch['name']); ?>" data-id="<?php echo htmlspecialchars($branch['id']); ?>">
+                                                        <?php echo htmlspecialchars($branch['name']); ?>
+                                                    </option>
+                                                <?php endforeach; ?>
+                                            </select>
+                                        </div>
+
+                                        <div class="col-12 col-md-6">
                                             <label class="form-label small fw-semibold" for="ticketTechnician">
                                                 Assign Technician
                                             </label>
@@ -664,6 +709,7 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY') && SUPABASE_URL !== 
                                             <label class="form-label small fw-semibold" for="ticketAttachments">
                                                 Attachments
                                             </label>
+                                            <small class="text-muted d-block mb-1">Please attach evidence and any other related documents</small>
                                             <div class="drag-drop-zone border rounded p-3 bg-light" id="createTicketDropZone">
                                                 <div class="text-center">
                                                     <i class="bi bi-cloud-upload fs-3 text-muted mb-2"></i>
@@ -907,6 +953,7 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY') && SUPABASE_URL !== 
                                                 <th class="small text-uppercase text-muted">Title</th>
                                                 <th class="small text-uppercase text-muted">Requester</th>
                                                 <th class="small text-uppercase text-muted">Dept</th>
+                                                <th class="small text-uppercase text-muted">Branch</th>
                                                 <th class="small text-uppercase text-muted">Category</th>
                                                 <th class="small text-uppercase text-muted">Priority</th>
                                                 <th class="small text-uppercase text-muted">Assigned To</th>
@@ -915,7 +962,7 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY') && SUPABASE_URL !== 
                                         </thead>
                                         <tbody id="adminTicketsTableBody">
                                             <tr id="adminTicketsEmptyRow">
-                                                <td colspan="9" class="text-center small text-muted py-3">
+                                                <td colspan="10" class="text-center small text-muted py-3">
                                                     No tickets to display.
                                                 </td>
                                             </tr>
@@ -1034,6 +1081,18 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY') && SUPABASE_URL !== 
                                 <option value="low">Low</option>
                                 <option value="medium">Medium</option>
                                 <option value="high">High</option>
+                            </select>
+                        </div>
+
+                        <div class="col-12 col-md-3">
+                            <label class="form-label small fw-semibold" for="editTicketBranch">Branch</label>
+                            <select class="form-select form-select-sm" id="editTicketBranch">
+                                <option value="">Select branch</option>
+                                <?php foreach ($branches as $branch): ?>
+                                    <option value="<?php echo htmlspecialchars($branch['name']); ?>" data-id="<?php echo htmlspecialchars($branch['id']); ?>">
+                                        <?php echo htmlspecialchars($branch['name']); ?>
+                                    </option>
+                                <?php endforeach; ?>
                             </select>
                         </div>
 
@@ -1697,6 +1756,7 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY') && SUPABASE_URL !== 
             if (editTicketQuill) editTicketQuill.root.innerHTML = ticket.description || '';
             editTicketDepartment.value = ticket.department || '';
             editTicketCategory.value = ticket.category || '';
+            editTicketBranch.value = ticket.branch || '';
             editTicketStatus.value = ticket.status || 'Open';
             editTicketUrgency.value = ticket.urgency || 'medium';
             editTicketImpact.value = ticket.impact || 'medium';
@@ -3100,7 +3160,7 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY') && SUPABASE_URL !== 
             if (!filteredData || filteredData.length === 0) {
                 adminTicketsTableBody.innerHTML = `
                     <tr>
-                        <td colspan="9" class="text-center small text-muted py-3">
+                        <td colspan="10" class="text-center small text-muted py-3">
                             No tickets match the current filters.
                         </td>
                     </tr>`;
@@ -3153,6 +3213,10 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY') && SUPABASE_URL !== 
                 const deptCell = document.createElement('td');
                 deptCell.className = 'small';
                 deptCell.textContent = ticket.department || '';
+
+                const branchCell = document.createElement('td');
+                branchCell.className = 'small';
+                branchCell.textContent = ticket.branch || '-';
 
                 const categoryCell = document.createElement('td');
                 categoryCell.className = 'small';
@@ -3226,6 +3290,7 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY') && SUPABASE_URL !== 
                 tr.appendChild(titleCell);
                 tr.appendChild(requesterCell);
                 tr.appendChild(deptCell);
+                tr.appendChild(branchCell);
                 tr.appendChild(categoryCell);
                 tr.appendChild(priorityCell);
                 tr.appendChild(assigneeCell);
@@ -3266,7 +3331,7 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY') && SUPABASE_URL !== 
 
                     const res = await supabase
                         .from('tickets')
-                        .select('*, ticket_assignees(technician_email)')
+                        .select('*, branch, ticket_assignees(technician_email)')
                         .neq('status', 'Closed')
                         .order('created_at', { ascending: false })
                         .limit(200);
@@ -3297,7 +3362,7 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY') && SUPABASE_URL !== 
                     } else {
                         const res = await supabase
                             .from('tickets')
-                            .select('*, ticket_assignees(technician_email)')
+                            .select('*, branch, ticket_assignees(technician_email)')
                             .in('id', ticketIds)
                             .neq('status', 'Closed')
                             .order('created_at', { ascending: false })
@@ -3309,7 +3374,7 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY') && SUPABASE_URL !== 
                 } else {
                     let query = supabase
                         .from('tickets')
-                        .select('*, ticket_assignees(technician_email)');
+                        .select('*, branch, ticket_assignees(technician_email)');
 
                     // For HOD users, filter by their department
                     if (isHOD && userDepartment) {
@@ -3349,7 +3414,7 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY') && SUPABASE_URL !== 
                     console.error(error);
                     adminTicketsTableBody.innerHTML = `
                         <tr>
-                            <td colspan="8" class="text-center small text-danger py-3">
+                            <td colspan="10" class="text-center small text-danger py-3">
                                 Failed to load tickets: ${error.message}
                             </td>
                         </tr>`;
@@ -3360,7 +3425,7 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY') && SUPABASE_URL !== 
                     adminAllTicketsData = [];
                     adminTicketsTableBody.innerHTML = `
                         <tr>
-                            <td colspan="8" class="text-center small text-muted py-3">
+                            <td colspan="10" class="text-center small text-muted py-3">
                                 No tickets to display.
                             </td>
                         </tr>`;
@@ -3377,7 +3442,7 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY') && SUPABASE_URL !== 
                 console.error(err);
                 adminTicketsTableBody.innerHTML = `
                     <tr>
-                        <td colspan="8" class="text-center small text-danger py-3">
+                        <td colspan="10" class="text-center small text-danger py-3">
                             Unexpected error loading tickets.
                         </td>
                     </tr>`;
@@ -3395,6 +3460,7 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY') && SUPABASE_URL !== 
                 const description = ticketQuill ? ticketQuill.root.innerHTML : '';
                 const department = document.getElementById('ticketDepartment').value;
                 const category = document.getElementById('ticketCategory').value;
+                const branch = document.getElementById('ticketBranch').value;
                 const status = document.getElementById('ticketStatus').value;
                 const urgency = document.getElementById('ticketUrgency').value;
                 const impact = document.getElementById('ticketImpact').value;
@@ -3465,6 +3531,7 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY') && SUPABASE_URL !== 
                             description,
                             department,
                             category: category || null,
+                            branch,
                             status,
                             urgency,
                             impact,
@@ -3564,6 +3631,9 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY') && SUPABASE_URL !== 
                     Department: ${department}
                 </span>
                 <span style='display:inline-block; padding:6px 12px; border-radius:20px; font-size:12px; background:#f0f0f0; color:#555; margin:3px;'>
+                    Branch: ${branch || 'N/A'}
+                </span>
+                <span style='display:inline-block; padding:6px 12px; border-radius:20px; font-size:12px; background:#f0f0f0; color:#555; margin:3px;'>
                     Category: ${category || 'N/A'}
                 </span>
                  <span style='display:inline-block; padding:6px 12px; border-radius:20px; font-size:12px; background:#f0f0f0; color:#555; margin:3px;'>
@@ -3653,6 +3723,7 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY') && SUPABASE_URL !== 
                 const description = editTicketQuill ? editTicketQuill.root.innerHTML : '';
                 const department = editTicketDepartment?.value;
                 const category = editTicketCategory?.value;
+                const branch = editTicketBranch?.value;
                 const status = editTicketStatus?.value;
                 const urgency = editTicketUrgency?.value;
                 const impact = editTicketImpact?.value;
@@ -3739,6 +3810,7 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY') && SUPABASE_URL !== 
                             description,
                             department,
                             category: category || null,
+                            branch,
                             status,
                             urgency,
                             impact,

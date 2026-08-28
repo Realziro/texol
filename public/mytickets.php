@@ -80,6 +80,37 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY') && SUPABASE_URL !== 
         $categories = json_decode($response, true) ?: [];
     }
 }
+
+// Fetch branches from database
+$branches = [];
+if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY') && SUPABASE_URL !== '' && SUPABASE_ANON_KEY !== '') {
+    $supabaseUrl = rtrim(SUPABASE_URL, '/');
+    $supabaseKey = SUPABASE_ANON_KEY;
+
+    $query = http_build_query([
+        'select' => 'id,name',
+        'order' => 'name.asc'
+    ]);
+
+    $ch = curl_init();
+    curl_setopt_array($ch, [
+        CURLOPT_URL => $supabaseUrl . '/rest/v1/branches?' . $query,
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_HTTPHEADER => [
+            'apikey: ' . $supabaseKey,
+            'Authorization: Bearer ' . $supabaseKey,
+            'Accept: application/json',
+        ],
+    ]);
+
+    $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+
+    if ($httpCode === 200 && $response) {
+        $branches = json_decode($response, true) ?: [];
+    }
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -234,6 +265,7 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY') && SUPABASE_URL !== 
                                             <th>Ticket ID</th>
                                             <th>Title</th>
                                             <th>Department</th>
+                                            <th>Branch</th>
                                             <th>Category</th>
                                             <th>Priority</th>
                                             <th>Status</th>
@@ -243,7 +275,7 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY') && SUPABASE_URL !== 
                                     </thead>
                                     <tbody id="ticketsTableBody">
                                         <tr>
-                                            <td colspan="8" class="text-center small text-muted py-3">
+                                            <td colspan="9" class="text-center small text-muted py-3">
                                                 Loading tickets...
                                             </td>
                                         </tr>
@@ -337,7 +369,21 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY') && SUPABASE_URL !== 
                         </div>
 
                         <div class="col-12 col-md-6">
-                          
+                            <label class="form-label small fw-semibold" for="ticketBranch">
+                                Branch
+                            </label>
+                            <select class="form-select form-select-sm" id="ticketBranch">
+                                <option value="">Select branch</option>
+                                <?php foreach ($branches as $branch): ?>
+                                    <option value="<?php echo htmlspecialchars($branch['name']); ?>" data-id="<?php echo htmlspecialchars($branch['id']); ?>">
+                                        <?php echo htmlspecialchars($branch['name']); ?>
+                                    </option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+
+                        <div class="col-12 col-md-6">
+
                             <input hidden value="0000-00-00 00:00:00" type="datetime-local" class="form-control form-control-sm" id="ticketPlannedStartDate" />
                         </div>
 
@@ -350,6 +396,7 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY') && SUPABASE_URL !== 
                             <label class="form-label small fw-semibold" for="ticketAttachments">
                                 Attachments
                             </label>
+                            <small class="text-muted d-block mb-1">Please attach evidence and any other related documents</small>
                             <div class="drag-drop-zone p-3 text-center rounded" id="dropZone">
                                 <i class="bi bi-cloud-upload fs-4 text-muted"></i>
                                 <p class="small text-muted mb-0">Drag & drop files here or click to browse</p>
@@ -428,6 +475,18 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY') && SUPABASE_URL !== 
                                 <?php foreach ($categories as $cat): ?>
                                     <option value="<?php echo htmlspecialchars($cat['name'], ENT_QUOTES, 'UTF-8'); ?>" data-department-id="<?php echo htmlspecialchars($cat['department_id'] ?? '', ENT_QUOTES, 'UTF-8'); ?>">
                                         <?php echo htmlspecialchars($cat['name'], ENT_QUOTES, 'UTF-8'); ?>
+                                    </option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+
+                        <div class="col-12 col-md-6">
+                            <label class="form-label small fw-semibold" for="editTicketBranch">Branch</label>
+                            <select class="form-select form-select-sm" id="editTicketBranch">
+                                <option value="">Select branch</option>
+                                <?php foreach ($branches as $branch): ?>
+                                    <option value="<?php echo htmlspecialchars($branch['name']); ?>" data-id="<?php echo htmlspecialchars($branch['id']); ?>">
+                                        <?php echo htmlspecialchars($branch['name']); ?>
                                     </option>
                                 <?php endforeach; ?>
                             </select>
@@ -733,6 +792,7 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY') && SUPABASE_URL !== 
                 const description = ticketQuill ? ticketQuill.root.innerHTML : '';
                 const department = document.getElementById('ticketDepartment').value;
                 const category = document.getElementById('ticketCategory').value;
+                const branch = document.getElementById('ticketBranch').value;
                 const source = 'self';
                 const priority = document.getElementById('ticketPriority').value;
                 const plannedStartDate = document.getElementById('ticketPlannedStartDate').value;
@@ -762,6 +822,7 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY') && SUPABASE_URL !== 
                             source,
                             department,
                             category,
+                            branch,
                             priority,
                             status: 'Open',
                             urgency: 'medium',
@@ -879,6 +940,9 @@ try {
                 </span>
                 <span style='display:inline-block; padding:6px 12px; border-radius:20px; font-size:12px; background:#f0f0f0; color:#555; margin:3px;'>
                     Department: ${department}
+                </span>
+                <span style='display:inline-block; padding:6px 12px; border-radius:20px; font-size:12px; background:#f0f0f0; color:#555; margin:3px;'>
+                    Branch: ${branch || 'N/A'}
                 </span>
                 <span style='display:inline-block; padding:6px 12px; border-radius:20px; font-size:12px; background:#f0f0f0; color:#555; margin:3px;'>
                     Category: ${category || 'N/A'}
@@ -1053,6 +1117,7 @@ try {
                             <div class="text-muted small">${plainDescription ? plainDescription.substring(0, 50) + '...' : ''}</div>
                         </td>
                         <td class="small">${ticket.department || '-'}</td>
+                        <td class="small">${ticket.branch || '-'}</td>
                         <td class="small">${ticket.category || '-'}</td>
                         <td>
                             <span class="badge rounded-pill ${prioClass} small">
@@ -1107,6 +1172,7 @@ try {
             if (editTicketQuill) editTicketQuill.root.innerHTML = ticket.description || '';
             document.getElementById('editTicketDepartment').value = ticket.department || '';
             document.getElementById('editTicketCategory').value = ticket.category || '';
+            document.getElementById('editTicketBranch').value = ticket.branch || '';
             document.getElementById('editTicketPriority').value = ticket.priority || 'medium';
             document.getElementById('editTicketStatus').value = ticket.status || 'Open';
 
@@ -1204,6 +1270,7 @@ try {
                 const description = editTicketQuill ? editTicketQuill.root.innerHTML : '';
                 const department = document.getElementById('editTicketDepartment').value;
                 const category = document.getElementById('editTicketCategory').value;
+                const branch = document.getElementById('editTicketBranch').value;
                 const priority = document.getElementById('editTicketPriority').value;
                 const status = document.getElementById('editTicketStatus').value;
                 const plannedStartDate = document.getElementById('editTicketPlannedStartDate').value;
@@ -1226,6 +1293,7 @@ try {
                             description,
                             department,
                             category,
+                            branch,
                             priority,
                             status,
                             planned_start_date: plannedStartDate || null,
@@ -1305,6 +1373,10 @@ ${description}            </p>
 
                 <span style="display:inline-block;padding:6px 12px;border-radius:20px;font-size:12px;background:#f0f0f0;color:#555;margin:3px;">
                      Department: ${department || "N/A"}
+                </span>
+
+                <span style="display:inline-block;padding:6px 12px;border-radius:20px;font-size:12px;background:#f0f0f0;color:#555;margin:3px;">
+                     Branch: ${branch || "N/A"}
                 </span>
 
                 <span style="display:inline-block;padding:6px 12px;border-radius:20px;font-size:12px;background:#f0f0f0;color:#555;margin:3px;">
