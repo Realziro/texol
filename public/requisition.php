@@ -39,6 +39,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // Check if this is an AJAX request
     $isAjax = isset($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest';
 
+    if ($action === 'view_file') {
+        // Serve file for preview with proper headers
+        $filePath = $_POST['file_path'] ?? '';
+        $mimeType = $_POST['mime_type'] ?? 'application/octet-stream';
+
+        $uploadsRoot = realpath(__DIR__ . '/uploads');
+        $fullPath = realpath(__DIR__ . '/' . $filePath);
+
+        // Reject if outside uploads/ or the file doesn't exist
+        if ($fullPath === false || $uploadsRoot === false || strpos($fullPath, $uploadsRoot) !== 0) {
+            http_response_code(403);
+            echo 'Access denied';
+            exit;
+        }
+
+        header('Content-Type: ' . $mimeType);
+        header('Content-Disposition: inline');
+        header('Content-Length: ' . filesize($fullPath));
+        readfile($fullPath);
+        exit;
+    }
+
     if ($action === 'upload_attachment') {
         // Handle file upload - always return JSON
         header('Content-Type: application/json');
@@ -84,7 +106,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         // Create upload directory
         $uploadDir = __DIR__ . '/uploads/requisitions/' . $requisitionId . '/';
         if (!file_exists($uploadDir)) {
-            mkdir($uploadDir, 0755, true);
+            if (!mkdir($uploadDir, 0777, true)) {
+                error_log('upload_attachment - Failed to create directory: ' . $uploadDir);
+                echo json_encode(['success' => false, 'message' => 'Failed to create upload directory']);
+                exit;
+            }
+            chmod($uploadDir, 0777);
         }
 
         // Generate unique filename
@@ -93,10 +120,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $relativePath = 'uploads/requisitions/' . $requisitionId . '/' . $fileName;
 
         error_log('upload_attachment - Moving file to: ' . $filePath);
+        error_log('upload_attachment - Upload dir exists: ' . (file_exists($uploadDir) ? 'yes' : 'no'));
+        error_log('upload_attachment - Upload dir writable: ' . (is_writable($uploadDir) ? 'yes' : 'no'));
+        error_log('upload_attachment - Tmp file: ' . $_FILES['file']['tmp_name']);
+        error_log('upload_attachment - Tmp file exists: ' . (file_exists($_FILES['file']['tmp_name']) ? 'yes' : 'no'));
 
         // Move uploaded file
         if (move_uploaded_file($_FILES['file']['tmp_name'], $filePath)) {
             error_log('upload_attachment - File moved successfully');
+            error_log('upload_attachment - File exists after move: ' . (file_exists($filePath) ? 'yes' : 'no'));
             // Store in database
             if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
                 $supabaseUrl = rtrim(SUPABASE_URL, '/');
@@ -230,16 +262,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             'approved_at' => date('c')
                         ];
 
-                        // Calculate approval progress
-                        $totalApprovers = count($sharedWithArray);
-                        $approvedCount = count($approvedByArray);
-                        $progress = $totalApprovers > 0 ? ($approvedCount / $totalApprovers) * 100 : 0;
+                        // Calculate approval progress (max 2 required approvers)
+                        $requiredApprovers = array_slice($sharedWithArray, 0, 2); // First 2 users are required
+                        $totalRequired = count($requiredApprovers);
+                        $approvedCount = 0;
 
-                        // Determine status based on progress
+                        // Count how many of the required approvers have approved
+                        foreach ($requiredApprovers as $requiredUserId) {
+                            foreach ($approvedByArray as $approval) {
+                                $approverId = is_array($approval) ? ($approval['user_id'] ?? null) : $approval;
+                                if ($approverId === $requiredUserId) {
+                                    $approvedCount++;
+                                    break;
+                                }
+                            }
+                        }
+
+                        $progress = $totalRequired > 0 ? ($approvedCount / $totalRequired) * 100 : 0;
+
+                        // Determine status based on progress (max 2 required)
                         $status = 'pending';
-                        if ($progress >= 100) {
+                        if ($approvedCount >= 2) {
                             $status = 'approved';
-                        } elseif ($progress > 0) {
+                        } elseif ($approvedCount > 0) {
                             $status = 'partially_approved';
                         }
 
@@ -519,7 +564,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     curl_close($ch);
                 }
 
-                echo json_encode(['success' => true, 'message' => 'Requisition created successfully!']);
+                echo json_encode(['success' => true, 'message' => 'Requisition created successfully!', 'requisition_id' => $requisitionId]);
             } else {
                 $errorMessage = 'Failed to create requisition.';
                 if (isset($requisitionResult['message'])) {
@@ -1110,11 +1155,25 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
                                                     $approvedByUsers = $req['approved_by_users'] ?? [];
                                                     $sharedWithArray = !empty($sharedWith) ? explode(',', $sharedWith) : [];
                                                     $approvedByArray = is_array($approvedByUsers) ? $approvedByUsers : (!empty($approvedByUsers) ? json_decode($approvedByUsers, true) : []);
-                                                    $totalApprovers = count($sharedWithArray);
-                                                    $approvedCount = count($approvedByArray);
-                                                    $progress = $totalApprovers > 0 ? ($approvedCount / $totalApprovers) * 100 : 0;
+
+                                                    // Calculate approval progress (max 2 required approvers)
+                                                    $requiredApprovers = array_slice($sharedWithArray, 0, 2);
+                                                    $totalRequired = count($requiredApprovers);
+                                                    $approvedCount = 0;
+
+                                                    foreach ($requiredApprovers as $requiredUserId) {
+                                                        foreach ($approvedByArray as $approval) {
+                                                            $approverId = is_array($approval) ? ($approval['user_id'] ?? null) : $approval;
+                                                            if ($approverId === $requiredUserId) {
+                                                                $approvedCount++;
+                                                                break;
+                                                            }
+                                                        }
+                                                    }
+
+                                                    $progress = $totalRequired > 0 ? ($approvedCount / $totalRequired) * 100 : 0;
                                                     ?>
-                                                    <?php if ($totalApprovers > 0): ?>
+                                                    <?php if ($totalRequired > 0): ?>
                                                         <div class="progress" style="height: 20px; width: 100px;">
                                                             <div class="progress-bar <?php echo $progress >= 100 ? 'bg-success' : ($progress > 0 ? 'bg-info' : 'bg-secondary'); ?>"
                                                                  role="progressbar"
@@ -1122,7 +1181,7 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
                                                                  aria-valuenow="<?php echo $progress; ?>"
                                                                  aria-valuemin="0"
                                                                  aria-valuemax="100">
-                                                                <?php echo $approvedCount; ?>/<?php echo $totalApprovers; ?>
+                                                                <?php echo $approvedCount; ?>/2
                                                             </div>
                                                         </div>
                                                     <?php else: ?>
@@ -1468,6 +1527,41 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
 
         window.removeUser = removeUser;
 
+        // View attachment with proper headers
+        window.viewAttachment = function(filePath, mimeType) {
+            const formData = new FormData();
+            formData.append('action', 'view_file');
+            formData.append('file_path', filePath);
+            formData.append('mime_type', mimeType);
+
+            fetch('requisition.php', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Failed to load file');
+                }
+                return response.blob();
+            })
+            .then(blob => {
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.target = '_blank';
+                a.style.display = 'none';
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                // Don't revoke URL immediately - let the browser handle it
+                setTimeout(() => URL.revokeObjectURL(url), 1000);
+            })
+            .catch(error => {
+                console.error('Error viewing file:', error);
+                alert('Failed to load file: ' + error.message);
+            });
+        };
+
         // Handle form submission
         const requisitionForm = document.getElementById('requisitionForm');
         if (requisitionForm) {
@@ -1785,8 +1879,8 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
                         <h6 class="fw-semibold">Attachments</h6>
                         <ul class="list-unstyled">
                             ${req.attachments.map(attach => `
-                                <li><a href="${attach.file_path}" download="${attach.original_name}" class="text-primary text-decoration-none">
-                                    <i class="bi bi-download me-1"></i>${attach.original_name}
+                                <li><a href="#" onclick="window.viewAttachment('${attach.file_path}', '${attach.mime_type}'); return false;" class="text-primary text-decoration-none">
+                                    <i class="bi bi-eye me-1"></i>${attach.original_name}
                                 </a></li>
                             `).join('')}
                         </ul>
@@ -1967,7 +2061,7 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
 
             // Get requester info
             const requestedByName = req.requested_by_user ? (req.requested_by_user.full_name || req.requested_by_user.email) : '-';
-            const requesterDescription = req.description || '-';
+            const requesterDepartment = req.department || '-';
             const createdDate = formatDateDMY(req.created_at);
             const requiredDate = req.required_date ? formatDateDMY(req.required_date) : '-';
 
@@ -2295,7 +2389,7 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
                       <td>Date: ${createdDate}</td>
                     </tr>
                     <tr>
-                      <td>Description: ${requesterDescription}</td>
+                      <td>Department: ${requesterDepartment}</td>
                       <td>Items Required by when: ${requiredDate}</td>
                     </tr>
                   </table>
@@ -2581,41 +2675,45 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
             // Handle form submission
             document.getElementById('standaloneRequisitionForm').addEventListener('submit', async function(e) {
                 e.preventDefault();
-                const formData = new FormData(this);
+                const formEl = this;
+                const formData = new FormData(formEl);
                 formData.append('action', 'create');
 
-                const submitBtn = this.querySelector('button[type="submit"]');
+                const submitBtn = formEl.querySelector('button[type="submit"]');
                 const originalBtnText = submitBtn.innerHTML;
-
-                // Show loading state
                 submitBtn.disabled = true;
                 submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Creating...';
 
                 try {
-                    // Get current user department
                     const { data: userData } = await supabase
-                        .from('users')
-                        .select('department')
-                        .eq('email', userEmail)
-                        .single();
+                        .from('users').select('department').eq('email', userEmail).single();
+                    if (userData?.department) formData.append('department', userData.department);
 
-                    if (userData && userData.department) {
-                        formData.append('department', userData.department);
-                    }
-
-                    const response = await fetch('requisition.php', {
-                        method: 'POST',
-                        body: formData
-                    });
-
+                    const response = await fetch('requisition.php', { method: 'POST', body: formData });
                     const responseText = await response.text();
-                    console.log('Create requisition modal response:', responseText);
-                    if (!responseText) {
-                        throw new Error('Empty response from server');
-                    }
                     const data = JSON.parse(responseText);
 
                     if (data.success) {
+                        // Upload attachments now that we have the requisition_id
+                        const fileInput = formEl.querySelector('input[type="file"]');
+                        if (fileInput && fileInput.files.length > 0 && data.requisition_id) {
+                            for (const file of fileInput.files) {
+                                const fd = new FormData();
+                                fd.append('action', 'upload_attachment');
+                                fd.append('requisition_id', data.requisition_id);
+                                fd.append('file', file);
+                                fd.append('original_name', file.name);
+                                fd.append('file_size', file.size);
+                                fd.append('mime_type', file.type);
+
+                                const upRes = await fetch('requisition.php', { method: 'POST', body: fd });
+                                const upResult = await upRes.json();
+                                if (!upResult.success) {
+                                    console.error('Attachment failed:', file.name, upResult.message);
+                                }
+                            }
+                        }
+
                         alert(data.message);
                         bootstrap.Modal.getInstance(document.getElementById('createRequisitionModal')).hide();
                         location.reload();
@@ -2626,7 +2724,6 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
                     console.error('Error:', error);
                     alert('An error occurred while creating the requisition.');
                 } finally {
-                    // Reset button state
                     submitBtn.disabled = false;
                     submitBtn.innerHTML = originalBtnText;
                 }
