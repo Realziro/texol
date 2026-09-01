@@ -29,6 +29,8 @@ $items = [];
 $suppliers = [];
 $userEmail = $_SESSION['user_email'] ?? '';
 $ticketId = $_GET['ticket_id'] ?? '';
+$userDepartment = $_SESSION['user_department'] ?? $_SESSION['department'] ?? '';
+$userRole = $_SESSION['user_role'] ?? '';
 
 
 
@@ -467,6 +469,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $department = $userDepartment;
             }
 
+            // Get department_id for the department name
+            $departmentId = null;
+            if ($department) {
+                $query = http_build_query(['select' => 'id', 'name' => 'eq.' . $department]);
+                $ch = curl_init();
+                curl_setopt_array($ch, [
+                    CURLOPT_URL => $supabaseUrl . '/rest/v1/departments?' . $query,
+                    CURLOPT_RETURNTRANSFER => true,
+                    CURLOPT_HTTPHEADER => [
+                        'apikey: ' . $supabaseKey,
+                        'Authorization: Bearer ' . $supabaseKey,
+                        'Accept' => 'application/json',
+                    ],
+                ]);
+                $response = curl_exec($ch);
+                $deptData = json_decode($response, true);
+                if (is_array($deptData) && !empty($deptData[0])) {
+                    $departmentId = $deptData[0]['id'];
+                }
+                curl_close($ch);
+            }
+
             // Calculate approval progress
             $sharedWithArray = $sharedWith ? explode(',', $sharedWith) : [];
             $totalApprovers = count($sharedWithArray);
@@ -480,6 +504,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'requisition_number' => $requisitionNumber,
                 'requested_by' => $userId,
                 'department' => $department,
+                'department_id' => $departmentId,
                 'required_date' => $requiredDate,
                 'description' => $description,
                 'supplier_id' => $supplierId ?: null,
@@ -562,6 +587,80 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $response = curl_exec($ch);
                     $sharedWithUsers = json_decode($response, true);
                     curl_close($ch);
+
+                    // Send email to each shared_with user
+                    if (is_array($sharedWithUsers) && !empty($sharedWithUsers)) {
+                        foreach ($sharedWithUsers as $user) {
+                            $approverEmail = $user['email'] ?? '';
+                            $approverName = $user['full_name'] ?? 'Approver';
+
+                            if (!empty($approverEmail)) {
+                                $emailSubject = "New Requisition for Approval - #$requisitionNumber";
+                                $emailBody = "
+                                <div style='font-family: Arial, sans-serif; background:#f4f6f9; padding:20px;'>
+                                    <img src='https://texolenergies.com/assets/Logo-paGHQfRF.svg' alt='Texol Energies' style='width:140px; margin-bottom:10px; display:block; margin-left:auto; margin-right:auto;' />
+                                    <div style='max-width:650px; margin:0 auto; background:#ffffff; border-radius:12px; overflow:hidden; box-shadow:0 2px 12px rgba(0,0,0,0.08);'>
+                                        <div style='background:#1f3c88; color:#ffffff; padding:25px; text-align:center;'>
+                                            <h2 style='margin:0; font-size:20px;'>New Requisition for Approval</h2>
+                                        </div>
+                                        <div style='padding:25px;'>
+                                            <p style='font-size:14px; color:#555; line-height:1.6; margin-bottom:10px;'>
+                                                <strong>Requisition Number:</strong> $requisitionNumber
+                                            </p>
+                                            <p style='font-size:14px; color:#555; line-height:1.6; margin-bottom:10px;'>
+                                                <strong>Department:</strong> $department
+                                            </p>
+                                            <p style='font-size:14px; color:#555; line-height:1.6; margin-bottom:10px;'>
+                                                <strong>Required Date:</strong> $requiredDate
+                                            </p>
+                                            <p style='font-size:14px; color:#555; line-height:1.6; margin-bottom:20px;'>
+                                                <strong>Description:</strong> " . htmlspecialchars($description) . "
+                                            </p>
+                                            <div style='margin-bottom:20px;'>
+                                                <span style='display:inline-block; padding:6px 12px; border-radius:20px; font-size:12px; background:#e8f0ff; color:#1f3c88; margin:3px;'>
+                                                    Status: Pending
+                                                </span>
+                                                <span style='display:inline-block; padding:6px 12px; border-radius:20px; font-size:12px; background:#f0f0f0; color:#555; margin:3px;'>
+                                                    Department: $department
+                                                </span>
+                                            </div>
+                                            <p style='font-size:14px; color:#555; line-height:1.6; margin-bottom:20px;'>
+                                                <a href='" . (isset($_SERVER['HTTPS']) ? 'https' : 'http') . "://" . $_SERVER['HTTP_HOST'] . "/requisition' style='color:#1f3c88; text-decoration:none; font-weight:bold;'>View Requisition</a>
+                                            </p>
+                                            <div style='margin-top:25px; text-align:center;'>
+                                                <span style='display:inline-block; padding:6px 12px; border-radius:20px; font-size:12px; background:#1f3c88; color:#fff; margin:3px;'>
+                                                    Requisition Notification
+                                                </span>
+                                                <span style='display:inline-block; padding:6px 12px; border-radius:20px; font-size:12px; background:#e9f7ef; color:#1e7e34; margin:3px;'>
+                                                    System Generated
+                                                </span>
+                                            </div>
+                                        </div>
+                                        <div style='background:#f4f6f9; padding:15px; text-align:center; font-size:12px; color:#777;'>
+                                            <p style='margin:0;'>Texol Energies - THI Support</p>
+                                            <p style='margin:5px 0 0;'>Please do not reply to this email.</p>
+                                        </div>
+                                    </div>
+                                </div>
+                                ";
+
+                                // Send email using sendmail.php
+                                $ch = curl_init();
+                                curl_setopt_array($ch, [
+                                    CURLOPT_URL => 'http://' . $_SERVER['HTTP_HOST'] . '/sendmail.php',
+                                    CURLOPT_RETURNTRANSFER => true,
+                                    CURLOPT_POST => true,
+                                    CURLOPT_POSTFIELDS => http_build_query([
+                                        'to' => $approverEmail,
+                                        'subject' => $emailSubject,
+                                        'body' => $emailBody
+                                    ]),
+                                ]);
+                                curl_exec($ch);
+                                curl_close($ch);
+                            }
+                        }
+                    }
                 }
 
                 echo json_encode(['success' => true, 'message' => 'Requisition created successfully!', 'requisition_id' => $requisitionId]);
@@ -587,9 +686,37 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
     $supabaseUrl = rtrim(SUPABASE_URL, '/');
     $supabaseKey = SUPABASE_ANON_KEY;
-    
-    // Fetch items
-    $query = http_build_query(['select' => '*', 'order' => 'name.asc']);
+
+    // Get user's department ID
+    $userDepartmentId = null;
+    if ($userDepartment) {
+        $query = http_build_query(['select' => 'id', 'name' => 'eq.' . $userDepartment]);
+        $ch = curl_init();
+        curl_setopt_array($ch, [
+            CURLOPT_URL => $supabaseUrl . '/rest/v1/departments?' . $query,
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_HTTPHEADER => [
+                'apikey: ' . $supabaseKey,
+                'Authorization: Bearer ' . $supabaseKey,
+                'Accept' => 'application/json',
+            ],
+        ]);
+        $response = curl_exec($ch);
+        $deptData = json_decode($response, true);
+        if (is_array($deptData) && !empty($deptData[0])) {
+            $userDepartmentId = $deptData[0]['id'];
+        }
+        curl_close($ch);
+        error_log('User department: ' . $userDepartment . ', ID: ' . $userDepartmentId);
+    }
+
+    // Fetch items - filter by user's department
+    $itemQueryParams = ['select' => '*', 'order' => 'name.asc'];
+    if ($userDepartmentId) {
+        $itemQueryParams['department_id'] = 'eq.' . $userDepartmentId;
+    }
+    $query = http_build_query($itemQueryParams);
+    error_log('Items query params: ' . $query);
     $ch = curl_init();
     curl_setopt_array($ch, [
         CURLOPT_URL => $supabaseUrl . '/rest/v1/items?' . $query,
@@ -597,7 +724,7 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
         CURLOPT_HTTPHEADER => [
             'apikey: ' . $supabaseKey,
             'Authorization: Bearer ' . $supabaseKey,
-            'Accept: application/json',
+            'Accept' => 'application/json',
         ],
     ]);
     $response = curl_exec($ch);
@@ -606,10 +733,16 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
         error_log('Items fetch error: ' . $response);
         $items = [];
     }
+    error_log('Items fetched: ' . count($items) . ' items');
     curl_close($ch);
-    
-    // Fetch suppliers
-    $query = http_build_query(['select' => '*', 'order' => 'name.asc']);
+
+    // Fetch suppliers - filter by user's department
+    $supplierQueryParams = ['select' => '*', 'order' => 'name.asc'];
+    if ($userDepartmentId) {
+        $supplierQueryParams['department_id'] = 'eq.' . $userDepartmentId;
+    }
+    $query = http_build_query($supplierQueryParams);
+    error_log('Suppliers query params: ' . $query);
     $ch = curl_init();
     curl_setopt_array($ch, [
         CURLOPT_URL => $supabaseUrl . '/rest/v1/suppliers?' . $query,
@@ -617,7 +750,7 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
         CURLOPT_HTTPHEADER => [
             'apikey: ' . $supabaseKey,
             'Authorization: Bearer ' . $supabaseKey,
-            'Accept: application/json',
+            'Accept' => 'application/json',
         ],
     ]);
     $response = curl_exec($ch);
@@ -626,6 +759,7 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
         error_log('Suppliers fetch error: ' . $response);
         $suppliers = [];
     }
+    error_log('Suppliers fetched: ' . count($suppliers) . ' suppliers');
     curl_close($ch);
     
     // Fetch requisitions with related data (with pagination)
@@ -1008,7 +1142,7 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
                                             </option>
                                         <?php endforeach; ?>
                                     </select>
-                                    <button type="button" class="btn btn-outline-secondary btn-sm" onclick="openAddSupplierModal()">
+                                    <button type="button" class="btn btn-outline-secondary btn-sm" onclick="openAddSupplierModal(this)">
                                         <i class="bi bi-plus"></i>
                                     </button>
                                 </div>
@@ -1346,8 +1480,9 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
         const userEmail = '<?php echo $userEmail; ?>';
         const ticketIdParam = '<?php echo $ticketId; ?>';
         const currentUserId = '<?php echo $_SESSION['user_id'] ?? ''; ?>';
+        const userDepartment = '<?php echo $userDepartment; ?>';
 
-       
+
         // Get items data from PHP for JavaScript
         window.itemsData = <?php echo json_encode($items); ?>;
 
@@ -2417,7 +2552,7 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
                     <tr>
                       <td colspan="2" class="mandatory-desc">e.g. (warranty, sample required, country of origin, after sale support, delivery date, training, standardization, site visit etc.)</td>
                       <td class="budget-avail-col" rowspan="3"><b>Budget<br>Available (Y/N)</b></td>
-                      <td class="budget-amt-col" rowspan="3"><b>Amount<br>Budgeted</b><p></p><br>${grandTotal.toFixed(2)}</td>
+                      <td class="budget-amt-col" rowspan="3"><b>Amount<br>Budgeted</b><p></p><br>${grandTotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                       <td class="store-item-col" rowspan="3"><b>Item<br>Available in<br>store (Y/N)</b></td>
                       <td class="store-qty-col" rowspan="3"><b>Qty<br>Available</b></td>
                     </tr>
@@ -2433,7 +2568,7 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
                   <!-- Reason for procurement -->
                   <div class="reason-block">
                     Required for (Reason for procurement):<br><br>
-                    <div class="dotted-line"></div>
+                    <div class="dotted-line">${req.description || ''}</div>
                     <div class="dotted-line"></div>
                   </div>
 
@@ -2586,7 +2721,7 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
                                                     </option>
                                                 <?php endforeach; ?>
                                             </select>
-                                            <button type="button" class="btn btn-outline-secondary btn-sm" onclick="openAddSupplierModal()">
+                                            <button type="button" class="btn btn-outline-secondary btn-sm" onclick="openAddSupplierModal(this)">
                                                 <i class="bi bi-plus"></i>
                                             </button>
                                         </div>
@@ -2731,7 +2866,16 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
         };
 
         // Add Supplier Modal
-        window.openAddSupplierModal = function() {
+        let currentSupplierSelect = null;
+        window.openAddSupplierModal = function(button) {
+            // Track which supplier select triggered this modal
+            if (button) {
+                currentSupplierSelect = button.closest('.input-group').querySelector('select');
+            } else {
+                // Fallback to main supplier select if no button provided
+                currentSupplierSelect = document.getElementById('supplierSelect') || document.getElementById('standaloneSupplierSelect');
+            }
+
             const modalHtml = `
                 <div class="modal fade" id="addSupplierModal" tabindex="-1">
                     <div class="modal-dialog">
@@ -2787,12 +2931,27 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
                 return;
             }
 
+            // Get department_id from user's department name
+            let departmentId = null;
+            if (userDepartment) {
+                const { data: deptData, error: deptError } = await supabase
+                    .from('departments')
+                    .select('id')
+                    .eq('name', userDepartment)
+                    .single();
+
+                if (!deptError && deptData) {
+                    departmentId = deptData.id;
+                }
+            }
+
             const supplierData = {
                 name: name,
                 contact_person: document.getElementById('supplierContact').value || null,
                 phone: document.getElementById('supplierPhone').value || null,
                 email: document.getElementById('supplierEmail').value || null,
-                address: document.getElementById('supplierAddress').value || null
+                address: document.getElementById('supplierAddress').value || null,
+                department_id: departmentId
             };
 
             try {
@@ -2805,7 +2964,11 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
                 if (error) throw error;
 
                 // Add to supplier select
-                const supplierSelect = document.getElementById('supplierSelect');
+                const supplierSelect = currentSupplierSelect || document.getElementById('supplierSelect') || document.getElementById('standaloneSupplierSelect');
+                if (!supplierSelect) {
+                    alert('Supplier select element not found');
+                    return;
+                }
                 const option = document.createElement('option');
                 option.value = data.id;
                 option.textContent = data.name;
@@ -2888,11 +3051,26 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
                 return;
             }
 
+            // Get department_id from user's department name
+            let departmentId = null;
+            if (userDepartment) {
+                const { data: deptData, error: deptError } = await supabase
+                    .from('departments')
+                    .select('id')
+                    .eq('name', userDepartment)
+                    .single();
+
+                if (!deptError && deptData) {
+                    departmentId = deptData.id;
+                }
+            }
+
             const itemData = {
                 name: name,
                 unit: unit,
                 unit_price: parseFloat(document.getElementById('itemUnitPrice').value) || null,
-                description: document.getElementById('itemDescription').value || null
+                description: document.getElementById('itemDescription').value || null,
+                department_id: departmentId
             };
 
             try {
@@ -2907,6 +3085,7 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
                 // Add to all item selects
                 const itemSelects = document.querySelectorAll('.item-select');
                 itemSelects.forEach(select => {
+                    if (!select) return;
                     const option = document.createElement('option');
                     option.value = data.id;
                     option.textContent = data.name;

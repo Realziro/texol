@@ -150,6 +150,25 @@ function texol_is_active(string $menu, string $active): string
                         <i class="bi bi-building me-2"></i>Branches
                     </a>
                 </li>
+                <?php if (isset($_SESSION['user_role']) && (strtolower($_SESSION['user_role']) === 'admin' || strtolower($_SESSION['user_role']) === 'hod')) : ?>
+                <li>
+                    <a class="dropdown-item<?php echo texol_is_active('items', $activeMenu); ?>" href="  items">
+                        <i class="bi bi-box-seam me-2"></i>Items
+                    </a>
+                </li>
+                <li>
+                    <a class="dropdown-item<?php echo texol_is_active('suppliers', $activeMenu); ?>" href="  suppliers">
+                        <i class="bi bi-truck me-2"></i>Suppliers
+                    </a>
+                </li>
+                <?php endif; ?>
+                <?php if (isset($_SESSION['user_role']) && strtolower($_SESSION['user_role']) === 'admin') : ?>
+                <li>
+                    <a class="dropdown-item<?php echo texol_is_active('meetings', $activeMenu); ?>" href="  meetings">
+                        <i class="bi bi-calendar-event me-2"></i>Meetings
+                    </a>
+                </li>
+                <?php endif; ?>
             </ul>
         </li>
         <?php endif; ?>
