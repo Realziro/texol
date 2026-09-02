@@ -504,7 +504,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'requisition_number' => $requisitionNumber,
                 'requested_by' => $userId,
                 'department' => $department,
-                'department_id' => $departmentId,
                 'required_date' => $requiredDate,
                 'description' => $description,
                 'supplier_id' => $supplierId ?: null,
