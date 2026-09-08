@@ -64,6 +64,48 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
     
     <!-- Quill Rich Text Editor -->
     <link href="https://cdn.quilljs.com/1.3.6/quill.snow.css" rel="stylesheet">
+    <style id="attendanceFormStyles">
+        .attendance-form-printout {
+            max-width: 850px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #fff;
+            color: #000;
+            font-family: Arial, Helvetica, sans-serif;
+        }
+        .attendance-form-printout table { width: 100%; border-collapse: collapse; }
+        .attendance-form-printout td,
+        .attendance-form-printout th { border: 1px solid #000; padding: 6px 8px; }
+        .attendance-form-printout .form-header { border: 2px solid #000; margin-bottom: 22px; }
+        .attendance-form-printout .company-name { text-align: center; font-weight: bold; font-size: 15px; }
+        .attendance-form-printout .logo-cell { width: 150px; text-align: center; }
+        .attendance-form-printout .logo-text { font-size: 26px; font-weight: 800; letter-spacing: 1px; }
+        .attendance-form-printout .logo-text .x { color: #8a1f2b; }
+        .attendance-form-printout .logo-sub { font-size: 7px; letter-spacing: 2px; color: #444; }
+        .attendance-form-printout .logo-tag { font-size: 8px; font-style: italic; }
+        .attendance-form-printout .form-title-cell { text-align: center; font-size: 15px; width: 42%; }
+        .attendance-form-printout .doc-info-cell { font-size: 12px; line-height: 1.5; width: 28%; }
+        .attendance-form-printout .page-of-cell { text-align: center; font-size: 12px; }
+        .attendance-form-printout .main-title { text-align: center; font-size: 22px; letter-spacing: 1px; margin: 10px 0 20px; }
+        .attendance-form-printout .meta-table { margin-bottom: 18px; }
+        .attendance-form-printout .meta-table td { font-size: 13px; }
+        .attendance-form-printout .meta-table .label { font-weight: bold; width: 22%; }
+        .attendance-form-printout .attendance th { background: #7f7f7f; color: #fff; text-align: left; font-size: 12px; }
+        .attendance-form-printout .attendance td { height: 22px; font-size: 12px; }
+        .attendance-form-printout .attendance .no-col { width: 4%; }
+        .attendance-form-printout .attendance .name-col { width: 32%; }
+        .attendance-form-printout .attendance .title-col { width: 22%; }
+        .attendance-form-printout .attendance .email-col { width: 30%; }
+        .attendance-form-printout .attendance .sig-col { width: 12%; }
+        .attendance-form-printout .bottom { margin-top: 0; }
+        .attendance-form-printout .bottom th { text-align: left; font-size: 13px; }
+        .attendance-form-printout .bottom td { height: 22px; font-size: 12px; }
+        .attendance-form-printout .bottom .num { width: 4%; }
+        .attendance-form-printout .form-footer { display: flex; justify-content: space-between; margin-top: 20px; font-size: 12px; font-style: italic; }
+        @media print {
+            .attendance-form-printout { max-width: none; padding: 0; }
+        }
+    </style>
 </head>
 <body class="dashboard-body">
     <div class="d-flex" id="layoutWrapper">
@@ -247,6 +289,9 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
                     <div id="viewMeetingContent"></div>
                 </div>
                 <div class="modal-footer">
+                    <button type="button" class="btn btn-primary" id="printAttendanceForm">
+                        <i class="bi bi-printer me-1"></i>Print Attendance Form
+                    </button>
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
                 </div>
             </div>
@@ -406,6 +451,66 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
             form.reset();
         });
 
+        let currentAttendanceForm = '';
+
+        function escapeHtml(value) {
+            return String(value ?? '')
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#039;');
+        }
+
+        function buildAttendanceForm(meeting, attendance) {
+            const attendeeRows = Array.from({ length: 20 }, (_, index) => {
+                const attendee = attendance[index] || {};
+                return `<tr>
+                    <td class="no-col">${index + 1}.</td>
+                    <td class="name-col">${escapeHtml(attendee.attendee_name)}</td>
+                    <td class="title-col"></td>
+                    <td class="email-col">${escapeHtml(attendee.attendee_email)}</td>
+                    <td class="sig-col"></td>
+                </tr>`;
+            }).join('');
+
+            const apologyRows = Array.from({ length: 6 }, (_, index) => `
+                <tr><td class="num">${index + 1}.</td><td></td><td class="num">${index + 1}.</td><td></td></tr>
+            `).join('');
+
+            return `<div class="attendance-form-printout">
+                <table class="form-header">
+                    <tr><td colspan="3" class="company-name">TEXOL ENERGIES LIMITED</td></tr>
+                    <tr>
+                        <td class="logo-cell">
+                            <div class="logo-text">TE<span class="x">X</span>OL</div>
+                            <div class="logo-sub">ENERGIES</div>
+                            <div class="logo-tag">Reliability Redefined</div>
+                        </td>
+                        <td class="form-title-cell">Attendance Form</td>
+                        <td class="doc-info-cell">TEX-ADM-FRM-002, Ver 000<br>Issue Date: 1<sup>st</sup> Nov 2024</td>
+                    </tr>
+                    <tr><td colspan="3" class="page-of-cell">Page 1 of 1</td></tr>
+                </table>
+                <h1 class="main-title">ATTENDANCE FORM</h1>
+                <table class="meta-table">
+                    <tr><td class="label">Meeting Title:</td><td>${escapeHtml(meeting.title)}</td></tr>
+                    <tr><td class="label">Date and Time</td><td>${escapeHtml(meeting.date)} ${escapeHtml(meeting.time)}</td></tr>
+                    <tr><td class="label">Venue:</td><td>${escapeHtml(meeting.location || '')}</td></tr>
+                    <tr><td class="label">Chairperson:</td><td></td></tr>
+                </table>
+                <table class="attendance">
+                    <tr><th class="no-col">No</th><th class="name-col">Name</th><th class="title-col">Title/ Department</th><th class="email-col">Email address/Contact</th><th class="sig-col">Signature</th></tr>
+                    ${attendeeRows}
+                </table>
+                <table class="bottom">
+                    <tr><th colspan="2">Apologies (If any)</th><th colspan="2">Absent (If any)</th></tr>
+                    ${apologyRows}
+                </table>
+                <div class="form-footer"><div>Texol Energies Limited Attendance List</div><div>1</div></div>
+            </div>`;
+        }
+
         // View meeting
         window.viewMeeting = async function(meetingId) {
             const { data: meeting, error } = await window.supabase
@@ -424,48 +529,29 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
                 .select('*')
                 .eq('meeting_id', meetingId);
 
-            const attendanceList = attendance && attendance.length > 0 
-                ? attendance.map(a => `
-                    <tr>
-                        <td>${a.attendee_name}</td>
-                        <td>${a.attendee_email || '-'}</td>
-                        <td>${new Date(a.signed_at).toLocaleString()}</td>
-                    </tr>
-                `).join('')
-                : '<tr><td colspan="3" class="text-center">No attendance recorded yet.</td></tr>';
-
-            document.getElementById('viewMeetingContent').innerHTML = `
-                <div class="row">
-                    <div class="col-md-6">
-                        <p><strong>Title:</strong> ${meeting.title}</p>
-                        <p><strong>Type:</strong> ${meeting.type}</p>
-                        <p><strong>Date:</strong> ${meeting.date}</p>
-                        <p><strong>Time:</strong> ${meeting.time}</p>
-                        <p><strong>Location:</strong> ${meeting.location || '-'}</p>
-                    </div>
-                    <div class="col-md-6">
-                        <p><strong>Description:</strong></p>
-                        <p>${meeting.description || '-'}</p>
-                    </div>
-                </div>
-                <hr>
-                <h6 class="mb-3">Meeting Minutes</h6>
-                <div class="mb-4">${meeting.minutes || '<p class="text-muted">No minutes recorded.</p>'}</div>
-                <h6 class="mb-3">Attendance (${attendance ? attendance.length : 0})</h6>
-                <table class="table table-sm">
-                    <thead>
-                        <tr>
-                            <th>Name</th>
-                            <th>Email</th>
-                            <th>Signed At</th>
-                        </tr>
-                    </thead>
-                    <tbody>${attendanceList}</tbody>
-                </table>
-            `;
+            currentAttendanceForm = buildAttendanceForm(meeting, attendance || []);
+            document.getElementById('viewMeetingContent').innerHTML = currentAttendanceForm;
 
             new bootstrap.Modal(document.getElementById('viewMeetingModal')).show();
         };
+
+        document.getElementById('printAttendanceForm').addEventListener('click', () => {
+            if (!currentAttendanceForm) return;
+
+            const printWindow = window.open('', '_blank', 'width=900,height=1200');
+            if (!printWindow) {
+                alert('Please allow pop-ups to print the attendance form.');
+                return;
+            }
+
+            const styles = document.getElementById('attendanceFormStyles').textContent;
+            printWindow.document.write(`<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><title>TEX-ADM-FRM-002 Attendance Form</title><style>${styles}</style></head><body>${currentAttendanceForm}</body></html>`);
+            printWindow.document.close();
+            printWindow.focus();
+            printWindow.onload = () => {
+                printWindow.print();
+            };
+        });
 
         // Show QR Code
         window.showQRCode = function(meetingId) {

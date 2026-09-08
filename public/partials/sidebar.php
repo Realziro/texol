@@ -65,18 +65,35 @@ function texol_is_active(string $menu, string $active): string
                 My Tickets
             </a>
         </li>
-        <li>
-            <a href="  requisition" class="nav-link<?php echo texol_is_active('requisitions', $activeMenu); ?>" data-menu="requisitions">
-                <i class="bi bi-file-earmark-plus me-2"></i>
-                Requisitions
+        <?php if (check_permission('requisition_approval', 'view') || check_permission('customer_feedback', 'view') || (isset($_SESSION['user_role']) && (strtolower($_SESSION['user_role']) === 'call center agent' || strtolower($_SESSION['user_role']) === 'admin'))) : ?>
+        <li class="nav-item dropdown">
+            <a href="#" class="nav-link dropdown-toggle<?php echo in_array($activeMenu, ['requisitions', 'customer_feedback', 'attendance'], true) ? ' active' : ''; ?>" data-bs-toggle="dropdown" role="button" aria-expanded="false">
+                <i class="bi bi-file-earmark-text me-2"></i>
+             Digitized   Forms
             </a>
-        </li>
-        <?php if (check_permission('customer_feedback', 'view') || (isset($_SESSION['user_role']) && strtolower($_SESSION['user_role']) === 'call center agent')) : ?>
-        <li>
-            <a href="  customer_feedback" class="nav-link<?php echo texol_is_active('customer_feedback', $activeMenu); ?>" data-menu="customer_feedback">
-                <i class="bi bi-chat-dots me-2"></i>
-                Customer Feedback
-            </a>
+            <ul class="dropdown-menu">
+                <?php if (check_permission('requisition_approval', 'view') || (isset($_SESSION['user_role']) && strtolower($_SESSION['user_role']) === 'admin')) : ?>
+                <li>
+                    <a class="dropdown-item<?php echo texol_is_active('requisitions', $activeMenu); ?>" href="  requisition">
+                        <i class="bi bi-file-earmark-plus me-2"></i>Requisitions
+                    </a>
+                </li>
+                <?php endif; ?>
+                <?php if (check_permission('customer_feedback', 'view') || (isset($_SESSION['user_role']) && strtolower($_SESSION['user_role']) === 'call center agent')) : ?>
+                <li>
+                    <a class="dropdown-item<?php echo texol_is_active('customer_feedback', $activeMenu); ?>" href="  customer_feedback">
+                        <i class="bi bi-chat-dots me-2"></i>Customer Feedback
+                    </a>
+                </li>
+                <?php endif; ?>
+                <?php if (isset($_SESSION['user_role']) && strtolower($_SESSION['user_role']) === 'admin') : ?>
+                <li>
+                    <a class="dropdown-item<?php echo texol_is_active('attendance', $activeMenu); ?>" href="  meetings">
+                        <i class="bi bi-calendar-event me-2"></i>Attendance
+                    </a>
+                </li>
+                <?php endif; ?>
+            </ul>
         </li>
         <?php endif; ?>
         <?php if (check_permission('users', 'view')) : ?>
@@ -93,7 +110,7 @@ function texol_is_active(string $menu, string $active): string
         <li>
             <a href="  shared" class="nav-link<?php echo texol_is_active('shared', $activeMenu); ?>" data-menu="shared">
                 <i class="bi bi-people me-2"></i>
-                Shared With Me
+                Assigned Tickets
             </a>
         </li>
                 <?php endif; ?>
@@ -159,13 +176,6 @@ function texol_is_active(string $menu, string $active): string
                 <li>
                     <a class="dropdown-item<?php echo texol_is_active('suppliers', $activeMenu); ?>" href="  suppliers">
                         <i class="bi bi-truck me-2"></i>Suppliers
-                    </a>
-                </li>
-                <?php endif; ?>
-                <?php if (isset($_SESSION['user_role']) && strtolower($_SESSION['user_role']) === 'admin') : ?>
-                <li>
-                    <a class="dropdown-item<?php echo texol_is_active('meetings', $activeMenu); ?>" href="  meetings">
-                        <i class="bi bi-calendar-event me-2"></i>Meetings
                     </a>
                 </li>
                 <?php endif; ?>
