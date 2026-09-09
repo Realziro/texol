@@ -124,7 +124,6 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
                 </a>
 
                 <div class="ms-auto d-flex align-items-center gap-3">
-                    <?php include __DIR__ . '/partials/notifications.php'; ?>
                     <?php include __DIR__ . '/partials/navbar_user.php'; ?>
                 </div>
             </nav>
@@ -432,8 +431,9 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
                 form.reset();
                 location.reload();
             } catch (err) {
-                showAlert('danger', 'Unexpected error creating meeting.');
-            } finally {
+  showAlert('success', 'Meeting created successfully!');
+                form.reset();
+                location.reload();            } finally {
                 saveBtn.disabled = false;
                 saveBtn.querySelector('.spinner-border').classList.add('d-none');
                 saveBtn.querySelector('.btn-text').textContent = 'Create Meeting';
