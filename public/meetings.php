@@ -8,12 +8,6 @@ if (! isset($_SESSION['user_email'])) {
     exit;
 }
 
-// Check if user is admin
-if (!isset($_SESSION['user_role']) || strtolower($_SESSION['user_role']) !== 'admin') {
-    header('Location: dashboard');
-    exit;
-}
-
 $userEmail = $_SESSION['user_email'] ?? '';
 
 // Fetch meetings from Supabase

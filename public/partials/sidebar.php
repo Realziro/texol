@@ -65,9 +65,8 @@ function texol_is_active(string $menu, string $active): string
                 My Tickets
             </a>
         </li>
-        <?php if (check_permission('requisition_approval', 'view') || check_permission('customer_feedback', 'view') || (isset($_SESSION['user_role']) && (strtolower($_SESSION['user_role']) === 'call center agent' || strtolower($_SESSION['user_role']) === 'admin'))) : ?>
         <li class="nav-item dropdown">
-            <a href="#" class="nav-link dropdown-toggle<?php echo in_array($activeMenu, ['requisitions', 'customer_feedback', 'attendance'], true) ? ' active' : ''; ?>" data-bs-toggle="dropdown" role="button" aria-expanded="false">
+            <a href="#" class="nav-link dropdown-toggle<?php echo in_array($activeMenu, ['requisitions', 'customer_feedback', 'attendance', 'incident', 'shortage_acknowledgement', 'repair_maintenance'], true) ? ' active' : ''; ?>" data-bs-toggle="dropdown" role="button" aria-expanded="false">
                 <i class="bi bi-file-earmark-text me-2"></i>
              Digitized   Forms
             </a>
@@ -86,16 +85,28 @@ function texol_is_active(string $menu, string $active): string
                     </a>
                 </li>
                 <?php endif; ?>
-                <?php if (isset($_SESSION['user_role']) && strtolower($_SESSION['user_role']) === 'admin') : ?>
                 <li>
                     <a class="dropdown-item<?php echo texol_is_active('attendance', $activeMenu); ?>" href="  meetings">
                         <i class="bi bi-calendar-event me-2"></i>Attendance
                     </a>
                 </li>
-                <?php endif; ?>
+                <li>
+                    <a class="dropdown-item<?php echo texol_is_active('incident', $activeMenu); ?>" href="  incident">
+                        <i class="bi bi-exclamation-triangle me-2"></i>Incident Form
+                    </a>
+                </li>
+                <li>
+                    <a class="dropdown-item<?php echo texol_is_active('shortage_acknowledgement', $activeMenu); ?>" href="  shortage_acknowledgement">
+                        <i class="bi bi-cash-coin me-2"></i>Shortage Acknowledgement
+                    </a>
+                </li>
+                <li>
+                    <a class="dropdown-item<?php echo texol_is_active('repair_maintenance', $activeMenu); ?>" href="  repair_maintenance">
+                        <i class="bi bi-tools me-2"></i>Repair and Maintenance
+                    </a>
+                </li>
             </ul>
         </li>
-        <?php endif; ?>
         <?php if (check_permission('users', 'view')) : ?>
         <li>
             <a href="  users" class="nav-link<?php echo texol_is_active('users', $activeMenu); ?>" data-menu="users">
