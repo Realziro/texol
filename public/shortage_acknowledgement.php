@@ -308,6 +308,9 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
                         Acknowledgement</span></a>
                 <div class="ms-auto d-flex align-items-center gap-3">
                 </div>
+                   <div class="ms-auto d-flex align-items-center gap-3">
+                    <?php include __DIR__ . '/partials/navbar_user.php'; ?>
+                </div>
             </nav>
             <main class="flex-grow-1 py-4 py-md-5 px-3 px-lg-4 content-area">
                 <section class="mb-4">
@@ -340,8 +343,8 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
                                             class="form-label small fw-semibold">Department</label><input
                                             class="form-control form-control-sm" id="attendantDepartment"
                                             value="<?php echo htmlspecialchars($userDepartment); ?>" required></div>
-                                    <div class="col-md-6"><label class="form-label small fw-semibold">Station </label><select class="form-select form-select-sm" id="branchId"
-                                            required>
+                                    <div class="col-md-6"><label class="form-label small fw-semibold">Station
+                                        </label><select class="form-select form-select-sm" id="branchId" required>
                                             <option value="">Select station</option>
                                             <?php foreach ($branches as $branch): ?><option
                                                 value="<?php echo htmlspecialchars($branch['id']); ?>"
@@ -387,7 +390,8 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
                                     <div class="col-12 d-flex justify-content-end gap-2"><button type="reset"
                                             class="btn btn-sm btn-outline-secondary">Reset</button><button type="submit"
                                             class="btn btn-sm btn-primary" id="saveShortageBtn"><span
-                                                class="spinner-border spinner-border-sm d-none"></span><span class="btn-label">Save</span></button>
+                                                class="spinner-border spinner-border-sm d-none"></span><span
+                                                class="btn-label">Save</span></button>
                                     </div>
                                 </form>
                             </div>
@@ -400,7 +404,8 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
                             </div>
                             <div class="card-body">
                                 <div class="table-responsive shortage-table-wrap">
-                                    <table class="table table-sm table-hover align-middle shortage-table" id="shortagesTable">
+                                    <table class="table table-sm table-hover align-middle shortage-table"
+                                        id="shortagesTable">
                                         <thead>
                                             <tr>
                                                 <th class="text-nowrap">Date</th>
@@ -415,15 +420,45 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
                                                 <td colspan="6" class="text-center text-muted small py-3">No shortage
                                                     forms found.</td>
                                             </tr><?php else: foreach ($shortages as $record): ?><tr>
-                                                <td class="text-nowrap"><?php echo htmlspecialchars($record['form_date'] ?? '-'); ?></td>
-                                                <td><div class="fw-semibold"><?php echo htmlspecialchars($record['reference_pcv_no'] ?? '-'); ?></div><?php $status = strtolower($record['status'] ?? 'pending'); $statusClass = match ($status) { 'approved' => 'bg-success', 'checked' => 'bg-info text-dark', 'rejected' => 'bg-danger', default => 'bg-warning text-dark' }; ?><span class="badge <?php echo $statusClass; ?> shortage-status"><?php echo htmlspecialchars(ucfirst($status)); ?></span>
+                                                <td class="text-nowrap">
+                                                    <?php echo htmlspecialchars($record['form_date'] ?? '-'); ?></td>
+                                                <td>
+                                                    <div class="fw-semibold">
+                                                        <?php echo htmlspecialchars($record['reference_pcv_no'] ?? '-'); ?>
+                                                    </div>
+                                                    <?php $status = strtolower($record['status'] ?? 'pending'); $statusClass = match ($status) { 'approved' => 'bg-success', 'checked' => 'bg-info text-dark', 'rejected' => 'bg-danger', default => 'bg-warning text-dark' }; ?><span
+                                                        class="badge <?php echo $statusClass; ?> shortage-status"><?php echo htmlspecialchars(ucfirst($status)); ?></span>
                                                 </td>
                                                 <td><?php echo htmlspecialchars($record['attendant_name'] ?? '-'); ?>
                                                 </td>
                                                 <td><?php echo htmlspecialchars($record['station_name'] ?? '-'); ?></td>
                                                 <td><?php echo htmlspecialchars($record['shortage_amount'] ?? '-'); ?>
                                                 </td>
-                                                <td class="text-end"><div class="dropdown"><button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="dropdown" aria-expanded="false" title="Form actions" aria-label="Form actions"><i class="bi bi-three-dots-vertical"></i></button><ul class="dropdown-menu dropdown-menu-end"><li><button class="dropdown-item" type="button" onclick="viewShortage(<?php echo htmlspecialchars(json_encode($record), ENT_QUOTES, 'UTF-8'); ?>)"><i class="bi bi-eye me-2"></i>View</button></li><li><button class="dropdown-item" type="button" onclick="printShortage(<?php echo htmlspecialchars(json_encode($record), ENT_QUOTES, 'UTF-8'); ?>)"><i class="bi bi-printer me-2"></i>Print</button></li><li><button class="dropdown-item" type="button" onclick="approveShortage(<?php echo htmlspecialchars(json_encode($record), ENT_QUOTES, 'UTF-8'); ?>)"><i class="bi bi-check-circle me-2"></i>Approve / Check</button></li><li><button class="dropdown-item text-danger" type="button" onclick="rejectShortage(<?php echo htmlspecialchars(json_encode($record), ENT_QUOTES, 'UTF-8'); ?>)"><i class="bi bi-x-circle me-2"></i>Reject</button></li></ul></div></td>
+                                                <td class="text-end">
+                                                    <div class="dropdown"><button
+                                                            class="btn btn-sm btn-outline-secondary" type="button"
+                                                            data-bs-toggle="dropdown" aria-expanded="false"
+                                                            title="Form actions" aria-label="Form actions"><i
+                                                                class="bi bi-three-dots-vertical"></i></button>
+                                                        <ul class="dropdown-menu dropdown-menu-end">
+                                                            <li><button class="dropdown-item" type="button"
+                                                                    onclick="viewShortage(<?php echo htmlspecialchars(json_encode($record), ENT_QUOTES, 'UTF-8'); ?>)"><i
+                                                                        class="bi bi-eye me-2"></i>View</button></li>
+                                                            <li><button class="dropdown-item" type="button"
+                                                                    onclick="printShortage(<?php echo htmlspecialchars(json_encode($record), ENT_QUOTES, 'UTF-8'); ?>)"><i
+                                                                        class="bi bi-printer me-2"></i>Print</button>
+                                                            </li>
+                                                            <li><button class="dropdown-item" type="button"
+                                                                    onclick="approveShortage(<?php echo htmlspecialchars(json_encode($record), ENT_QUOTES, 'UTF-8'); ?>)"><i
+                                                                        class="bi bi-check-circle me-2"></i>Approve /
+                                                                    Check</button></li>
+                                                            <li><button class="dropdown-item text-danger" type="button"
+                                                                    onclick="rejectShortage(<?php echo htmlspecialchars(json_encode($record), ENT_QUOTES, 'UTF-8'); ?>)"><i
+                                                                        class="bi bi-x-circle me-2"></i>Reject</button>
+                                                            </li>
+                                                        </ul>
+                                                    </div>
+                                                </td>
                                             </tr><?php endforeach; endif; ?></tbody>
                                     </table>
                                 </div>
@@ -500,13 +535,17 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
         '"': '&quot;',
         "'": '&#039;'
     } [char]));
+
     function showFeedbackModal(message, type = 'info') {
         let modal = document.getElementById('feedbackModal');
         if (!modal) {
-            document.body.insertAdjacentHTML('beforeend', `<div class="modal fade" id="feedbackModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered modal-sm"><div class="modal-content"><div class="modal-header"><h5 class="modal-title" id="feedbackModalTitle">Message</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body" id="feedbackModalMessage"></div><div class="modal-footer"><button type="button" class="btn btn-primary" data-bs-dismiss="modal">OK</button></div></div></div></div>`);
+            document.body.insertAdjacentHTML('beforeend',
+                `<div class="modal fade" id="feedbackModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered modal-sm"><div class="modal-content"><div class="modal-header"><h5 class="modal-title" id="feedbackModalTitle">Message</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body" id="feedbackModalMessage"></div><div class="modal-footer"><button type="button" class="btn btn-primary" data-bs-dismiss="modal">OK</button></div></div></div></div>`
+                );
             modal = document.getElementById('feedbackModal');
         }
-        document.getElementById('feedbackModalTitle').textContent = type === 'danger' ? 'Error' : type === 'success' ? 'Success' : 'Message';
+        document.getElementById('feedbackModalTitle').textContent = type === 'danger' ? 'Error' : type === 'success' ?
+            'Success' : 'Message';
         document.getElementById('feedbackModalMessage').textContent = message;
         bootstrap.Modal.getOrCreateInstance(modal).show();
     }
@@ -550,7 +589,7 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
     function renderApprovers() {
         selected.innerHTML = selectedApprovers.map((user, index) =>
             `<span class="badge bg-primary me-1 mb-1">${index + 1}. ${esc(user.full_name || user.email)} <button type="button" class="btn-close btn-close-white ms-1" data-user-id="${esc(user.id)}"></button></span>`
-            ).join('');
+        ).join('');
         selected.querySelectorAll('.btn-close').forEach(button => button.addEventListener('click', () => {
             selectedApprovers = selectedApprovers.filter(user => user.id !== button.dataset.userId);
             renderApprovers();
@@ -603,7 +642,7 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
             const {
                 data
             } = await supabase.from('users').select('id,full_name,role,signature').eq('id', item.created_by)
-            .single();
+                .single();
             if (data) attendantProfile = data;
         }
     }
@@ -614,11 +653,40 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
             approvals[1]) : (approvals.find(record => record.approval_type === 'checked') || approvals[0]);
         return approval ? item.profiles?.find(user => user.id === (approval.user_id || approval)) : null;
     }
-    function requestApprovalPassword() { return new Promise(resolve => { const modalId = 'approvalPasswordModal'; document.getElementById(modalId)?.remove(); document.body.insertAdjacentHTML('beforeend', `<div class="modal fade" id="${modalId}" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content"><div class="modal-header"><h5 class="modal-title">Approval Password</h5><button type="button" class="btn-close" data-password-cancel></button></div><form id="approvalPasswordForm"><div class="modal-body"><label class="form-label" for="approvalTempPassword">Enter your password to approve or check this form</label><input type="password" class="form-control" id="approvalTempPassword" name="temp_password" required autocomplete="current-password"></div><div class="modal-footer"><button type="button" class="btn btn-secondary" data-password-cancel>Cancel</button><button type="submit" class="btn btn-primary">Verify</button></div></form></div></div></div>`); const modalElement = document.getElementById(modalId); const modal = new bootstrap.Modal(modalElement); const finish = value => { modal.hide(); resolve(value); setTimeout(() => modalElement.remove(), 300); }; modalElement.querySelectorAll('[data-password-cancel]').forEach(button => button.addEventListener('click', () => finish(null))); modalElement.querySelector('form').addEventListener('submit', event => { event.preventDefault(); finish(modalElement.querySelector('[name="temp_password"]').value); }); modalElement.addEventListener('hidden.bs.modal', () => modalElement.remove(), { once: true }); modal.show(); }); }
+
+    function requestApprovalPassword() {
+        return new Promise(resolve => {
+            const modalId = 'approvalPasswordModal';
+            document.getElementById(modalId)?.remove();
+            document.body.insertAdjacentHTML('beforeend',
+                `<div class="modal fade" id="${modalId}" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content"><div class="modal-header"><h5 class="modal-title">Approval Password</h5><button type="button" class="btn-close" data-password-cancel></button></div><form id="approvalPasswordForm"><div class="modal-body"><label class="form-label" for="approvalTempPassword">Enter your password to approve or check this form</label><input type="password" class="form-control" id="approvalTempPassword" name="temp_password" required autocomplete="current-password"></div><div class="modal-footer"><button type="button" class="btn btn-secondary" data-password-cancel>Cancel</button><button type="submit" class="btn btn-primary">Verify</button></div></form></div></div></div>`
+                );
+            const modalElement = document.getElementById(modalId);
+            const modal = new bootstrap.Modal(modalElement);
+            const finish = value => {
+                modal.hide();
+                resolve(value);
+                setTimeout(() => modalElement.remove(), 300);
+            };
+            modalElement.querySelectorAll('[data-password-cancel]').forEach(button => button.addEventListener(
+                'click', () => finish(null)));
+            modalElement.querySelector('form').addEventListener('submit', event => {
+                event.preventDefault();
+                finish(modalElement.querySelector('[name="temp_password"]').value);
+            });
+            modalElement.addEventListener('hidden.bs.modal', () => modalElement.remove(), {
+                once: true
+            });
+            modal.show();
+        });
+    }
     async function verifyApprovalPassword() {
         const password = await requestApprovalPassword();
         if (password === null || password === '') return false;
-        const { data, error } = await supabase.from('users').select('temp_password').eq('id', activeUserId).single();
+        const {
+            data,
+            error
+        } = await supabase.from('users').select('temp_password').eq('id', activeUserId).single();
         if (error || !data || password !== data.temp_password) {
             alert('Incorrect password.');
             return false;
@@ -648,7 +716,8 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
         return `<div class="shortage-printout"><table class="header-table"><tr><td colspan="3" class="company-title">TEXOL ENERGIES LIMITED</td></tr><tr><td class="logo-cell"><img src="https://www.texolenergies.com/assets/Logo-paGHQfRF.svg" alt="Texol Energies Logo"><small><i>Reliability Redefined</i></small></td><td class="form-title-cell">SHORTAGE ACKNOWLEDGEMENT FORM</td><td class="doc-info-cell"><div>TEX-RET-FRM-006, Ver 000</div><div>Issue Date: 1<sup>st</sup> Nov 2024</div><div class="page-row">Page 1 of 1</div></td></tr></table><div class="content"><div class="form-heading">SHORTAGE ACKNOWLEDGEMENT FORM</div><div class="two-col"><div class="field-row"><span class="field-label">DATE</span><span class="field-fill">${esc(item.form_date)}</span></div><div class="field-row"><span class="field-label">Reference PCV no.</span><span class="field-fill">${esc(item.reference_pcv_no||'')}</span></div></div><div class="field-row"><span class="field-label">ATTENDANT NAME</span><span class="field-fill">${esc(item.attendant_name||'')}</span></div><div class="field-row"><span class="field-label">PUMP</span><span class="field-fill">${esc(item.pump||'')}</span></div><div class="field-row"><span class="field-label">SHIFT</span><span class="field-fill">${esc(item.shift||'')}</span></div><div class="field-row"><span class="field-label">AMOUNT OF SHORTAGE&nbsp;&nbsp;UGX</span><span class="field-fill">${esc(item.shortage_amount||'')}</span></div><div class="amount-words-lines"><div class="field-row" style="margin-bottom:8px"><span class="field-label">AMOUNT IN WORDS</span></div><div class="field-fill">${esc(item.amount_words||'')}</div><div class="field-fill"></div></div><div class="comments-label">COMMENTS (How did you get the shortage)</div><div class="lined-box">${lines(item.comments,3)}</div><div class="comments-label"><b>How do you intend to pay off the shortage?</b></div><div class="lined-box">${lines(item.payment_plan,3)}</div><div class="signoff-block"><div class="role">ATTENDANT</div><div class="sign-row"><span>NAME</span><span class="name-fill">${esc(item.attendant_name||'')}</span><span>POSITION</span><span class="name-fill">${esc(attendantProfile.role||'')}</span><span>SIGNATURE</span><span class="sig-fill">${signature(attendantProfile)}</span></div></div><div class="signoff-block"><div class="role">SUPERVISOR</div><div class="sign-row"><span>NAME</span><span class="name-fill">${esc(supervisor?.full_name||'')}</span><span>POSITION</span><span class="name-fill">${esc(supervisor?.role||'')}</span><span>SIGNATURE</span><span class="sig-fill">${signature(supervisor)}</span></div></div><div class="signoff-block"><div class="role">MANAGER</div><div class="sign-row"><span>NAME</span><span class="name-fill">${esc(manager?.full_name||'')}</span><span>POSITION</span><span class="name-fill">${esc(manager?.role||'')}</span><span>SIGNATURE</span><span class="sig-fill">${signature(manager)}</span></div></div><div class="footer-note">Texol Energies. Shortage Acknowledgement Form</div></div></div>`;
     }
     const originalShortagePrintHtml = printHtml;
-    printHtml = item => originalShortagePrintHtml(item).replace(/<span>POSITION<\/span><span class="name-fill">.*?<\/span>/g, '');
+    printHtml = item => originalShortagePrintHtml(item).replace(
+        /<span>POSITION<\/span><span class="name-fill">.*?<\/span>/g, '');
 
     async function prepare(item) {
         await loadActiveUser();
@@ -671,7 +740,7 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
         }
         win.document.write(
             `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>TEX-RET-FRM-006 Shortage Acknowledgement Form</title><style>${document.getElementById('shortagePrintStyles').textContent}</style></head><body>${printHtml(item)}</body></html>`
-            );
+        );
         win.document.close();
         win.focus();
         win.onload = () => win.print();

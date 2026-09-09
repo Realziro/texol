@@ -239,6 +239,9 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
                     href="#"><span>Repair and Maintenance</span></a>
                 <div class="ms-auto d-flex align-items-center gap-3">
                 </div>
+                   <div class="ms-auto d-flex align-items-center gap-3">
+                    <?php include __DIR__ . '/partials/navbar_user.php'; ?>
+                </div>
             </nav>
             <main class="flex-grow-1 py-4 py-md-5 px-3 px-lg-4 content-area">
                 <section class="mb-4">
@@ -295,7 +298,9 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
                                     </div>
                                     <div class="col-12 d-flex justify-content-end gap-2"><button type="reset"
                                             class="btn btn-sm btn-outline-secondary">Reset</button><button
-                                            class="btn btn-sm btn-primary" id="saveBtn"><span class="spinner-border spinner-border-sm d-none"></span><span class="btn-label">Save Form</span></button></div>
+                                            class="btn btn-sm btn-primary" id="saveBtn"><span
+                                                class="spinner-border spinner-border-sm d-none"></span><span
+                                                class="btn-label">Save Form</span></button></div>
                                 </form>
                             </div>
                         </div>
@@ -446,7 +451,7 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
         if (!m) {
             document.body.insertAdjacentHTML('beforeend',
                 '<div class="modal fade" id="messageModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered modal-sm"><div class="modal-content"><div class="modal-header"><h5 class="modal-title">Message</h5><button class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body" id="messageText"></div><div class="modal-footer"><button class="btn btn-primary" data-bs-dismiss="modal">OK</button></div></div></div></div>'
-                );
+            );
             m = document.getElementById('messageModal');
         }
         document.getElementById('messageText').textContent = message;
@@ -492,7 +497,7 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
                 drop.classList.remove('show');
                 selectedView.innerHTML = approvers.map((a, i) =>
                     `<span class="badge bg-primary me-1">${i+1}. ${esc(a.full_name||a.email)}</span>`
-                    ).join('');
+                ).join('');
             };
             drop.appendChild(b);
         });
@@ -548,7 +553,7 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
             document.getElementById('passModal')?.remove();
             document.body.insertAdjacentHTML('beforeend',
                 '<div class="modal fade" id="passModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content"><div class="modal-header"><h5 class="modal-title">Approval Password</h5><button class="btn-close" data-cancel></button></div><form id="passForm"><div class="modal-body"><label class="form-label">Enter your password</label><input type="password" name="temp_password" class="form-control" required></div><div class="modal-footer"><button type="button" class="btn btn-secondary" data-cancel>Cancel</button><button class="btn btn-primary">Verify</button></div></form></div></div></div></div>'
-                );
+            );
             const e = document.getElementById('passModal'),
                 m = new bootstrap.Modal(e),
                 done = v => {
@@ -590,7 +595,7 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
         }
         w.document.write(
             `<!doctype html><html><head><title>Repair and Maintenance Form</title><style>${document.getElementById('repairPrintStyles').textContent}</style></head><body>${printHtml(item)}</body></html>`
-            );
+        );
         w.document.close();
         w.onload = () => w.print();
     };
@@ -656,19 +661,43 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
         }
         await prepare(item);
         const approverIds = (item.shared_with || '').split(',').map(x => x.trim()).filter(Boolean);
-        const userOptions = selectedId => `<option value="">Not assigned</option>${users.filter(user => user.id !== activeUserId).map(user => `<option value="${esc(user.id)}" ${user.id === selectedId ? 'selected' : ''}>${esc(user.full_name || user.email)} (${esc(user.email)})</option>`).join('')}`;
-        const branchOptions = Array.from(document.getElementById('branchId').options).map(option => `<option value="${esc(option.value)}" ${option.value === item.branch_id ? 'selected' : ''}>${esc(option.textContent.trim())}</option>`).join('');
-        document.getElementById('repairModalBody').innerHTML = `<form id="editRepairForm" class="row g-3"><div class="col-md-6"><label class="form-label small fw-semibold">Date</label><input class="form-control form-control-sm" id="editRepairDate" type="date" value="${esc(item.form_date || '')}" required></div><div class="col-md-6"><label class="form-label small fw-semibold">Station</label><select class="form-select form-select-sm" id="editRepairBranch" required>${branchOptions}</select></div><div class="col-12"><label class="form-label small fw-semibold">Type of repair</label><textarea class="form-control form-control-sm" id="editRepairType" rows="3" required>${esc(item.repair_type || '')}</textarea></div><div class="col-12"><label class="form-label small fw-semibold">Remarks</label><textarea class="form-control form-control-sm" id="editRepairRemarks" rows="3">${esc(item.remarks || '')}</textarea></div><div class="col-md-6"><label class="form-label small fw-semibold">Technician name</label><input class="form-control form-control-sm" id="editTechnician" value="${esc(item.technician_name || '')}" required></div><div class="col-12"><label class="form-label small fw-semibold">Remarks and requirements</label><textarea class="form-control form-control-sm" id="editRequirements" rows="3">${esc(item.requirements || '')}</textarea></div><div class="col-md-6"><label class="form-label small fw-semibold">Reviewed By</label><select class="form-select form-select-sm" id="editReviewer">${userOptions(approverIds[0])}</select></div><div class="col-md-6"><label class="form-label small fw-semibold">Approved By</label><select class="form-select form-select-sm" id="editApprover">${userOptions(approverIds[1])}</select></div><div class="col-12 text-end"><button type="button" class="btn btn-sm btn-secondary" id="cancelRepairEdit">Cancel</button><button type="submit" class="btn btn-sm btn-primary ms-2">Save Changes</button></div></form>`;
+        const userOptions = selectedId =>
+            `<option value="">Not assigned</option>${users.filter(user => user.id !== activeUserId).map(user => `<option value="${esc(user.id)}" ${user.id === selectedId ? 'selected' : ''}>${esc(user.full_name || user.email)} (${esc(user.email)})</option>`).join('')}`;
+        const branchOptions = Array.from(document.getElementById('branchId').options).map(option =>
+            `<option value="${esc(option.value)}" ${option.value === item.branch_id ? 'selected' : ''}>${esc(option.textContent.trim())}</option>`
+            ).join('');
+        document.getElementById('repairModalBody').innerHTML =
+            `<form id="editRepairForm" class="row g-3"><div class="col-md-6"><label class="form-label small fw-semibold">Date</label><input class="form-control form-control-sm" id="editRepairDate" type="date" value="${esc(item.form_date || '')}" required></div><div class="col-md-6"><label class="form-label small fw-semibold">Station</label><select class="form-select form-select-sm" id="editRepairBranch" required>${branchOptions}</select></div><div class="col-12"><label class="form-label small fw-semibold">Type of repair</label><textarea class="form-control form-control-sm" id="editRepairType" rows="3" required>${esc(item.repair_type || '')}</textarea></div><div class="col-12"><label class="form-label small fw-semibold">Remarks</label><textarea class="form-control form-control-sm" id="editRepairRemarks" rows="3">${esc(item.remarks || '')}</textarea></div><div class="col-md-6"><label class="form-label small fw-semibold">Technician name</label><input class="form-control form-control-sm" id="editTechnician" value="${esc(item.technician_name || '')}" required></div><div class="col-12"><label class="form-label small fw-semibold">Remarks and requirements</label><textarea class="form-control form-control-sm" id="editRequirements" rows="3">${esc(item.requirements || '')}</textarea></div><div class="col-md-6"><label class="form-label small fw-semibold">Reviewed By</label><select class="form-select form-select-sm" id="editReviewer">${userOptions(approverIds[0])}</select></div><div class="col-md-6"><label class="form-label small fw-semibold">Approved By</label><select class="form-select form-select-sm" id="editApprover">${userOptions(approverIds[1])}</select></div><div class="col-12 text-end"><button type="button" class="btn btn-sm btn-secondary" id="cancelRepairEdit">Cancel</button><button type="submit" class="btn btn-sm btn-primary ms-2">Save Changes</button></div></form>`;
         document.getElementById('cancelRepairEdit').onclick = () => window.viewRepair(item);
         document.getElementById('editRepairForm').onsubmit = async event => {
             event.preventDefault();
             const branch = document.getElementById('editRepairBranch').selectedOptions[0];
-            const newApprovers = [document.getElementById('editReviewer').value, document.getElementById('editApprover').value].filter(Boolean);
-            if (new Set(newApprovers).size !== newApprovers.length) { alert('Reviewed By and Approved By must be different users.'); return; }
+            const newApprovers = [document.getElementById('editReviewer').value, document
+                .getElementById('editApprover').value
+            ].filter(Boolean);
+            if (new Set(newApprovers).size !== newApprovers.length) {
+                alert('Reviewed By and Approved By must be different users.');
+                return;
+            }
             const sameApprovers = newApprovers.join(',') === (item.shared_with || '');
-            const update = { form_date: document.getElementById('editRepairDate').value, branch_id: branch.value, station_name: branch.textContent.trim(), repair_type: document.getElementById('editRepairType').value.trim(), remarks: document.getElementById('editRepairRemarks').value.trim(), technician_name: document.getElementById('editTechnician').value.trim(), requirements: document.getElementById('editRequirements').value.trim(), shared_with: newApprovers.join(','), approved_by_users: sameApprovers ? item.approved_by_users || [] : [], status: sameApprovers ? item.status || 'pending' : 'pending' };
-            const result = await supabase.from('repair_maintenance_forms').update(update).eq('id', item.id);
-            if (result.error) { alert(result.error.message); return; }
+            const update = {
+                form_date: document.getElementById('editRepairDate').value,
+                branch_id: branch.value,
+                station_name: branch.textContent.trim(),
+                repair_type: document.getElementById('editRepairType').value.trim(),
+                remarks: document.getElementById('editRepairRemarks').value.trim(),
+                technician_name: document.getElementById('editTechnician').value.trim(),
+                requirements: document.getElementById('editRequirements').value.trim(),
+                shared_with: newApprovers.join(','),
+                approved_by_users: sameApprovers ? item.approved_by_users || [] : [],
+                status: sameApprovers ? item.status || 'pending' : 'pending'
+            };
+            const result = await supabase.from('repair_maintenance_forms').update(update).eq('id', item
+                .id);
+            if (result.error) {
+                alert(result.error.message);
+                return;
+            }
             location.reload();
         };
     };
