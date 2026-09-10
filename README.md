@@ -1,69 +1,231 @@
-# CodeIgniter 4 Application Starter
+# Texol Work Card System
 
-## What is CodeIgniter?
+A comprehensive PHP-based work card and ticket management system for Texol Energies, built with Supabase as the backend.
 
-CodeIgniter is a PHP full-stack web framework that is light, fast, flexible and secure.
-More information can be found at the [official site](https://codeigniter.com).
+## Overview
 
-This repository holds a composer-installable app starter.
-It has been built from the
-[development repository](https://github.com/codeigniter4/CodeIgniter4).
+The Texol Work Card System is an internal business application designed to streamline work order management, ticket tracking, incident reporting, and various digitized forms. It provides role-based access control, email notifications, and a responsive user interface.
 
-More information about the plans for version 4 can be found in [CodeIgniter 4](https://forum.codeigniter.com/forumdisplay.php?fid=28) on the forums.
+## Features
 
-You can read the [user guide](https://codeigniter.com/user_guide/)
-corresponding to the latest version of the framework.
+### Core Modules
 
-## Installation & updates
+- **Dashboard**: Overview of work cards, tickets, and recent activities with real-time metrics
+- **Tasks/Job Cards**: Collaborative task management with assignment capabilities
+- **Tickets**: Comprehensive ticket management system with multiple assignees, priority levels, and status tracking
+- **My Tickets**: Personal ticket view for individual users
+- **Assigned Tickets**: View tickets assigned to technicians
 
-`composer create-project codeigniter4/appstarter` then `composer update` whenever
-there is a new release of the framework.
+### Digitized Forms
 
-When updating, check the release notes to see if there are any changes you might need to apply
-to your `app` folder. The affected files can be copied or merged from
-`vendor/codeigniter4/framework/app`.
+- **Requisitions**: Purchase and material requisition forms with approval workflow
+- **Customer Feedback**: Customer service feedback collection and tracking
+- **Attendance**: Meeting attendance tracking with digital signatures
+- **Incident Form**: Incident reporting and management
+- **Shortage Acknowledgement**: Material shortage reporting
+- **Repair and Maintenance**: Equipment repair and maintenance requests
 
-## Setup
+### Administration
 
-Copy `env` to `.env` and tailor for your app, specifically the baseURL
-and any database settings.
+- **Users**: User management with role assignment
+- **Departments**: Organizational department management
+- **Categories**: Ticket and work card categorization
+- **Roles**: Role-based access control configuration
+- **Permissions**: Granular permission management for modules
+- **Branches**: Branch/location management
+- **Items**: Inventory item management
+- **Suppliers**: Supplier information management
 
-## Important Change with index.php
+### Additional Features
 
-`index.php` is no longer in the root of the project! It has been moved inside the *public* folder,
-for better security and separation of components.
+- **Profile Management**: User profile customization with picture upload
+- **Email Notifications**: Automated email notifications for ticket assignments and updates
+- **File Uploads**: Support for attachments in tickets, job cards, and forms
+- **Responsive Design**: Mobile-friendly interface with collapsible sidebar
+- **Dark Mode**: Built-in dark mode support
+- **Remember Me**: Persistent login functionality
 
-This means that you should configure your web server to "point" to your project's *public* folder, and
-not to the project root. A better practice would be to configure a virtual host to point there. A poor practice would be to point your web server to the project root and expect to enter *public/...*, as the rest of your logic and the
-framework are exposed.
+## Technology Stack
 
-**Please** read the user guide for a better explanation of how CI4 works!
+### Backend
+- **PHP 8.2+**: Server-side scripting
+- **Supabase**: PostgreSQL database with REST API and authentication
+- **PHPMailer**: Email functionality
 
-## Repository Management
+### Frontend
+- **Bootstrap 5.3**: Responsive UI framework
+- **Bootstrap Icons**: Icon library
+- **Quill.js**: Rich text editor
+- **DataTables**: Enhanced table functionality
+- **Vanilla JavaScript**: Client-side interactivity
 
-We use GitHub issues, in our main repository, to track **BUGS** and to track approved **DEVELOPMENT** work packages.
-We use our [forum](http://forum.codeigniter.com) to provide SUPPORT and to discuss
-FEATURE REQUESTS.
+### Database
+- **PostgreSQL**: Primary database (via Supabase)
+- **Row Level Security (RLS)**: Database-level access control
 
-This repository is a "distribution" one, built by our release preparation script.
-Problems with it can be raised on our forum, or as issues in the main repository.
+## Project Structure
 
-## Server Requirements
+```
+texol/
+├── config.php              # Configuration and .env loader
+├── .env                    # Environment variables (Supabase credentials)
+├── .htaccess               # Apache URL rewriting rules
+├── public/                 # Public web root
+│   ├── index.php          # Main dashboard
+│   ├── login.php          # Authentication page
+│   ├── mytickets.php      # User ticket management
+│   ├── job_cards.php      # Task/job card management
+│   ├── meetings.php       # Meeting and attendance management
+│   ├── incident.php       # Incident reporting
+│   ├── departments.php    # Department management
+│   ├── categories.php     # Category management
+│   ├── profile.php        # User profile
+│   ├── partials/          # Reusable components
+│   │   ├── sidebar.php   # Navigation sidebar
+│   │   └── navbar_user.php # User navbar component
+│   ├── uploads/          # File upload directories
+│   ├── PHPMailer/        # Email library
+│   └── sql/              # Database migration scripts
+├── sql/                   # Additional SQL scripts
+├── supabase/             # Supabase-specific SQL scripts
+└── migrations/           # Database migration files
+```
 
-PHP version 8.2 or higher is required, with the following extensions installed:
+## Installation
 
-- [intl](http://php.net/manual/en/intl.requirements.php)
-- [mbstring](http://php.net/manual/en/mbstring.installation.php)
+### Prerequisites
 
-> [!WARNING]
-> - The end of life date for PHP 7.4 was November 28, 2022.
-> - The end of life date for PHP 8.0 was November 26, 2023.
-> - The end of life date for PHP 8.1 was December 31, 2025.
-> - If you are still using below PHP 8.2, you should upgrade immediately.
-> - The end of life date for PHP 8.2 will be December 31, 2026.
+- PHP 8.2 or higher
+- Apache web server with mod_rewrite enabled
+- Supabase account and project
+- cURL PHP extension
+- GD PHP extension (for image processing)
 
-Additionally, make sure that the following extensions are enabled in your PHP:
+### Setup Steps
 
-- json (enabled by default - don't turn it off)
-- [mysqlnd](http://php.net/manual/en/mysqlnd.install.php) if you plan to use MySQL
-- [libcurl](http://php.net/manual/en/curl.requirements.php) if you plan to use the HTTP\CURLRequest library
+1. **Clone the repository**
+   ```bash
+   git clone <repository-url>
+   cd texol
+   ```
+
+2. **Configure environment variables**
+   ```bash
+   cp .env.example .env
+   ```
+   Edit `.env` and add your Supabase credentials:
+   ```
+   SUPABASE_URL=your-supabase-project-url
+   SUPABASE_ANON_KEY=your-supabase-anon-key
+   ```
+
+3. **Set up database tables**
+   Run the SQL scripts in the following order:
+   - `supabase/ensure_users_table.sql`
+   - `supabase/departments.sql`
+   - `supabase/roles.sql`
+   - `supabase/job_cards.sql`
+   - `sql/tickets_schema.sql`
+   - `public/sql/create_meetings_tables.sql`
+   - `public/sql/create_incidents_table.sql`
+   - `public/sql/create_repair_maintenance_forms_table.sql`
+   - `public/sql/create_shortage_acknowledgements_table.sql`
+
+4. **Configure web server**
+   - Point your web server to the `public/` directory
+   - Ensure mod_rewrite is enabled for clean URLs
+   - The `.htaccess` file handles URL rewriting
+
+5. **Set file permissions**
+   ```bash
+   chmod 755 public/uploads
+   chmod 755 public/uploads/*
+   ```
+
+## Database Schema
+
+### Core Tables
+
+- **users**: User accounts with authentication and profile information
+- **tickets**: Work tickets with comprehensive tracking fields
+- **ticket_assignees**: Many-to-many relationship for ticket assignments
+- **ticket_notes**: Ticket history and comments
+- **job_cards**: Collaborative task cards
+- **tasks**: Individual tasks within job cards
+- **meetings**: Meeting scheduling and management
+- **meeting_attendance**: Meeting attendance tracking
+- **incidents**: Incident reporting
+- **departments**: Organizational departments
+- **categories**: Ticket and task categories
+- **branches**: Business locations/branches
+
+### Security Features
+
+- Row Level Security (RLS) on all major tables
+- Role-based access control
+- Permission system for granular access
+- Session-based authentication
+- CSRF protection on forms
+
+## User Roles
+
+- **Admin**: Full system access and configuration
+- **HOD (Head of Department)**: Department-level management
+- **Technician**: Task assignment and completion
+- **Call Center Agent**: Customer feedback management
+- **User**: Basic ticket creation and personal dashboard access
+
+## Configuration
+
+### Environment Variables
+
+The `.env` file contains:
+- `SUPABASE_URL`: Your Supabase project URL
+- `SUPABASE_ANON_KEY`: Supabase anonymous/public key for API access
+
+### Permission System
+
+Permissions are managed through the `user_permissions` table and checked via the `check_permission()` function in `config.php`. Each module can have specific actions (view, create, edit, delete, all).
+
+## Development
+
+### Adding New Modules
+
+1. Create the PHP file in `public/`
+2. Add corresponding database tables/migrations
+3. Update sidebar navigation in `public/partials/sidebar.php`
+4. Add permissions to the database
+5. Include session check and permission validation
+
+### Email Configuration
+
+Email functionality uses PHPMailer. Configure SMTP settings in the respective notification files:
+- `notify_ticket.php`
+- `notify_task.php`
+- `notify_requisition.php`
+
+## Security Considerations
+
+- Never commit `.env` file with real credentials
+- Use strong passwords for user accounts
+- Regularly update Supabase API keys
+- Implement rate limiting for API calls
+- Keep PHP and dependencies updated
+- Use HTTPS in production
+
+## Troubleshooting
+
+### Common Issues
+
+1. **Login not working**: Verify Supabase credentials in `.env`
+2. **File uploads failing**: Check directory permissions on `public/uploads/`
+3. **Database connection errors**: Ensure Supabase project is active and RLS policies are correct
+4. **URL rewriting issues**: Verify mod_rewrite is enabled and `.htaccess` is being read
+
+## Support
+
+For issues and questions related to this system, please contact the development team or submit an issue through the internal project management system.
+
+## License
+
+Internal use only - Texol Energies proprietary software.

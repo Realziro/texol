@@ -189,6 +189,11 @@ function texol_is_active(string $menu, string $active): string
                         <i class="bi bi-truck me-2"></i>Suppliers
                     </a>
                 </li>
+                 <li>
+                    <a class="dropdown-item<?php echo texol_is_active('priorities', $activeMenu); ?>" href="  priorities">
+                        <i class="bi bi-truck me-2"></i>Priorities
+                    </a>
+                </li>
                 <?php endif; ?>
             </ul>
         </li>

@@ -52,10 +52,16 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY') && SUPABASE_URL !== 
     }
 }
 
-// Create uploads directory if it doesn't exist
+// Create uploads directories if they don't exist
 $uploadsDir = __DIR__ . '/uploads/profile/';
+$signatureUploadsDir = __DIR__ . '/uploads/signatures/';
+
 if (!file_exists($uploadsDir)) {
     mkdir($uploadsDir, 0755, true);
+}
+
+if (!file_exists($signatureUploadsDir)) {
+    mkdir($signatureUploadsDir, 0755, true);
 }
 
 // Get user data from Supabase
@@ -329,50 +335,80 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } else {
             $errorMessage = 'No file uploaded or upload error occurred.';
         }
-    } elseif ($action === 'save_signature') {
-        $signatureData = $_POST['signature_data'] ?? '';
+    } elseif ($action === 'upload_signature') {
+        if (isset($_FILES['signature_image']) && $_FILES['signature_image']['error'] === UPLOAD_ERR_OK) {
+            $file = $_FILES['signature_image'];
+            $allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+            $maxSize = 2 * 1024 * 1024; // 2MB
 
-        if (empty($signatureData)) {
-            $errorMessage = 'No signature data provided.';
-        } else {
-            // Update in Supabase
-            if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY') && SUPABASE_URL !== '' && SUPABASE_ANON_KEY !== '') {
-                $supabaseUrl = rtrim(SUPABASE_URL, '/');
-                $supabaseKey = SUPABASE_ANON_KEY;
-
-                $updateData = ['signature' => $signatureData];
-
-                $ch = curl_init();
-                curl_setopt_array($ch, [
-                    CURLOPT_URL => $supabaseUrl . '/rest/v1/users?email=eq.' . urlencode($currentEmail),
-                    CURLOPT_RETURNTRANSFER => true,
-                    CURLOPT_CUSTOMREQUEST => 'PATCH',
-                    CURLOPT_POSTFIELDS => json_encode($updateData),
-                    CURLOPT_HTTPHEADER => [
-                        'apikey: ' . $supabaseKey,
-                        'Authorization: Bearer ' . $supabaseKey,
-                        'Content-Type: application/json',
-                        'Prefer: return=representation',
-                    ],
-                ]);
-
-                $response = curl_exec($ch);
-                $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-                curl_close($ch);
-
-                if ($httpCode >= 200 && $httpCode < 300) {
-                    $signature = $signatureData;
-                    $_SESSION['user_signature'] = $signatureData;
-                    $successMessage = 'Signature saved successfully!';
-                } else {
-                    $errorMessage = 'Failed to save signature in database. Error: ' . $response;
-                }
+            if (!in_array($file['type'], $allowedTypes)) {
+                $errorMessage = 'Invalid file type. Please upload a JPEG, PNG, GIF, or WebP image.';
+            } elseif ($file['size'] > $maxSize) {
+                $errorMessage = 'File size exceeds 2MB limit.';
             } else {
-                $signature = $signatureData;
-                $successMessage = 'Signature saved successfully!';
+                // Save as JPEG since background whitening outputs JPEG
+                $extension = 'jpg';
+                $filename = 'signature_' . md5($currentEmail . time()) . '.' . $extension;
+                $filepath = $signatureUploadsDir . $filename;
+
+                if (move_uploaded_file($file['tmp_name'], $filepath)) {
+                    // Since background removal is done client-side, file is already processed
+                    $relativePath = 'uploads/signatures/' . $filename;
+
+                    // Delete old signature image if exists
+                    if (!empty($signature) && file_exists(__DIR__ . '/uploads/signatures/' . basename($signature))) {
+                        @unlink(__DIR__ . '/uploads/signatures/' . basename($signature));
+                    }
+
+                    // Update in Supabase
+                    if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY') && SUPABASE_URL !== '' && SUPABASE_ANON_KEY !== '') {
+                        $supabaseUrl = rtrim(SUPABASE_URL, '/');
+                        $supabaseKey = SUPABASE_ANON_KEY;
+
+                        $updateData = ['signature' => $relativePath];
+
+                        $ch = curl_init();
+                        curl_setopt_array($ch, [
+                            CURLOPT_URL => $supabaseUrl . '/rest/v1/users?email=eq.' . urlencode($currentEmail),
+                            CURLOPT_RETURNTRANSFER => true,
+                            CURLOPT_CUSTOMREQUEST => 'PATCH',
+                            CURLOPT_POSTFIELDS => json_encode($updateData),
+                            CURLOPT_HTTPHEADER => [
+                                'apikey: ' . $supabaseKey,
+                                'Authorization: Bearer ' . $supabaseKey,
+                                'Content-Type: application/json',
+                                'Prefer: return=representation',
+                            ],
+                        ]);
+
+                        $response = curl_exec($ch);
+                        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+                        curl_close($ch);
+
+                        if ($httpCode >= 200 && $httpCode < 300) {
+                            $signature = $relativePath;
+                            $_SESSION['user_signature'] = $relativePath;
+                            $successMessage = 'Signature uploaded successfully!';
+                        } else {
+                            $errorMessage = 'Failed to update signature in database.';
+                        }
+                    } else {
+                        $signature = $relativePath;
+                        $successMessage = 'Signature uploaded successfully!';
+                    }
+                } else {
+                    $errorMessage = 'Failed to upload signature file. Please try again.';
+                }
             }
+        } else {
+            $errorMessage = 'No file uploaded or upload error occurred.';
         }
     } elseif ($action === 'delete_signature') {
+        // Delete old signature image if exists
+        if (!empty($signature) && file_exists(__DIR__ . '/uploads/signatures/' . basename($signature))) {
+            @unlink(__DIR__ . '/uploads/signatures/' . basename($signature));
+        }
+
         // Update in Supabase
         if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY') && SUPABASE_URL !== '' && SUPABASE_ANON_KEY !== '') {
             $supabaseUrl = rtrim(SUPABASE_URL, '/');
@@ -436,6 +472,19 @@ if (!empty($signature)) {
     $signature = $_SESSION['user_signature'];
 }
 
+// Generate initials for profile picture placeholder
+$initials = '';
+if (!empty($currentName)) {
+    $nameParts = explode(' ', trim($currentName));
+    if (count($nameParts) >= 2) {
+        $initials = strtoupper(substr($nameParts[0], 0, 1) . substr($nameParts[count($nameParts) - 1], 0, 1));
+    } else {
+        $initials = strtoupper(substr($currentName, 0, 2));
+    }
+} else {
+    $initials = strtoupper(substr($currentEmail, 0, 2));
+}
+
 // Verify profile picture file exists
 if (!empty($profilePicture)) {
     $filename = basename($profilePicture);
@@ -446,7 +495,15 @@ if (!empty($profilePicture)) {
     }
 }
 
-// Note: Signature is stored as base64 in database, no file verification needed
+// Verify signature file exists
+if (!empty($signature)) {
+    $filename = basename($signature);
+    $signaturePath = __DIR__ . '/uploads/signatures/' . $filename;
+    if (!file_exists($signaturePath)) {
+        $signature = '';
+        unset($_SESSION['user_signature']);
+    }
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -528,14 +585,134 @@ if (!empty($profilePicture)) {
         #profilePictureInput {
             display: none;
         }
-        .signature-canvas {
-            border: 2px dashed #dee2e6;
-            border-radius: 8px;
-            background-color: #f8f9fa;
-            cursor: crosshair;
+        .signature-upload-container {
+            position: relative;
+            display: inline-block;
+            margin-bottom: 20px;
+            width: 100%;
         }
-        .signature-canvas:hover {
-            border-color: #0d6efd;
+        .signature-preview {
+            max-width: 100%;
+            max-height: 150px;
+            border: 2px solid #e5e7eb;
+            border-radius: 8px;
+            background: white;
+            object-fit: contain;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        .signature-placeholder {
+            width: 100%;
+            height: 150px;
+            border: 2px dashed #d1d5db;
+            border-radius: 8px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            color: #6b7280;
+            font-size: 14px;
+            background: linear-gradient(135deg, #f9fafb 0%, #f3f4f6 100%);
+            cursor: pointer;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+        .signature-placeholder::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.4), transparent);
+            transition: left 0.5s ease;
+        }
+        .signature-placeholder:hover::before {
+            left: 100%;
+        }
+        .signature-placeholder:hover {
+            border-color: #6366f1;
+            background: linear-gradient(135deg, #eef2ff 0%, #e0e7ff 100%);
+            color: #4f46e5;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(99, 102, 241, 0.15);
+        }
+        .signature-placeholder i {
+            font-size: 32px;
+            margin-bottom: 8px;
+            color: #9ca3af;
+            transition: color 0.3s ease;
+        }
+        .signature-placeholder:hover i {
+            color: #6366f1;
+        }
+        #signatureInput {
+            display: none;
+        }
+        .upload-progress {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(255, 255, 255, 0.95);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            border-radius: 8px;
+            z-index: 10;
+        }
+        .upload-progress .spinner-border {
+            width: 40px;
+            height: 40px;
+            color: #6366f1;
+        }
+        .upload-progress p {
+            margin-top: 12px;
+            font-size: 13px;
+            color: #6b7280;
+            font-weight: 500;
+        }
+        .signature-actions {
+            display: flex;
+            gap: 8px;
+            justify-content: center;
+            margin-top: 12px;
+        }
+        .btn-upload {
+            background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+            border: none;
+            color: white;
+            padding: 8px 16px;
+            border-radius: 6px;
+            font-size: 13px;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            box-shadow: 0 2px 8px rgba(99, 102, 241, 0.3);
+        }
+        .btn-upload:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(99, 102, 241, 0.4);
+            background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+        }
+        .btn-upload:active {
+            transform: translateY(0);
+        }
+        .signature-info {
+            background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+            border: 1px solid #f59e0b;
+            border-radius: 6px;
+            padding: 8px 12px;
+            font-size: 12px;
+            color: #92400e;
+            margin-top: 8px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .signature-info i {
+            font-size: 14px;
         }
     </style>
 </head>
@@ -623,35 +800,62 @@ if (!empty($profilePicture)) {
                             <!-- Signature Section -->
                             <div class="card border-0 shadow-sm">
                                 <div class="card-header bg-white py-3 px-3 px-md-4">
-                                    <h2 class="h6 mb-0 fw-semibold">Signature</h2>
+                                    <h2 class="h6 mb-0 fw-semibold">
+                                        <i class="bi bi-pen-fill me-2 text-primary"></i>Signature
+                                    </h2>
                                 </div>
                                 <div class="card-body text-center">
-                                    <div class="signature-container mb-3">
+                                    <div class="signature-upload-container mb-3">
                                         <?php if (!empty($signature)) : ?>
-                                            <img id="signaturePreview"
-                                                 src="<?php echo htmlspecialchars($signature, ENT_QUOTES, 'UTF-8'); ?>"
-                                                 alt="Signature"
-                                                 class="signature-display"
-                                                 style="max-width: 100%; max-height: 100px; border: 1px solid #e5e7eb; border-radius: 4px; background: white;">
+                                            <div class="position-relative">
+                                                <img id="signaturePreview"
+                                                     src="<?php echo htmlspecialchars($signature, ENT_QUOTES, 'UTF-8'); ?>"
+                                                     alt="Signature"
+                                                     class="signature-preview">
+                                                <div id="uploadProgress" class="upload-progress d-none">
+                                                    <div class="spinner-border" role="status">
+                                                        <span class="visually-hidden">Loading...</span>
+                                                    </div>
+                                                    <p>Uploading signature...</p>
+                                                </div>
+                                            </div>
                                         <?php else : ?>
-                                            <div id="signaturePlaceholder" class="signature-placeholder" style="width: 100%; height: 100px; border: 2px dashed #e5e7eb; border-radius: 4px; display: flex; align-items: center; justify-content: center; color: #9ca3af; font-size: 14px;">
-                                                No signature
+                                            <div class="position-relative">
+                                                <div id="signaturePlaceholder" class="signature-placeholder" onclick="document.getElementById('signatureInput').click()">
+                                                    <i class="bi bi-cloud-arrow-up"></i>
+                                                    <span class="mt-2">Click to upload signature</span>
+                                                </div>
+                                                <div id="uploadProgress" class="upload-progress d-none">
+                                                    <div class="spinner-border" role="status">
+                                                        <span class="visually-hidden">Loading...</span>
+                                                    </div>
+                                                    <p>Uploading signature...</p>
+                                                </div>
                                             </div>
                                         <?php endif; ?>
                                     </div>
-                                    <input type="hidden" id="signatureData" name="signature_data" value="<?php echo htmlspecialchars($signature, ENT_QUOTES, 'UTF-8'); ?>">
-                                    <button type="button" class="btn btn-sm btn-outline-primary" id="signBtn" data-bs-toggle="modal" data-bs-target="#signatureModal">
-                                        <i class="bi bi-pen me-1"></i> Sign
-                                    </button>
-                                    <?php if (!empty($signature)) : ?>
-                                        <button type="button" class="btn btn-sm btn-outline-danger ms-2" id="removeSignatureBtn">
-                                            <i class="bi bi-trash me-1"></i> Remove
-                                        </button>
-                                    <?php endif; ?>
-                                    <form id="signatureForm" method="post" style="display: none;">
-                                        <input type="hidden" name="action" value="save_signature">
-                                        <input type="hidden" id="signatureDataInput" name="signature_data">
+                                    <input type="file"
+                                           id="signatureInput"
+                                           name="signature_image"
+                                           accept="image/jpeg,image/png,image/gif,image/webp"
+                                           form="signatureForm">
+                                    <form id="signatureForm" method="post" enctype="multipart/form-data" style="display: none;">
+                                        <input type="hidden" name="action" value="upload_signature">
                                     </form>
+                                    <div class="signature-actions">
+                                        <button type="button" class="btn-upload" onclick="document.getElementById('signatureInput').click()">
+                                            <i class="bi bi-upload me-1"></i> Upload Signature
+                                        </button>
+                                        <?php if (!empty($signature)) : ?>
+                                            <button type="button" class="btn btn-sm btn-outline-danger" id="removeSignatureBtn">
+                                                <i class="bi bi-trash me-1"></i> Remove
+                                            </button>
+                                        <?php endif; ?>
+                                    </div>
+                                    <div class="signature-info">
+                                        <i class="bi bi-info-circle"></i>
+                                        <span>Max size: 2MB (JPEG, PNG, GIF, WebP) - Background will be whitened automatically</span>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -774,36 +978,7 @@ if (!empty($profilePicture)) {
         </div>
     </div>
 
-    <!-- Signature Modal -->
-    <div class="modal fade" id="signatureModal" tabindex="-1" aria-labelledby="signatureModalLabel" aria-hidden="true">
-        <div class="modal-dialog modal-lg">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title" id="signatureModalLabel">
-                        <i class="bi bi-pen me-2"></i>Draw Your Signature
-                    </h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                </div>
-                <div class="modal-body">
-                    <div class="mb-3">
-                        <label class="form-label fw-semibold">Draw your signature below:</label>
-                        <canvas id="signatureCanvas" class="signature-canvas w-100" style="background: white; border: 2px dashed #dee2e6; border-radius: 8px;" height="150"></canvas>
-                    </div>
-                    <div class="d-flex gap-2">
-                        <button type="button" class="btn btn-sm btn-outline-danger" id="clearSignatureBtn">
-                            <i class="bi bi-x-circle me-1"></i>Clear
-                        </button>
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button type="button" class="btn btn-primary" id="saveSignatureBtn">
-                        <i class="bi bi-check me-1"></i>Save Signature
-                    </button>
-                </div>
-            </div>
-        </div>
-    </div>
+
     
     <!-- Bootstrap JS Bundle CDN -->
     <script
@@ -836,112 +1011,158 @@ if (!empty($profilePicture)) {
             });
         }
 
-        // Signature canvas
-        const canvas = document.getElementById('signatureCanvas');
-        const ctx = canvas.getContext('2d');
-        let isDrawing = false;
-        let lastX = 0;
-        let lastY = 0;
+        // Handle signature upload
+        const signatureInput = document.getElementById('signatureInput');
+        const signatureForm = document.getElementById('signatureForm');
+        const uploadProgress = document.getElementById('uploadProgress');
+        const signaturePlaceholder = document.getElementById('signaturePlaceholder');
+        const signaturePreview = document.getElementById('signaturePreview');
 
-        // Resize canvas to match display size
-        function resizeCanvas() {
-            if (!canvas) return;
-            const rect = canvas.getBoundingClientRect();
-            const targetHeight = Math.max(canvas.getAttribute('height') || 150, rect.height);
-            canvas.width = rect.width;
-            canvas.height = targetHeight;
-        }
-        window.addEventListener('resize', resizeCanvas);
+        if (signatureInput) {
+            signatureInput.addEventListener('change', async function() {
+                if (this.files && this.files[0]) {
+                    const file = this.files[0];
+                    
+                    // Validate file size
+                    const maxSize = 2 * 1024 * 1024; // 2MB
+                    if (file.size > maxSize) {
+                        alert('File size exceeds 2MB limit. Please choose a smaller file.');
+                        this.value = '';
+                        return;
+                    }
+                    
+                    // Validate file type
+                    const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+                    if (!allowedTypes.includes(file.type)) {
+                        alert('Invalid file type. Please upload a JPEG, PNG, GIF, or WebP image.');
+                        this.value = '';
+                        return;
+                    }
 
-        // Drawing functions
-        if (canvas) {
-            canvas.addEventListener('mousedown', startDrawing);
-            canvas.addEventListener('mousemove', draw);
-            canvas.addEventListener('mouseup', stopDrawing);
-            canvas.addEventListener('mouseout', stopDrawing);
+                    // Show progress spinner
+                    if (uploadProgress) {
+                        uploadProgress.classList.remove('d-none');
+                        uploadProgress.querySelector('p').textContent = 'Whitening background...';
+                    }
+                    
+                    // Disable buttons during upload
+                    const uploadBtn = document.querySelector('.btn-upload');
+                    if (uploadBtn) {
+                        uploadBtn.disabled = true;
+                        uploadBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Processing...';
+                    }
 
-            // Touch support
-            canvas.addEventListener('touchstart', handleTouchStart);
-            canvas.addEventListener('touchmove', handleTouchMove);
-            canvas.addEventListener('touchend', stopDrawing);
-        }
-
-        function startDrawing(e) {
-            isDrawing = true;
-            [lastX, lastY] = [e.offsetX, e.offsetY];
-        }
-
-        function draw(e) {
-            if (!isDrawing) return;
-            ctx.beginPath();
-            ctx.moveTo(lastX, lastY);
-            ctx.lineTo(e.offsetX, e.offsetY);
-            ctx.strokeStyle = '#000';
-            ctx.lineWidth = 2;
-            ctx.lineCap = 'round';
-            ctx.stroke();
-            [lastX, lastY] = [e.offsetX, e.offsetY];
-        }
-
-        function stopDrawing() {
-            isDrawing = false;
-        }
-
-        function handleTouchStart(e) {
-            e.preventDefault();
-            const touch = e.touches[0];
-            const rect = canvas.getBoundingClientRect();
-            lastX = touch.clientX - rect.left;
-            lastY = touch.clientY - rect.top;
-            isDrawing = true;
-        }
-
-        function handleTouchMove(e) {
-            e.preventDefault();
-            if (!isDrawing) return;
-            const touch = e.touches[0];
-            const rect = canvas.getBoundingClientRect();
-            const x = touch.clientX - rect.left;
-            const y = touch.clientY - rect.top;
-            ctx.beginPath();
-            ctx.moveTo(lastX, lastY);
-            ctx.lineTo(x, y);
-            ctx.strokeStyle = '#000';
-            ctx.lineWidth = 2;
-            ctx.lineCap = 'round';
-            ctx.stroke();
-            [lastX, lastY] = [x, y];
-        }
-
-        // Initialize signature modal
-        const signatureModal = document.getElementById('signatureModal');
-        if (signatureModal) {
-            signatureModal.addEventListener('shown.bs.modal', function() {
-                setTimeout(() => {
-                    resizeCanvas();
-                }, 100);
+                    try {
+                        // Use canvas-based background whitening
+                        const processedBlob = await whitenSignatureBackground(file);
+                        
+                        // Create a new file from the processed blob
+                        const processedFile = new File([processedBlob], 'signature_processed.jpg', { type: 'image/jpeg' });
+                        
+                        // Update progress message
+                        if (uploadProgress) {
+                            uploadProgress.querySelector('p').textContent = 'Uploading signature...';
+                        }
+                        
+                        // Create FormData with the processed file
+                        const formData = new FormData();
+                        formData.append('action', 'upload_signature');
+                        formData.append('signature_image', processedFile);
+                        
+                        // Upload the processed file
+                        const response = await fetch('profile', {
+                            method: 'POST',
+                            body: formData
+                        });
+                        
+                        if (response.ok) {
+                            // Reload the page to show the updated signature
+                            window.location.reload();
+                        } else {
+                            throw new Error('Upload failed');
+                        }
+                        
+                    } catch (error) {
+                        console.error('Background whitening error:', error);
+                        alert('Failed to process signature. Please try again or upload a different image.');
+                        
+                        // Hide progress and reset UI
+                        if (uploadProgress) {
+                            uploadProgress.classList.add('d-none');
+                        }
+                        if (uploadBtn) {
+                            uploadBtn.disabled = false;
+                            uploadBtn.innerHTML = '<i class="bi bi-upload me-1"></i> Upload Signature';
+                        }
+                        this.value = '';
+                    }
+                }
             });
         }
 
-        // Clear signature
-        const clearSignatureBtn = document.getElementById('clearSignatureBtn');
-        if (clearSignatureBtn) {
-            clearSignatureBtn.addEventListener('click', function() {
-                ctx.clearRect(0, 0, canvas.width, canvas.height);
-            });
-        }
+        // Whitening signature background function
+        function whitenSignatureBackground(imageFile, threshold = 200) {
+            return new Promise((resolve, reject) => {
+                const img = new Image();
+                const reader = new FileReader();
 
-        // Save signature
-        const saveSignatureBtn = document.getElementById('saveSignatureBtn');
-        if (saveSignatureBtn) {
-            saveSignatureBtn.addEventListener('click', function() {
-                const signatureData = canvas.toDataURL('image/png');
+                reader.onload = e => { img.src = e.target.result; };
+                reader.onerror = reject;
+                img.onload = () => {
+                    const w = img.width, h = img.height;
 
-                // Save to hidden input
-                document.getElementById('signatureDataInput').value = signatureData;
+                    // 1. Full-res original
+                    const canvas = document.createElement('canvas');
+                    canvas.width = w;
+                    canvas.height = h;
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(img, 0, 0);
+                    const original = ctx.getImageData(0, 0, w, h).data;
 
-                // Submit form
-                document.getElementById('signatureForm').submit();
+                    // 2. Cheap blur estimate of local lighting (downscale -> upscale)
+                    const small = document.createElement('canvas');
+                    const smallW = Math.max(1, Math.round(w / 24));
+                    const smallH = Math.max(1, Math.round(h / 24));
+                    small.width = smallW;
+                    small.height = smallH;
+                    small.getContext('2d').drawImage(img, 0, 0, smallW, smallH);
+
+                    const blurCanvas = document.createElement('canvas');
+                    blurCanvas.width = w;
+                    blurCanvas.height = h;
+                    const blurCtx = blurCanvas.getContext('2d');
+                    blurCtx.imageSmoothingEnabled = true;
+                    blurCtx.drawImage(small, 0, 0, w, h);
+                    const blurred = blurCtx.getImageData(0, 0, w, h).data;
+
+                    // 3. Normalize lighting, then force background to pure white
+                    const output = ctx.createImageData(w, h);
+                    const outData = output.data;
+
+                    for (let i = 0; i < original.length; i += 4) {
+                        const origGray = (original[i] + original[i + 1] + original[i + 2]) / 3;
+                        const bgGray = (blurred[i] + blurred[i + 1] + blurred[i + 2]) / 3 || 1;
+                        const corrected = Math.min(255, (origGray / bgGray) * 255);
+
+                        if (corrected >= threshold) {
+                            // background -> pure white
+                            outData[i] = 255;
+                            outData[i + 1] = 255;
+                            outData[i + 2] = 255;
+                        } else {
+                            // ink -> keep original color (usually dark blue/black)
+                            outData[i] = original[i];
+                            outData[i + 1] = original[i + 1];
+                            outData[i + 2] = original[i + 2];
+                        }
+                        outData[i + 3] = 255; // fully opaque, no transparency needed
+                    }
+
+                    ctx.putImageData(output, 0, 0);
+                    canvas.toBlob(blob => resolve(blob), 'image/jpeg', 0.92); // JPEG fine now — no transparency to preserve
+                };
+                img.onerror = reject;
+                reader.readAsDataURL(imageFile);
             });
         }
 
