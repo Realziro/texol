@@ -28,7 +28,57 @@ if (! isset($_SESSION['user_email'])) {
     />
     <link rel="stylesheet" href="sidebar.css" />
     <link rel="stylesheet" href="dashboard.css" />
+    <link rel="stylesheet" href="https://cdn.datatables.net/1.13.7/css/dataTables.bootstrap5.min.css" />
     <link rel="icon" type="image/svg+xml" href="https://www.texolenergies.com/assets/Texol_icon-AiPT1Z13.png" />
+    <style>
+        .branches-table thead th {
+            font-size: .72rem;
+            text-transform: uppercase;
+            letter-spacing: .04em;
+            color: #6c757d;
+            background: #f8f9fa;
+            border-bottom-width: 1px
+        }
+
+        .branches-table tbody td {
+            padding-top: .7rem;
+            padding-bottom: .7rem
+        }
+
+        .dataTables_wrapper .dataTables_filter input,
+        .dataTables_wrapper .dataTables_length select {
+            border: 1px solid #dee2e6;
+            border-radius: .375rem;
+            padding: .25rem .5rem
+        }
+
+        .dataTables_wrapper .dataTables_filter input:focus,
+        .dataTables_wrapper .dataTables_length select:focus {
+            border-color: #86b7fe;
+            box-shadow: 0 0 0 .2rem rgba(13, 110, 253, .15);
+            outline: 0
+        }
+
+        .branches-table-wrap {
+            overflow: visible !important;
+        }
+
+        .branches-table-wrap .dropdown.show {
+            position: relative;
+            z-index: 1080;
+        }
+
+        .branches-table-wrap .dropdown-menu {
+            z-index: 1090;
+        }
+
+        @media (max-width: 767.98px) {
+            .branches-table-wrap {
+                overflow-x: auto !important;
+                overflow-y: visible !important;
+            }
+        }
+    </style>
 </head>
 <body class="dashboard-body">
     <div class="d-flex" id="layoutWrapper">
@@ -53,7 +103,6 @@ if (! isset($_SESSION['user_email'])) {
                 </a>
 
                 <div class="ms-auto d-flex align-items-center gap-3">
-                    <?php include __DIR__ . '/partials/notifications.php'; ?>
                     <?php include __DIR__ . '/partials/navbar_user.php'; ?>
                 </div>
             </nav>
@@ -91,6 +140,11 @@ if (! isset($_SESSION['user_email'])) {
                                             </select>
                                         </div>
 
+                                        <div class="col-12">
+                                            <label class="form-label small fw-semibold" for="totalCameras">Total CCTV Cameras</label>
+                                            <input type="number" class="form-control form-control-sm" id="totalCameras" placeholder="0" min="0" />
+                                        </div>
+
                                         <div class="col-12 d-flex justify-content-end mt-2">
                                             <button type="button" class="btn btn-sm btn-outline-secondary me-2" id="resetBranchForm">Reset</button>
                                             <button type="submit" class="btn btn-sm btn-primary" id="saveBranchBtn">Save Branch</button>
@@ -113,22 +167,18 @@ if (! isset($_SESSION['user_email'])) {
                                     </button>
                                 </div>
                                 <div class="card-body px-2 px-md-3 py-3">
-                                    <div class="table-responsive">
-                                        <table class="table table-sm align-middle mb-0">
+                                    <div class="table-responsive branches-table-wrap">
+                                        <table class="table table-sm table-hover align-middle branches-table" id="branchesTable">
                                             <thead class="table-light">
                                                 <tr>
                                                     <th class="small text-uppercase text-muted">Name</th>
                                                     <th class="small text-uppercase text-muted">Manager</th>
+                                                    <th class="small text-uppercase text-muted">Total Cameras</th>
                                                     <th class="small text-uppercase text-muted">Created At</th>
                                                     <th class="small text-uppercase text-muted text-end">Actions</th>
                                                 </tr>
                                             </thead>
-                                            <tbody id="branchesTableBody">
-                                                <tr>
-                                                    <td colspan="4" class="text-center small text-muted py-3">
-                                                        Loading branches...
-                                                    </td>
-                                                </tr>
+                                            <tbody>
                                             </tbody>
                                         </table>
                                     </div>
@@ -162,6 +212,11 @@ if (! isset($_SESSION['user_email'])) {
           <label class="form-label">Manager</label>
           <select class="form-select" id="editBranchManager"></select>
         </div>
+
+        <div class="mb-2">
+          <label class="form-label">Total CCTV Cameras</label>
+          <input type="number" class="form-control" id="editTotalCameras" min="0">
+        </div>
       </div>
 
       <div class="modal-footer d-flex justify-content-between">
@@ -184,9 +239,34 @@ if (! isset($_SESSION['user_email'])) {
         crossorigin="anonymous"
     ></script>
     <script src="app.js"></script>
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+    <script src="https://cdn.datatables.net/1.13.7/js/jquery.dataTables.min.js"></script>
+    <script src="https://cdn.datatables.net/1.13.7/js/dataTables.bootstrap5.min.js"></script>
 
     <script type="module">
         import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+        
+        let branchesTable;
+        
+        // Initialize DataTables
+        $(document).ready(function() {
+            branchesTable = $('#branchesTable').DataTable({
+                pageLength: 10,
+                lengthMenu: [5, 10, 25, 50, 100],
+                order: [[3, 'desc']],
+                language: {
+                    search: '_INPUT_',
+                    searchPlaceholder: 'Search branches...'
+                },
+                columnDefs: [
+                    { orderable: false, targets: 4 }
+                ],
+                autoWidth: false
+            });
+            
+            // Load branches after DataTables is initialized
+            loadBranches();
+        });
 
         const supabaseUrl = '<?php echo defined("SUPABASE_URL") ? SUPABASE_URL : ""; ?>';
         const supabaseKey = '<?php echo defined("SUPABASE_ANON_KEY") ? SUPABASE_ANON_KEY : ""; ?>';
@@ -197,7 +277,6 @@ if (! isset($_SESSION['user_email'])) {
         const resetBtn = document.getElementById('resetBranchForm');
         const refreshBtn = document.getElementById('refreshBranchesBtn');
         const alertBox = document.getElementById('branchFormAlert');
-        const tableBody = document.getElementById('branchesTableBody');
 
 
         async function loadUsers() {
@@ -250,6 +329,7 @@ loadUsers();
             alertBox.className = `alert alert-${type} py-2 px-3 mb-3`;
             alertBox.textContent = message;
             alertBox.classList.remove('d-none');
+            setTimeout(() => alertBox.classList.add('d-none'), 5000);
         }
 
         function hideAlert() {
@@ -258,59 +338,65 @@ loadUsers();
         }
 
         async function loadBranches() {
-            if (!tableBody) return;
-            tableBody.innerHTML = `
-                <tr>
-                    <td colspan="4" class="text-center small text-muted py-3">Loading branches...</td>
-                </tr>`;
-
+            if (!branchesTable) {
+                console.error('DataTables not initialized');
+                return;
+            }
+            
+            branchesTable.clear();
+            
             try {
                 const { data, error } = await supabase
                     .from('branches')
-                    .select('id, name, manager_email, created_at')
+                    .select('id, name, manager_email, total_cameras, created_at')
                     .order('created_at', { ascending: false });
 
                 if (error) {
-                    tableBody.innerHTML = `
-                        <tr>
-                            <td colspan="4" class="text-center small text-danger py-3">${escapeHtml(error.message || 'Failed to load branches.')}</td>
-                        </tr>`;
+                    branchesTable.row.add(['-', '-', '-', '-', '-']).draw();
+                    showAlert('danger', error.message || 'Failed to load branches.');
                     return;
                 }
 
                 if (!data || data.length === 0) {
-                    tableBody.innerHTML = `
-                        <tr>
-                            <td colspan="4" class="text-center small text-muted py-3">No branches found yet.</td>
-                        </tr>`;
+                    branchesTable.row.add(['-', '-', '-', '-', '-']).draw();
                     return;
                 }
 
-                tableBody.innerHTML = '';
-               data.forEach((branch) => {
-    const tr = document.createElement('tr');
-
-    tr.innerHTML = `
-        <td class="small fw-semibold">${escapeHtml(branch.name)}</td>
-        <td class="small">${escapeHtml(branch.manager_email)}</td>
-        <td class="small text-muted">${branch.created_at ? new Date(branch.created_at).toLocaleString() : '-'}</td>
-        <td class="text-end">
-            <button class="btn btn-sm btn-outline-primary edit-branch-btn"
-                data-id="${branch.id}"
-                data-name="${escapeHtml(branch.name)}"
-                data-manager="${escapeHtml(branch.manager_email)}">
-                <i class="bi bi-pencil"></i>
-            </button>
-        </td>
-    `;
-
-    tableBody.appendChild(tr);
-});
+                data.forEach((branch) => {
+                    const editButton = `<button class="btn btn-sm btn-outline-primary edit-branch-btn"
+                        data-id="${branch.id}"
+                        data-name="${escapeHtml(branch.name)}"
+                        data-manager="${escapeHtml(branch.manager_email)}"
+                        data-cameras="${escapeHtml(branch.total_cameras || 0)}">
+                        <i class="bi bi-pencil"></i>
+                    </button>`;
+                    
+                    branchesTable.row.add([
+                        escapeHtml(branch.name),
+                        escapeHtml(branch.manager_email),
+                        escapeHtml(branch.total_cameras || 0),
+                        branch.created_at ? new Date(branch.created_at).toLocaleString() : '-',
+                        editButton
+                    ]);
+                });
+                
+                branchesTable.draw();
+                
+                // Re-attach event listeners to edit buttons
+                document.querySelectorAll('.edit-branch-btn').forEach(btn => {
+                    btn.addEventListener('click', function() {
+                        document.getElementById('editBranchId').value = this.dataset.id;
+                        document.getElementById('editBranchName').value = this.dataset.name;
+                        document.getElementById('editBranchManager').value = this.dataset.manager;
+                        document.getElementById('editTotalCameras').value = this.dataset.cameras;
+                        branchModal.show();
+                    });
+                });
+                
             } catch (err) {
-                tableBody.innerHTML = `
-                    <tr>
-                        <td colspan="4" class="text-center small text-danger py-3">Unexpected error loading branches.</td>
-                    </tr>`;
+                console.error('Error loading branches:', err);
+                branchesTable.row.add(['-', '-', '-', '-', '-']).draw();
+                showAlert('danger', 'Unexpected error loading branches.');
             }
         }
 
@@ -332,6 +418,7 @@ loadUsers();
 
                 const name = document.getElementById('branchName')?.value.trim() || '';
                 const managerEmail = document.getElementById('branchManager')?.value.trim() || '';
+                const totalCameras = document.getElementById('totalCameras')?.value || 0;
 
                 if (!name || !managerEmail) {
                     showAlert('warning', 'Please fill in all required fields.');
@@ -346,7 +433,8 @@ loadUsers();
                         .from('branches')
                         .insert([{
                             name,
-                            manager_email: managerEmail
+                            manager_email: managerEmail,
+                            total_cameras: parseInt(totalCameras) || 0
                         }]);
 
                     if (error) {
@@ -356,7 +444,7 @@ loadUsers();
 
                     showAlert('success', 'Branch saved successfully.');
                     form.reset();
-                    await loadBranches();
+                    loadBranches();
                 } catch (err) {
                     showAlert('danger', 'Unexpected error saving branch.');
                 } finally {
@@ -366,17 +454,6 @@ loadUsers();
             });
         }
 const branchModal = new bootstrap.Modal(document.getElementById('editBranchModal'));
-
-document.addEventListener('click', (e) => {
-    const btn = e.target.closest('.edit-branch-btn');
-    if (!btn) return;
-
-    document.getElementById('editBranchId').value = btn.dataset.id;
-    document.getElementById('editBranchName').value = btn.dataset.name;
-    document.getElementById('editBranchManager').value = btn.dataset.manager;
-
-    branchModal.show();
-});
 
 document.getElementById('updateBranchBtn').addEventListener('click', async () => {
     const id = document.getElementById('editBranchId').value;
@@ -388,6 +465,7 @@ document.getElementById('updateBranchBtn').addEventListener('click', async () =>
 
     const name = document.getElementById('editBranchName').value.trim();
     const manager_email = document.getElementById('editBranchManager').value.trim();
+    const total_cameras = document.getElementById('editTotalCameras').value || 0;
 
     if (!name || !manager_email) {
         alert('Fill all fields');
@@ -396,7 +474,7 @@ document.getElementById('updateBranchBtn').addEventListener('click', async () =>
 
     const { error } = await supabase
         .from('branches')
-        .update({ name, manager_email })
+        .update({ name, manager_email, total_cameras: parseInt(total_cameras) || 0 })
         .eq('id', id);
 
     if (error) {
@@ -431,7 +509,6 @@ document.getElementById('deleteBranchBtn').addEventListener('click', async () =>
     branchModal.hide();
     loadBranches();
 });
-        loadBranches();
     </script>
 </body>
 </html>

@@ -86,9 +86,15 @@ if (!check_permission('permissions', 'view')) {
                                     <form id="selectUserForm" class="row g-3">
                                         <div class="col-12">
                                             <label class="form-label small fw-semibold" for="permissionUser">User</label>
-                                            <select class="form-select form-select-sm" id="permissionUser" required>
-                                                <option value="">Select User</option>
-                                            </select>
+                                            <div class="position-relative">
+                                                <input type="text" class="form-control form-control-sm" id="permissionUserInput"
+                                                    placeholder="Search users..." autocomplete="off">
+                                                <div id="permissionUserDropdown" class="dropdown-menu w-100"
+                                                    style="position:absolute;z-index:1000;max-height:200px;overflow-y:auto;">
+                                                </div>
+                                            </div>
+                                            <div id="selectedPermissionUser" class="mt-1"></div>
+                                            <input type="hidden" id="permissionUser" required>
                                         </div>
                                     </form>
                                 </div>
@@ -171,17 +177,21 @@ if (!check_permission('permissions', 'view')) {
         const supabase = createClient(supabaseUrl, supabaseKey);
 
         const userSelect = document.getElementById('permissionUser');
+        const userSelectInput = document.getElementById('permissionUserInput');
+        const userSelectDropdown = document.getElementById('permissionUserDropdown');
+        const selectedPermissionUser = document.getElementById('selectedPermissionUser');
         const savePermissionsBtn = document.getElementById('savePermissionsBtn');
-        const refreshBtn = document.getElementById('refreshPermissionsBtn');
         const alertBox = document.getElementById('permissionFormAlert');
         const tableBody = document.getElementById('permissionsTableBody');
         const permissionsContainer = document.getElementById('permissionsContainer');
         const noUserSelected = document.getElementById('noUserSelected');
 
-        const modules = ['dashboard', 'job_cards', 'tickets', 'mytickets', 'users', 'departments', 'categories', 'roles', 'permissions', 'requisition_approval', 'requisitions_view_all', 'customer_feedback'];
+        const modules = ['dashboard', 'job_cards', 'tickets', 'mytickets', 'users', 'departments', 'categories', 'roles', 'permissions', 'requisition_approval', 'requisitions_view_all', 'customer_feedback', 'incident_settlement', 'cctv_checklist_texol', 'cctv_checklist_sta'];
         const actions = ['view', 'create', 'edit', 'delete', 'all'];
 
         let currentUserEmail = null;
+        let allUsers = [];
+        let selectedUser = null;
 
         function escapeHtml(value) {
             return (value || '')
@@ -218,17 +228,33 @@ if (!check_permission('permissions', 'view')) {
                     return;
                 }
 
-                userSelect.innerHTML = '<option value="">Select User</option>';
-                data.forEach(user => {
-                    const option = document.createElement('option');
-                    option.value = user.email;
-                    option.textContent = `${user.full_name} (${user.email})`;
-                    userSelect.appendChild(option);
-                });
+                allUsers = data || [];
             } catch (err) {
                 console.error('Unexpected error fetching users:', err);
             }
         }
+
+        function renderSelectedUser() {
+            if (selectedUser) {
+                selectedPermissionUser.innerHTML = `<span class="badge bg-primary">${escapeHtml(selectedUser.full_name || selectedUser.email)} <button type="button" class="btn-close btn-close-white ms-1"></button></span>`;
+            } else {
+                selectedPermissionUser.innerHTML = '';
+            }
+        }
+
+        // Event delegation for clearing selected user
+        selectedPermissionUser.addEventListener('click', (e) => {
+            if (e.target.classList.contains('btn-close')) {
+                selectedUser = null;
+                currentUserEmail = null;
+                userSelect.value = '';
+                userSelectInput.value = '';
+                renderSelectedUser();
+                permissionsContainer.classList.add('d-none');
+                noUserSelected.classList.remove('d-none');
+                savePermissionsBtn.classList.add('d-none');
+            }
+        });
 
         async function loadUserPermissions(userEmail) {
             if (!tableBody) return;
@@ -288,22 +314,44 @@ if (!check_permission('permissions', 'view')) {
             });
         }
 
-        if (userSelect) {
-            userSelect.addEventListener('change', async () => {
-                currentUserEmail = userSelect.value.trim();
-                
-                if (currentUserEmail) {
-                    permissionsContainer.classList.remove('d-none');
-                    noUserSelected.classList.add('d-none');
-                    savePermissionsBtn.classList.remove('d-none');
-                    await loadUserPermissions(currentUserEmail);
-                } else {
-                    permissionsContainer.classList.add('d-none');
-                    noUserSelected.classList.remove('d-none');
-                    savePermissionsBtn.classList.add('d-none');
+        if (userSelectInput) {
+            userSelectInput.addEventListener('input', () => {
+                const term = userSelectInput.value.trim().toLowerCase();
+                userSelectDropdown.innerHTML = '';
+                if (term.length < 2) {
+                    userSelectDropdown.classList.remove('show');
+                    return;
                 }
+                allUsers.filter(user => `${user.full_name || ''} ${user.email || ''}`.toLowerCase().includes(term)).forEach(user => {
+                    const option = document.createElement('button');
+                    option.type = 'button';
+                    option.className = 'dropdown-item';
+                    option.textContent = `${user.full_name || user.email} (${user.email})`;
+                    option.addEventListener('click', () => {
+                        selectedUser = user;
+                        currentUserEmail = user.email;
+                        userSelect.value = user.email;
+                        userSelectInput.value = `${user.full_name || user.email} (${user.email})`;
+                        userSelectDropdown.classList.remove('show');
+                        renderSelectedUser();
+                        
+                        permissionsContainer.classList.remove('d-none');
+                        noUserSelected.classList.add('d-none');
+                        savePermissionsBtn.classList.remove('d-none');
+                        loadUserPermissions(currentUserEmail);
+                    });
+                    userSelectDropdown.appendChild(option);
+                });
+                userSelectDropdown.classList.toggle('show', userSelectDropdown.children.length > 0);
             });
         }
+
+        // Close dropdown when clicking outside
+        document.addEventListener('click', (e) => {
+            if (userSelectDropdown && !userSelectDropdown.contains(e.target) && e.target !== userSelectInput) {
+                userSelectDropdown.classList.remove('show');
+            }
+        });
 
         if (savePermissionsBtn) {
             savePermissionsBtn.addEventListener('click', async () => {
@@ -357,14 +405,6 @@ if (!check_permission('permissions', 'view')) {
                 } finally {
                     savePermissionsBtn.disabled = false;
                     savePermissionsBtn.innerHTML = '<i class="bi bi-save me-1"></i>Save Permissions';
-                }
-            });
-        }
-
-        if (refreshBtn) {
-            refreshBtn.addEventListener('click', async () => {
-                if (currentUserEmail) {
-                    await loadUserPermissions(currentUserEmail);
                 }
             });
         }

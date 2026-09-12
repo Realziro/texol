@@ -689,7 +689,7 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
         <br>
         <small><i>Reliability Redefined</i></small>
       </td>
-      <td class="form-title-cell">Repair and Maintenance Form</td>
+      <td class="form-title-cell">ATTENDANCE FORM</td>
       <td class="doc-info-cell">
         <div>TEX-RET-FRM-004, Ver 000</div>
         <div>Issue Date: 1<sup>st</sup> Nov 2024</div>

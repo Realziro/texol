@@ -66,7 +66,7 @@ function texol_is_active(string $menu, string $active): string
             </a>
         </li>
         <li class="nav-item dropdown">
-            <a href="#" class="nav-link dropdown-toggle<?php echo in_array($activeMenu, ['requisitions', 'customer_feedback', 'attendance', 'incident', 'shortage_acknowledgement', 'repair_maintenance'], true) ? ' active' : ''; ?>" data-bs-toggle="dropdown" role="button" aria-expanded="false">
+            <a href="#" class="nav-link dropdown-toggle<?php echo in_array($activeMenu, ['requisitions', 'customer_feedback', 'attendance', 'incident', 'incident_settlement', 'cctv_checklist_texol', 'cctv_checklist_sta', 'shortage_acknowledgement', 'repair_maintenance'], true) ? ' active' : ''; ?>" data-bs-toggle="dropdown" role="button" aria-expanded="false">
                 <i class="bi bi-file-earmark-text me-2"></i>
              Digitized   Forms
             </a>
@@ -93,6 +93,21 @@ function texol_is_active(string $menu, string $active): string
                 <li>
                     <a class="dropdown-item<?php echo texol_is_active('incident', $activeMenu); ?>" href="  incident">
                         <i class="bi bi-exclamation-triangle me-2"></i>Incident Form
+                    </a>
+                </li>
+                <li>
+                    <a class="dropdown-item<?php echo texol_is_active('incident_settlement', $activeMenu); ?>" href="  incident_settlement">
+                        <i class="bi bi-file-contract me-2"></i>Incident Settlement
+                    </a>
+                </li>
+                <li>
+                    <a class="dropdown-item<?php echo texol_is_active('cctv_checklist_texol', $activeMenu); ?>" href="  cctv_checklist">
+                        <i class="bi bi-camera-video me-2"></i>CCTV Checklist (Texol)
+                    </a>
+                </li>
+                <li>
+                    <a class="dropdown-item<?php echo texol_is_active('cctv_checklist_sta', $activeMenu); ?>" href="  cctv_checklist_sta">
+                        <i class="bi bi-camera-video me-2"></i>CCTV Checklist (STA)
                     </a>
                 </li>
                 <li>
