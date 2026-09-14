@@ -491,6 +491,12 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
                                                                             <i class="bi bi-x-circle me-2"></i>Reject
                                                                         </button>
                                                                     </li>
+                                                                    <li>
+                                                                        <button class="dropdown-item" type="button"
+                                                                            onclick="showQRCode('<?php echo htmlspecialchars($settlement['id'], ENT_QUOTES, 'UTF-8'); ?>')">
+                                                                            <i class="bi bi-qr-code me-2"></i>QR Code
+                                                                        </button>
+                                                                    </li>
                                                                 </ul>
                                                             </div>
                                                         </td>
@@ -529,6 +535,28 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
             </div>
         </div>
     </div>
+
+    <!-- QR Code Modal -->
+    <div class="modal fade" id="qrCodeModal" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Client Signature QR Code</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body text-center">
+                    <div id="qrCodeContainer"></div>
+                    <p class="text-muted small mt-3">Scan this QR code to sign the settlement agreement</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-success me-2" id="downloadQRCode">
+                        <i class="bi bi-download"></i> Download
+                    </button>
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" crossorigin="anonymous">
     </script>
     <script src="app.js"></script>
@@ -537,6 +565,7 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
     <script src="https://cdn.datatables.net/1.13.7/js/dataTables.bootstrap5.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <script>
         $(function () {
             $('#settlementsTable').DataTable({
@@ -592,6 +621,29 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
             }
             document.getElementById('feedbackModalTitle').textContent = type === 'danger' ? 'Error' : type === 'success' ? 'Success' : 'Message';
             document.getElementById('feedbackModalMessage').textContent = message;
+            bootstrap.Modal.getOrCreateInstance(modal).show();
+        }
+
+        function showConfirmationModal(title, message, onConfirm) {
+            let modal = document.getElementById('confirmationModal');
+            if (!modal) {
+                document.body.insertAdjacentHTML('beforeend', `<div class="modal fade" id="confirmationModal" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content"><div class="modal-header"><h5 class="modal-title" id="confirmationModalTitle">Confirm</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body" id="confirmationModalMessage"></div><div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button><button type="button" class="btn btn-primary" id="confirmModalBtn">Confirm</button></div></div></div></div>`);
+                modal = document.getElementById('confirmationModal');
+            }
+            
+            document.getElementById('confirmationModalTitle').textContent = title;
+            document.getElementById('confirmationModalMessage').textContent = message;
+            
+            const confirmBtn = document.getElementById('confirmModalBtn');
+            // Remove old event listener by cloning
+            const newConfirmBtn = confirmBtn.cloneNode(true);
+            confirmBtn.parentNode.replaceChild(newConfirmBtn, confirmBtn);
+            
+            newConfirmBtn.addEventListener('click', () => {
+                bootstrap.Modal.getInstance(modal).hide();
+                onConfirm();
+            });
+            
             bootstrap.Modal.getOrCreateInstance(modal).show();
         }
 
@@ -670,9 +722,22 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
             return data;
         }
 
+        async function loadSettlementSignatures(settlementId) {
+            const { data, error } = await supabase
+                .from('incident_settlement_signatures')
+                .select('*')
+                .eq('settlement_id', settlementId)
+                .single();
+            
+            if (!error && data) {
+                return data;
+            }
+            return null;
+        }
+
         loadReporterRole();
 
-        function settlementFormHtml(item) {
+        function settlementFormHtml(item, signatureData = null) {
             const agreementDate = new Date(item.agreement_date);
             const day = agreementDate.getDate();
             const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
@@ -822,27 +887,27 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
 
     <div class="signature-block">
       <div class="role-title">Client:</div>
-      <div class="sig-line">Name in own handwriting: <span class="sig-fill">${esc(item.client_name)}</span></div>
-      <div class="sig-line">Signature: <span class="sig-fill" style="min-width:200px;"></span> Date: <span class="date-fill">${esc(item.agreement_date)}</span></div>
+      <div class="sig-line">Name in own handwriting: <span class="sig-fill">${esc(signatureData?.client_name_handwriting || item.client_name)}</span></div>
+      <div class="sig-line">Signature: ${signatureData?.client_signature ? `<img src="${esc(signatureData.client_signature)}" alt="Client Signature" style="max-height:30px;max-width:200px;">` : '<span class="sig-fill" style="min-width:200px;"></span>'} Date: <span class="date-fill">${esc(signatureData?.client_date || item.agreement_date)}</span></div>
 
       <p>In the presence of;</p>
 
-      <div class="sig-line">Name in own handwriting: <span class="sig-fill"></span></div>
-      <div class="sig-line">Signature: <span class="sig-fill" style="min-width:200px;"></span> Date: <span class="date-fill"></span></div>
+      <div class="sig-line">Name in own handwriting: <span class="sig-fill">${esc(signatureData?.witness_name || '')}</span></div>
+      <div class="sig-line">Signature: ${signatureData?.witness_signature ? `<img src="${esc(signatureData.witness_signature)}" alt="Witness Signature" style="max-height:30px;max-width:200px;">` : '<span class="sig-fill" style="min-width:200px;"></span>'} Date: <span class="date-fill">${esc(signatureData?.witness_date || '')}</span></div>
     </div>
 
     <p><strong>Signed by the Said;</strong></p>
 
     <div class="signature-block">
       <div class="role-title">Authorized Company Representative:</div>
-      <div class="sig-line">Name in Own Handwriting: <span class="sig-fill" style="min-width:320px;">${esc(reporterProfile.full_name || '')}</span></div>
-      <div class="sig-line">Signature <span class="blank-line medium"></span></div>
-      <div class="sig-line">Designation: <span class="blank-line medium">${esc(reporterProfile.role || '')}</span> &nbsp;&nbsp; Date <span class="blank-line medium">${esc(item.agreement_date)}</span></div>
+      <div class="sig-line">Name in Own Handwriting: <span class="sig-fill" style="min-width:320px;">${esc(signatureData?.rep_name_handwriting || reporterProfile.full_name || '')}</span></div>
+      <div class="sig-line">Signature: ${signatureData?.rep_signature ? `<img src="${esc(signatureData.rep_signature)}" alt="Rep Signature" style="max-height:30px;max-width:200px;">` : (reporterProfile?.signature ? `<img src="${esc(reporterProfile.signature)}" alt="Signature" style="max-height:40px;max-width:100px;">` : '<span class="sig-fill" style="min-width:200px;"></span>')}</div>
+      <div class="sig-line">Designation: <span class="blank-line medium">${esc(signatureData?.rep_designation || reporterProfile.role || '')}</span> &nbsp;&nbsp; Date <span class="blank-line medium">${esc(signatureData?.rep_date || item.agreement_date)}</span></div>
 
       <p>In the presence of;</p>
 
-      <div class="sig-line">Name in own handwriting: <span class="sig-fill" style="min-width:280px;"></span></div>
-      <div class="sig-line">Signature: <span class="sig-fill" style="min-width:200px;"></span> Date: <span class="date-fill"></span></div>
+      <div class="sig-line">Name in own handwriting: <span class="sig-fill">${esc(signatureData?.rep_witness_name || '')}</span></div>
+      <div class="sig-line">Signature: ${signatureData?.rep_witness_signature ? `<img src="${esc(signatureData.rep_witness_signature)}" alt="Rep Witness Signature" style="max-height:30px;max-width:200px;">` : '<span class="sig-fill" style="min-width:200px;"></span>'} Date: <span class="date-fill">${esc(signatureData?.rep_witness_date || '')}</span></div>
     </div>
 
     <div class="footer-note" style="margin-top:100px;">
@@ -920,103 +985,231 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
         window.viewSettlement = async (item) => {
             selectedSettlement = item;
             await loadSettlementReporterProfile(item);
+            const signatureData = await loadSettlementSignatures(item.id);
             const modalBody = document.getElementById('settlementModalBody');
-            modalBody.innerHTML = settlementFormHtml(item);
+            modalBody.innerHTML = settlementFormHtml(item, signatureData);
             bootstrap.Modal.getOrCreateInstance(document.getElementById('settlementModal')).show();
         };
 
         window.printSettlement = async (item) => {
-            await viewSettlement(item);
-            setTimeout(() => window.print(), 500);
+            await loadSettlementReporterProfile(item);
+            const signatureData = await loadSettlementSignatures(item.id);
+            const printWindow = window.open('', '_blank', 'width=900,height=1200');
+            if (!printWindow) {
+                showFeedbackModal('Please allow pop-ups to print the settlement agreement.', 'danger');
+                return;
+            }
+            
+            const htmlContent = settlementFormHtml(item, signatureData);
+            const styles = document.getElementById('settlementPrintStyles').textContent;
+            
+            printWindow.document.write(
+                `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>TEX-RET-FRM-020 Incident Settlement</title><style>${styles}</style></head><body>${htmlContent}</body></html>`
+            );
+            printWindow.document.close();
+            printWindow.focus();
+            printWindow.onload = () => printWindow.print();
         };
 
         window.approveSettlement = async (item) => {
-            if (!confirm('Are you sure you want to approve this settlement?')) return;
-            
-            const { error } = await supabase
-                .from('incident_settlements')
-                .update({ status: 'approved' })
-                .eq('id', item.id);
-
-            if (error) {
-                showAlert('danger', error.message || 'Failed to approve settlement');
+            // Check if user is in shared_with list
+            const sharedWith = item.shared_with ? item.shared_with.split(',').map(id => id.trim()) : [];
+            if (!sharedWith.includes(activeUserId)) {
+                showFeedbackModal('You are not authorized to approve this settlement. Only users in the shared list can approve.', 'danger');
                 return;
             }
 
-            showAlert('success', 'Settlement approved successfully');
-            setTimeout(() => location.reload(), 1500);
+            // Show confirmation modal
+            showConfirmationModal(
+                'Approve Settlement',
+                'Are you sure you want to approve this settlement agreement?',
+                async () => {
+                    const { error } = await supabase
+                        .from('incident_settlements')
+                        .update({ status: 'approved' })
+                        .eq('id', item.id);
+
+                    if (error) {
+                        showFeedbackModal(error.message || 'Failed to approve settlement', 'danger');
+                        return;
+                    }
+
+                    showFeedbackModal('Settlement approved successfully', 'success');
+                    setTimeout(() => location.reload(), 1500);
+                }
+            );
         };
 
         window.rejectSettlement = async (item) => {
-            if (!confirm('Are you sure you want to reject this settlement?')) return;
-            
-            const { error } = await supabase
-                .from('incident_settlements')
-                .update({ status: 'rejected' })
-                .eq('id', item.id);
-
-            if (error) {
-                showAlert('danger', error.message || 'Failed to reject settlement');
+            // Check if user is in shared_with list
+            const sharedWith = item.shared_with ? item.shared_with.split(',').map(id => id.trim()) : [];
+            if (!sharedWith.includes(activeUserId)) {
+                showFeedbackModal('You are not authorized to reject this settlement. Only users in the shared list can reject.', 'danger');
                 return;
             }
 
-            showAlert('success', 'Settlement rejected successfully');
-            setTimeout(() => location.reload(), 1500);
+            // Show confirmation modal
+            showConfirmationModal(
+                'Reject Settlement',
+                'Are you sure you want to reject this settlement agreement?',
+                async () => {
+                    const { error } = await supabase
+                        .from('incident_settlements')
+                        .update({ status: 'rejected' })
+                        .eq('id', item.id);
+
+                    if (error) {
+                        showFeedbackModal(error.message || 'Failed to reject settlement', 'danger');
+                        return;
+                    }
+
+                    showFeedbackModal('Settlement rejected successfully', 'success');
+                    setTimeout(() => location.reload(), 1500);
+                }
+            );
         };
 
+        window.showQRCode = function(settlementId) {
+            const signatureUrl = `${window.location.origin}/incident_settlement_signature.php?id=${settlementId}`;
+            
+            document.getElementById('qrCodeContainer').innerHTML = '';
+            
+            try {
+                new QRCode(document.getElementById('qrCodeContainer'), {
+                    text: signatureUrl,
+                    width: 256,
+                    height: 256
+                });
+                new bootstrap.Modal(document.getElementById('qrCodeModal')).show();
+            } catch (error) {
+                console.error(error);
+                document.getElementById('qrCodeContainer').innerHTML = '<p class="text-danger">Failed to generate QR code.</p>';
+                showFeedbackModal('Failed to generate QR code. Please try again.', 'danger');
+            }
+        };
+
+        // Download QR Code
+        document.getElementById('downloadQRCode').addEventListener('click', function() {
+            const img = document.querySelector('#qrCodeContainer img');
+            if (!img) {
+                showFeedbackModal('No QR code to download.', 'danger');
+                return;
+            }
+            
+            const link = document.createElement('a');
+            link.download = 'settlement_signature_qr.png';
+            link.href = img.src;
+            link.click();
+        });
+
         // Modal action handlers
-        document.getElementById('modalPrintSettlement')?.addEventListener('click', () => {
-            window.print();
+        document.getElementById('modalPrintSettlement')?.addEventListener('click', async () => {
+            if (!selectedSettlement) return;
+            
+            const signatureData = await loadSettlementSignatures(selectedSettlement.id);
+            const printWindow = window.open('', '_blank', 'width=900,height=1200');
+            if (!printWindow) {
+                showFeedbackModal('Please allow pop-ups to print the settlement agreement.', 'danger');
+                return;
+            }
+            
+            const htmlContent = settlementFormHtml(selectedSettlement, signatureData);
+            const styles = document.getElementById('settlementPrintStyles').textContent;
+            
+            printWindow.document.write(
+                `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>TEX-RET-FRM-020 Incident Settlement</title><style>${styles}</style></head><body>${htmlContent}</body></html>`
+            );
+            printWindow.document.close();
+            printWindow.focus();
+            printWindow.onload = () => printWindow.print();
         });
 
         document.getElementById('modalDeleteSettlement')?.addEventListener('click', async () => {
-            if (!selectedSettlement || !confirm('Are you sure you want to delete this settlement?')) return;
+            if (!selectedSettlement) return;
             
-            const { error } = await supabase
-                .from('incident_settlements')
-                .delete()
-                .eq('id', selectedSettlement.id);
+            showConfirmationModal(
+                'Delete Settlement',
+                'Are you sure you want to delete this settlement agreement?',
+                async () => {
+                    const { error } = await supabase
+                        .from('incident_settlements')
+                        .delete()
+                        .eq('id', selectedSettlement.id);
 
-            if (error) {
-                showAlert('danger', error.message || 'Failed to delete settlement');
-                return;
-            }
+                    if (error) {
+                        showFeedbackModal(error.message || 'Failed to delete settlement', 'danger');
+                        return;
+                    }
 
-            showAlert('success', 'Settlement deleted successfully');
-            bootstrap.Modal.getInstance(document.getElementById('settlementModal')).hide();
-            setTimeout(() => location.reload(), 1500);
+                    showFeedbackModal('Settlement deleted successfully', 'success');
+                    bootstrap.Modal.getInstance(document.getElementById('settlementModal')).hide();
+                    setTimeout(() => location.reload(), 1500);
+                }
+            );
         });
 
         document.getElementById('modalDownloadSettlement')?.addEventListener('click', async () => {
-            const { jsPDF } = window.jspdf;
-            const element = document.getElementById('settlementModalBody');
+            if (!selectedSettlement) return;
             
-            const canvas = await html2canvas(element, {
-                scale: 2,
-                useCORS: true,
-                logging: false
-            });
-            
-            const imgData = canvas.toDataURL('image/png');
-            const pdf = new jsPDF('p', 'mm', 'a4');
-            const imgWidth = 210;
-            const pageHeight = 297;
-            const imgHeight = canvas.height * imgWidth / canvas.width;
-            
-            let heightLeft = imgHeight;
-            let position = 0;
-            
-            pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
-            heightLeft -= pageHeight;
-            
-            while (heightLeft > 0) {
-                position = heightLeft - imgHeight;
-                pdf.addPage();
-                pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+            const signatureData = await loadSettlementSignatures(selectedSettlement.id);
+            const htmlContent = `<div style="padding: 20px; background: white;">${settlementFormHtml(selectedSettlement, signatureData)}</div>`;
+
+            // Create a temporary container
+            const container = document.createElement('div');
+            container.innerHTML = htmlContent;
+            container.style.position = 'fixed';
+            container.style.left = '-9999px';
+            container.style.top = '0';
+            container.style.width = '210mm';
+            container.style.background = 'white';
+            document.body.appendChild(container);
+
+            try {
+                // Wait for any images to load
+                await new Promise(resolve => setTimeout(resolve, 500));
+
+                // Use html2canvas to capture the content
+                const canvas = await html2canvas(container, {
+                    scale: 2,
+                    useCORS: true,
+                    logging: false,
+                    backgroundColor: '#ffffff'
+                });
+
+                // Create PDF using jsPDF
+                const { jsPDF } = window.jspdf;
+                const pdf = new jsPDF('p', 'mm', 'a4');
+
+                // Calculate dimensions to fit A4
+                const imgWidth = 210; // A4 width in mm
+                const pageHeight = 297; // A4 height in mm
+                const imgHeight = (canvas.height * imgWidth) / canvas.width;
+
+                let heightLeft = imgHeight;
+                let position = 0;
+
+                // Add first page
+                pdf.addImage(canvas.toDataURL('image/jpeg', 0.95), 'JPEG', 0, position, imgWidth, imgHeight);
                 heightLeft -= pageHeight;
+
+                // Add additional pages if needed
+                while (heightLeft > 0) {
+                    position = heightLeft - imgHeight;
+                    pdf.addPage();
+                    pdf.addImage(canvas.toDataURL('image/jpeg', 0.95), 'JPEG', 0, position, imgWidth, imgHeight);
+                    heightLeft -= pageHeight;
+                }
+
+                // Save the PDF
+                pdf.save(`incident_settlement_${selectedSettlement.agreement_date || 'date'}.pdf`);
+
+            } catch (error) {
+                console.error('PDF generation error:', error);
+                showFeedbackModal('Failed to generate PDF. Please try again.', 'danger');
+            } finally {
+                // Clean up
+                document.body.removeChild(container);
             }
-            
-            pdf.save(`incident_settlement_${selectedSettlement.id}.pdf`);
         });
     </script>
 </body>
