@@ -88,7 +88,7 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
     <link rel="stylesheet" href="https://cdn.datatables.net/1.13.7/css/dataTables.bootstrap5.min.css">
     <style id="incidentPrintStyles">
         .incident-printout {
-            max-width: 900px;
+            max-width: 210mm;
             margin: 0 auto;
             border: 2px solid #000;
             background: #fff;
@@ -104,14 +104,14 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
         .incident-printout td,
         .incident-printout th {
             border: 1px solid #000;
-            padding: 6px 10px;
+            padding: 4px 8px;
             vertical-align: middle;
         }
 
         .incident-printout .company-title {
             text-align: center;
             font-weight: bold;
-            font-size: 16px;
+            font-size: 12px;
             letter-spacing: .5px;
         }
 
@@ -121,47 +121,47 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
         }
 
         .incident-printout .logo-cell img {
-            max-width: 120px;
-            max-height: 60px;
+            max-width: 100px;
+            max-height: 50px;
         }
 
         .incident-printout .logo-cell small {
             display: block;
             margin-top: 2px;
-            font-size: 11px;
+            font-size: 9px;
         }
 
         .incident-printout .form-title-cell {
             width: 46%;
             text-align: center;
             font-weight: bold;
-            font-size: 18px;
+            font-size: 14px;
             color: #C0392B;
         }
 
         .incident-printout .doc-info-cell {
             width: 32%;
-            font-size: 12px;
+            font-size: 10px;
             text-align: center;
         }
 
         .incident-printout .page-row {
             border-top: 1px solid #000;
-            margin-top: 4px;
-            padding-top: 4px;
+            margin-top: 3px;
+            padding-top: 3px;
         }
 
         .incident-printout .content {
-            padding: 14px 16px 20px;
+            padding: 10mm 12mm 8mm;
         }
 
         .incident-printout .info-table {
-            margin-bottom: 14px;
+            margin-bottom: 10px;
         }
 
         .incident-printout .info-table td {
             font-weight: bold;
-            font-size: 13px;
+            font-size: 10px;
         }
 
         .incident-printout .fill {
@@ -171,22 +171,22 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
         .incident-printout .section-heading {
             font-weight: bold;
             text-decoration: underline;
-            font-size: 14px;
-            margin: 14px 0 10px;
+            font-size: 11px;
+            margin: 10px 0 8px;
         }
 
         .incident-printout .inline-fields {
             display: flex;
-            gap: 60px;
-            margin-bottom: 16px;
+            gap: 40px;
+            margin-bottom: 12px;
             font-weight: bold;
-            font-size: 13px;
+            font-size: 10px;
         }
 
         .incident-printout .field-line {
             border-bottom: 1px solid #000;
             display: inline-block;
-            min-width: 220px;
+            min-width: 180px;
             margin-left: 6px;
             font-weight: normal;
         }
@@ -195,8 +195,8 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
         .incident-printout .witness-heading,
         .incident-printout .manager-heading {
             font-weight: bold;
-            margin-bottom: 6px;
-            font-size: 13px;
+            margin-bottom: 4px;
+            font-size: 10px;
         }
 
         .incident-printout .describe-label i,
@@ -206,13 +206,13 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
 
         .incident-printout .lined-box {
             border: 1px solid #000;
-            margin-bottom: 20px;
+            margin-bottom: 12px;
         }
 
         .incident-printout .lined-box .line {
             border-bottom: 1px solid #000;
-            min-height: 26px;
-            padding: 3px 6px;
+            min-height: 20px;
+            padding: 2px 4px;
             white-space: pre-wrap;
         }
 
@@ -222,13 +222,13 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
 
         .incident-printout .witness-table,
         .incident-printout .signoff-table {
-            margin-bottom: 20px;
+            margin-bottom: 12px;
         }
 
         .incident-printout .witness-table td,
         .incident-printout .signoff-table td {
-            font-size: 13px;
-            height: 30px;
+            font-size: 10px;
+            height: 22px;
             vertical-align: top;
         }
 
@@ -239,15 +239,20 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
 
         .incident-printout .footer-note {
             font-style: italic;
-            font-size: 11px;
-            margin-top: 18px;
-            padding-left: 16px;
+            font-size: 9px;
+            margin-top: 12px;
+            padding-left: 12px;
         }
 
         @media print {
             .incident-printout {
                 max-width: none;
                 border: none;
+                padding: 8mm 10mm 6mm;
+            }
+            @page {
+                size: A4;
+                margin: 0;
             }
         }
 

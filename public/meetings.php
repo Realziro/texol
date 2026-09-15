@@ -9,6 +9,8 @@ if (!isset($_SESSION['user_email'])) {
 }
 
 $userEmail = $_SESSION['user_email'] ?? '';
+$userDepartment = $_SESSION['user_department'] ?? $_SESSION['department'] ?? '';
+$userSignature = $_SESSION['user_signature'] ?? '';
 
 // Fetch meetings from Supabase
 $meetings = [];
@@ -54,9 +56,9 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
     <link href="https://cdn.quilljs.com/1.3.6/quill.snow.css" rel="stylesheet">
     <style id="attendanceFormStyles">
         .attendance-form-printout {
-            max-width: 850px;
+            max-width: 210mm;
             margin: 0 auto;
-            padding: 20px;
+            padding: 10mm 12mm 8mm;
             background: #fff;
             color: #000;
             font-family: Arial, Helvetica, sans-serif;
@@ -70,27 +72,27 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
         .attendance-form-printout td,
         .attendance-form-printout th {
             border: 1px solid #000;
-            padding: 6px 8px;
+            padding: 4px 6px;
         }
 
         .attendance-form-printout .form-header {
             border: 2px solid #000;
-            margin-bottom: 22px;
+            margin-bottom: 12px;
         }
 
         .attendance-form-printout .company-name {
             text-align: center;
             font-weight: bold;
-            font-size: 15px;
+            font-size: 12px;
         }
 
         .attendance-form-printout .logo-cell {
-            width: 150px;
+            width: 120px;
             text-align: center;
         }
 
         .attendance-form-printout .logo-text {
-            font-size: 26px;
+            font-size: 20px;
             font-weight: 800;
             letter-spacing: 1px;
         }
@@ -100,46 +102,46 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
         }
 
         .attendance-form-printout .logo-sub {
-            font-size: 7px;
+            font-size: 6px;
             letter-spacing: 2px;
             color: #444;
         }
 
         .attendance-form-printout .logo-tag {
-            font-size: 8px;
+            font-size: 7px;
             font-style: italic;
         }
 
         .attendance-form-printout .form-title-cell {
             text-align: center;
-            font-size: 15px;
+            font-size: 12px;
             width: 42%;
         }
 
         .attendance-form-printout .doc-info-cell {
-            font-size: 12px;
-            line-height: 1.5;
+            font-size: 10px;
+            line-height: 1.3;
             width: 28%;
         }
 
         .attendance-form-printout .page-of-cell {
             text-align: center;
-            font-size: 12px;
+            font-size: 10px;
         }
 
         .attendance-form-printout .main-title {
             text-align: center;
-            font-size: 22px;
+            font-size: 16px;
             letter-spacing: 1px;
-            margin: 10px 0 20px;
+            margin: 8px 0 12px;
         }
 
         .attendance-form-printout .meta-table {
-            margin-bottom: 18px;
+            margin-bottom: 12px;
         }
 
         .attendance-form-printout .meta-table td {
-            font-size: 13px;
+            font-size: 10px;
         }
 
         .attendance-form-printout .meta-table .label {
@@ -151,12 +153,12 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
             background: #7f7f7f;
             color: #fff;
             text-align: left;
-            font-size: 12px;
+            font-size: 10px;
         }
 
         .attendance-form-printout .attendance td {
-            height: 22px;
-            font-size: 12px;
+            height: 18px;
+            font-size: 9px;
         }
 
         .attendance-form-printout .attendance .no-col {
@@ -185,12 +187,12 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
 
         .attendance-form-printout .bottom th {
             text-align: left;
-            font-size: 13px;
+            font-size: 10px;
         }
 
         .attendance-form-printout .bottom td {
-            height: 22px;
-            font-size: 12px;
+            height: 18px;
+            font-size: 9px;
         }
 
         .attendance-form-printout .bottom .num {
@@ -200,15 +202,19 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
         .attendance-form-printout .form-footer {
             display: flex;
             justify-content: space-between;
-            margin-top: 20px;
-            font-size: 12px;
+            margin-top: 12px;
+            font-size: 9px;
             font-style: italic;
         }
 
         @media print {
             .attendance-form-printout {
                 max-width: none;
-                padding: 0;
+                padding: 8mm 10mm 6mm;
+            }
+            @page {
+                size: A4;
+                margin: 0;
             }
         }
 
@@ -563,11 +569,18 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
         // Assign to global variable
         window.supabase = supabaseUrl && supabaseKey ? createClient(supabaseUrl, supabaseKey) : null;
 
+        // User profile data from PHP session
+        const userProfile = {
+            email: <?php echo json_encode($userEmail); ?>,
+            department: <?php echo json_encode($userDepartment); ?>,
+            signature: <?php echo json_encode($userSignature); ?>
+        };
+
         // Load attendance counts for all meetings
         async function loadAttendanceCounts() {
             if (!window.supabase) return;
 
-            const { data: meetings } = await window.supabase.from('meetings').select('id');
+            const { data: meetings } = await window.supabase.from('meetings').select('id, created_by');
             if (!meetings) return;
 
             for (const meeting of meetings) {
@@ -662,15 +675,62 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
             return str.charAt(0).toUpperCase() + str.slice(1);
         }
 
-        function buildAttendanceForm(meeting, attendance) {
+        async function loadUserProfiles(attendance) {
+            if (!attendance || attendance.length === 0) return {};
+            
+            const emails = attendance.map(a => a.attendee_email).filter(Boolean);
+            if (emails.length === 0) return {};
+            
+            try {
+                const { data, error } = await window.supabase
+                    .from('users')
+                    .select('email, department, signature')
+                    .in('email', emails);
+                
+                if (error) throw error;
+                
+                const userMap = {};
+                data.forEach(user => {
+                    userMap[user.email] = user;
+                });
+                return userMap;
+            } catch (err) {
+                console.error('Error loading user profiles:', err);
+                return {};
+            }
+        }
+
+        async function loadCreatorName(creatorId) {
+            if (!creatorId) return '';
+            
+            try {
+                const { data, error } = await window.supabase
+                    .from('users')
+                    .select('full_name')
+                    .eq('id', creatorId)
+                    .single();
+                
+                if (error) throw error;
+                return data?.full_name || '';
+            } catch (err) {
+                console.error('Error loading creator name:', err);
+                return '';
+            }
+        }
+
+        async function buildAttendanceForm(meeting, attendance, userProfile) {
+            const userProfiles = await loadUserProfiles(attendance);
+            const chairpersonName = await loadCreatorName(meeting.created_by);
+            
             const attendeeRows = Array.from({ length: 20 }, (_, index) => {
                 const attendee = attendance[index] || {};
+                const userData = userProfiles[attendee.attendee_email] || {};
                 return `<tr>
                     <td class="no-col">${index + 1}.</td>
                     <td class="name-col">${escapeHtml(attendee.attendee_name)}</td>
-                    <td class="title-col"></td>
+                    <td class="title-col">${escapeHtml(userData.department || '')}</td>
                     <td class="email-col">${escapeHtml(attendee.attendee_email)}</td>
-                    <td class="sig-col"></td>
+                    <td class="sig-col">${userData.signature ? `<img src="${escapeHtml(userData.signature)}" style="max-height:25px;max-width:40px;" />` : ''}</td>
                 </tr>`;
             }).join('');
 
@@ -702,7 +762,7 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
                     <tr><td class="label">Meeting Title:</td><td>${escapeHtml(meeting.title)}</td></tr>
                     <tr><td class="label">Date and Time</td><td>${escapeHtml(meeting.date)} ${escapeHtml(meeting.time)}</td></tr>
                     <tr><td class="label">Venue:</td><td>${escapeHtml(meeting.location || '')}</td></tr>
-                    <tr><td class="label">Chairperson:</td><td></td></tr>
+                    <tr><td class="label">Chairperson:</td><td>${escapeHtml(chairpersonName)}</td></tr>
                 </table>
                 <table class="attendance">
                     <tr><th class="no-col">No</th><th class="name-col">Name</th><th class="title-col">Title/ Department</th><th class="email-col">Email address/Contact</th><th class="sig-col">Signature</th></tr>
@@ -749,7 +809,7 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
                 .eq('meeting_id', meetingId);
 
             currentMeeting = meeting;
-            currentAttendanceForm = buildAttendanceForm(meeting, attendance || []);
+            currentAttendanceForm = await buildAttendanceForm(meeting, attendance || [], userProfile);
             document.getElementById('viewMeetingContent').innerHTML = buildMeetingDetails(meeting, attendance || []);
 
             // Setup modal buttons

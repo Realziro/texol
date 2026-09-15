@@ -26,7 +26,7 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
     <link rel="stylesheet" href="https://cdn.datatables.net/1.13.7/css/dataTables.bootstrap5.min.css">
     <style id="repairPrintStyles">
     .repair-printout {
-        max-width: 900px;
+        max-width: 210mm;
         margin: 0 auto;
         border: 2px solid #000;
         background: #fff;
@@ -42,14 +42,14 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
     .repair-printout td,
     .repair-printout th {
         border: 1px solid #000;
-        padding: 6px 10px;
+        padding: 4px 8px;
         vertical-align: middle
     }
 
     .repair-printout .company-title {
         text-align: center;
         font-weight: bold;
-        font-size: 16px;
+        font-size: 12px;
         letter-spacing: .5px
     }
 
@@ -59,53 +59,53 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
     }
 
     .repair-printout .logo-cell img {
-        max-width: 120px;
-        max-height: 60px
+        max-width: 100px;
+        max-height: 50px
     }
 
     .repair-printout .logo-cell small {
         display: block;
         margin-top: 2px;
-        font-size: 11px
+        font-size: 9px
     }
 
     .repair-printout .form-title-cell {
         width: 46%;
         text-align: center;
         font-weight: bold;
-        font-size: 16px;
+        font-size: 12px;
         color: #C0392B
     }
 
     .repair-printout .doc-info-cell {
         width: 32%;
-        font-size: 12px;
+        font-size: 10px;
         text-align: center
     }
 
     .repair-printout .page-row {
         border-top: 1px solid #000;
-        margin-top: 4px;
-        padding-top: 4px
+        margin-top: 3px;
+        padding-top: 3px
     }
 
     .repair-printout .content {
-        padding: 14px 20px 24px
+        padding: 10mm 12mm 8mm
     }
 
     .repair-printout .form-heading {
         text-align: center;
         font-weight: bold;
-        font-size: 16px;
-        margin: 6px 0 20px;
+        font-size: 12px;
+        margin: 6px 0 14px;
         letter-spacing: .5px
     }
 
     .repair-printout .field-row {
         display: flex;
         align-items: baseline;
-        margin-bottom: 16px;
-        font-size: 13px;
+        margin-bottom: 12px;
+        font-size: 10px;
         font-weight: bold
     }
 
@@ -117,27 +117,27 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
     .repair-printout .field-fill {
         flex: 1;
         border-bottom: 1px dotted #000;
-        min-height: 14px;
+        min-height: 12px;
         white-space: pre-wrap
     }
 
     .repair-printout .section-label {
-        font-size: 13px;
-        margin-bottom: 6px
+        font-size: 10px;
+        margin-bottom: 4px
     }
 
     .repair-printout .lined-box {
         border: 1px solid #000;
-        margin-bottom: 20px;
-        min-height: 90px;
+        margin-bottom: 14px;
+        min-height: 70px;
         white-space: pre-wrap;
-        padding: 5px
+        padding: 4px
     }
 
     .repair-printout .technician-row {
-        font-size: 13px;
+        font-size: 10px;
         font-weight: bold;
-        margin-bottom: 16px;
+        margin-bottom: 12px;
         display: flex;
         align-items: baseline
     }
@@ -148,39 +148,39 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
     }
 
     .repair-printout .for-label {
-        font-size: 13px;
-        margin-bottom: 10px
+        font-size: 10px;
+        margin-bottom: 8px
     }
 
     .repair-printout .supervisor-row {
         display: flex;
         align-items: baseline;
-        font-size: 13px;
-        margin-bottom: 24px;
-        gap: 20px;
+        font-size: 10px;
+        margin-bottom: 18px;
+        gap: 16px;
         flex-wrap: wrap
     }
 
     .repair-printout .sup-fill {
         border-bottom: 1px dotted #000;
-        min-width: 200px;
-        min-height: 14px
+        min-width: 180px;
+        min-height: 12px
     }
 
     .repair-printout .stamp-fill,
     .repair-printout .sign-fill {
         border-bottom: 1px dotted #000;
-        min-width: 100px;
-        min-height: 14px
+        min-width: 90px;
+        min-height: 12px
     }
 
     .repair-printout .approval-table {
-        margin-top: 10px
+        margin-top: 8px
     }
 
     .repair-printout .approval-table td {
-        font-size: 13px;
-        height: 26px;
+        font-size: 10px;
+        height: 22px;
         vertical-align: top
     }
 
@@ -189,21 +189,26 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
     }
 
     .repair-printout .signature-img {
-        max-height: 40px;
-        max-width: 100px;
+        max-height: 35px;
+        max-width: 90px;
         vertical-align: middle
     }
 
     .repair-printout .footer-note {
         font-style: italic;
-        font-size: 11px;
-        margin-top: 18px
+        font-size: 9px;
+        margin-top: 12px
     }
 
     @media print {
         .repair-printout {
             max-width: none;
-            border: none
+            border: none;
+            padding: 8mm 10mm 6mm
+        }
+        @page {
+            size: A4;
+            margin: 0
         }
     }
 

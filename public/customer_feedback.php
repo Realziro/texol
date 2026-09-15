@@ -957,50 +957,55 @@ $activeMenu = 'customer_feedback';
                                 body{
                                     font-family:var(--font-main);
                                     color:#000;
-                                    font-size:11pt;
+                                    font-size:10pt;
                                     background:#e9e9e9;
                                     margin:0;
-                                    padding:24px 0;
+                                    padding:12px 0;
                                 }
                                 .page{
-                                    width:8.5in;
-                                    min-height:11in;
-                                    margin:0 auto 24px;
+                                    width:210mm;
+                                    min-height:297mm;
+                                    margin:0 auto;
                                     background:#fff;
-                                    padding:0.6in 0.75in 0.9in;
+                                    padding:6mm 10mm 4mm;
                                     box-shadow:0 0 8px rgba(0,0,0,0.25);
                                     position:relative;
                                 }
                                 table.doc-header{
                                     width:100%;
                                     border-collapse:collapse;
-                                    margin-bottom:22px;
+                                    margin-bottom:10px;
                                     table-layout:fixed;
                                 }
                                 table.doc-header td{
                                     border:1px solid #000;
                                     padding:4px 8px;
                                     vertical-align:middle;
-                                    font-size:10pt;
+                                    font-size:9pt;
                                 }
                                 table.doc-header .company-row td{
                                     text-align:center;
                                     font-weight:bold;
                                     font-size:10pt;
-                                    padding:6px 8px;
+                                    padding:5px 8px;
                                 }
                                 table.doc-header .logo-cell{
-                                    width:20%;
+                                    width:18%;
                                     text-align:center;
                                 }
                                 table.doc-header .logo-cell img{
-                                    max-width:95px;
+                                    max-width:80px;
                                     height:auto;
                                     display:block;
                                     margin:0 auto;
                                 }
+                                table.doc-header .logo-cell small{
+                                    font-size:8pt;
+                                    display:block;
+                                    margin-top:2px;
+                                }
                                 table.doc-header .title-cell{
-                                    width:50%;
+                                    width:52%;
                                     text-align:center;
                                     color:var(--brand-red);
                                     font-weight:bold;
@@ -1010,34 +1015,34 @@ $activeMenu = 'customer_feedback';
                                     width:30%;
                                     text-align:center;
                                     font-weight:bold;
-                                    font-size:9.5pt;
-                                    line-height:1.5;
+                                    font-size:9pt;
+                                    line-height:1.4;
                                 }
                                 h1.form-title{
                                     text-align:center;
                                     font-weight:bold;
-                                    font-size:16pt;
-                                    margin:0 0 18px;
+                                    font-size:14pt;
+                                    margin:0 0 12px;
                                 }
                                 h2.section-heading{
                                     font-weight:bold;
-                                    font-size:11pt;
-                                    margin:16px 0 2px;
+                                    font-size:10pt;
+                                    margin:12px 0 4px;
                                 }
                                 p.section-note{
                                     font-style:italic;
                                     margin:0 0 6px;
-                                    font-size:11pt;
+                                    font-size:9pt;
                                 }
                                 ul.field-list{
                                     list-style:none;
-                                    margin:0 0 4px;
+                                    margin:0 0 8px;
                                     padding:0;
                                 }
                                 ul.field-list li.field-row{
                                     display:flex;
-                                    align-items:flex-end;
-                                    margin:6px 0;
+                                    align-items:center;
+                                    margin:5px 0;
                                 }
                                 ul.field-list li.field-row::before{
                                     content:"\\2022";
@@ -1050,30 +1055,31 @@ $activeMenu = 'customer_feedback';
                                     white-space:nowrap;
                                     margin-right:6px;
                                     flex:0 0 auto;
+                                    font-size:10pt;
                                 }
                                 .field-blank{
                                     flex:1 1 auto;
                                     border-bottom:1px dotted #000;
-                                    height:1em;
+                                    height:1.2em;
                                 }
                                 .field-value{
                                     flex:1 1 auto;
                                     border-bottom:1px dotted #000;
-                                    height:1em;
+                                    height:1.2em;
                                     padding:0 4px;
+                                    font-size:10pt;
+                                    line-height:1.2em;
                                 }
                                 .blank-line{
                                     border-bottom:1px dotted #000;
-                                    height:1em;
-                                    margin:10px 0 10px 22px;
+                                    height:1.2em;
+                                    margin:8px 0 8px 20px;
                                 }
                                 .page-footer{
-                                    position:absolute;
-                                    bottom:0.4in;
-                                    left:0.75in;
-                                    right:0.75in;
+                                    position:relative;
+                                    margin-top:25px;
                                     font-style:italic;
-                                    font-size:9pt;
+                                    font-size:8pt;
                                     border-top:1px solid #000;
                                     padding-top:4px;
                                 }
@@ -1082,9 +1088,9 @@ $activeMenu = 'customer_feedback';
                                     .page{
                                         box-shadow:none;
                                         margin:0;
-                                        width:auto;
-                                        min-height:auto;
-                                        padding:0.6in 0.75in 0.9in;
+                                        width:210mm;
+                                        height:297mm;
+                                        padding:8mm 10mm 6mm;
                                     }
                                 }
                             </style>
@@ -1098,8 +1104,7 @@ $activeMenu = 'customer_feedback';
                                     <tr>
                                         <td class="logo-cell" rowspan="2">
                                             <img src="https://www.texolenergies.com/assets/Logo-paGHQfRF.svg" alt="Texol Energies Logo">
-                                            <br>
-                                            <small><i>Reliability Redifined</i></small>
+                                            <small><i>Reliability Redefined</i></small>
                                         </td>
                                         <td class="title-cell" rowspan="2">Customer Feedback Form</td>
                                         <td class="meta-cell">
@@ -1112,8 +1117,8 @@ $activeMenu = 'customer_feedback';
                                     </tr>
                                 </table>
 
-                                <div style="display:flex; justify-content:center; align-items:center; margin-bottom:18px; position:relative;">
-                                    <div style="position:absolute; left:0; font-weight:bold; font-size:9px;">CFID: ${data.cfid || 'N/A'}</div>
+                                <div style="display:flex; justify-content:center; align-items:center; margin-bottom:12px; position:relative;">
+                                    <div style="position:absolute; left:0; font-weight:bold; font-size:9pt;">CFID: ${data.cfid || 'N/A'}</div>
                                     <h1 class="form-title" style="margin:0;">Customer Feedback Form</h1>
                                 </div>
 
@@ -1145,7 +1150,7 @@ $activeMenu = 'customer_feedback';
                                     <li class="field-row"><span class="field-label">Time of Call:</span><span class="field-value">${data.call_time || 'N/A'}</span></li>
                                     <li class="field-row"><span class="field-label">Agent's Name:</span><span class="field-value">${data.agent_name || 'N/A'}</span></li>
                                     <li class="field-row"><span class="field-label">Agent's Signature:</span>
-                                        ${data.agent_signature ? `<span class=""><img src="${data.agent_signature}" style="max-height:50px;vertical-align:middle;" /></span>` : '<span class="field-value">No signature</span>'}
+                                        ${data.agent_signature ? `<span class=""><img src="${data.agent_signature}" style="max-height:40px;vertical-align:middle;" /></span>` : '<span class="field-value">No signature</span>'}
                                     </li>
                                 </ul>
 

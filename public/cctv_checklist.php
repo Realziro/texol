@@ -99,7 +99,7 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
     <link rel="stylesheet" href="https://cdn.datatables.net/1.13.7/css/dataTables.bootstrap5.min.css">
     <style id="cctvPrintStyles">
         .cctv-printout {
-            max-width: 950px;
+            max-width: 210mm;
             margin: 0 auto;
             border: 2px solid #000;
             background: #fff;
@@ -115,14 +115,14 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
         .cctv-printout td,
         .cctv-printout th {
             border: 1px solid #000;
-            padding: 6px 10px;
+            padding: 6px 8px;
             vertical-align: middle;
         }
 
         .cctv-printout .company-title {
             text-align: center;
             font-weight: bold;
-            font-size: 16px;
+            font-size: 15px;
             letter-spacing: .5px;
         }
 
@@ -132,8 +132,8 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
         }
 
         .cctv-printout .logo-cell img {
-            max-width: 120px;
-            max-height: 60px;
+            max-width: 100px;
+            max-height: 50px;
         }
 
         .cctv-printout .logo-cell small {
@@ -146,7 +146,7 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
             width: 46%;
             text-align: center;
             font-weight: bold;
-            font-size: 16px;
+            font-size: 15px;
             color: #C0392B;
         }
 
@@ -158,39 +158,39 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
 
         .cctv-printout .page-row {
             border-top: 1px solid #000;
-            margin-top: 4px;
-            padding-top: 4px;
+            margin-top: 3px;
+            padding-top: 3px;
         }
 
         .cctv-printout .content {
-            padding: 16px 22px 26px 22px;
+            padding: 8mm 10mm 6mm;
         }
 
         .cctv-printout .doc-heading {
             text-align: center;
             font-weight: bold;
-            font-size: 16px;
-            margin-bottom: 14px;
+            font-size: 15px;
+            margin-bottom: 10px;
             letter-spacing: .3px;
         }
 
         .cctv-printout .purpose {
-            font-size: 13px;
-            margin-bottom: 20px;
+            font-size: 12px;
+            margin-bottom: 12px;
         }
 
         .cctv-printout .section-heading {
             font-weight: bold;
             text-decoration: underline;
-            font-size: 14px;
-            margin-bottom: 12px;
+            font-size: 13px;
+            margin-bottom: 8px;
         }
 
         .cctv-printout table.inventory-table {
             width: 100%;
             border-collapse: collapse;
-            margin-bottom: 26px;
-            font-size: 12.5px;
+            margin-bottom: 14px;
+            font-size: 11px;
         }
 
         .cctv-printout table.inventory-table th,
@@ -213,20 +213,20 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
         .cctv-printout .approvals-heading {
             font-weight: bold;
             text-decoration: underline;
-            font-size: 14px;
-            margin-bottom: 12px;
+            font-size: 13px;
+            margin-bottom: 8px;
         }
 
         .cctv-printout table.approvals-table {
             width: 100%;
             border-collapse: collapse;
-            font-size: 13px;
+            font-size: 11px;
         }
 
         .cctv-printout table.approvals-table th,
         .cctv-printout table.approvals-table td {
             border: 1px solid #000;
-            padding: 10px 10px;
+            padding: 8px 10px;
             text-align: left;
         }
 
@@ -238,13 +238,18 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
         .cctv-printout .footer-note {
             font-style: italic;
             font-size: 11px;
-            margin-top: 20px;
+            margin-top: 12px;
         }
 
         @media print {
             .cctv-printout {
                 max-width: none;
                 border: none;
+                padding: 8mm 10mm 6mm;
+            }
+            @page {
+                size: A4;
+                margin: 0;
             }
         }
 
