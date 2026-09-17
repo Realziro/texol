@@ -1,0 +1,5 @@
+[17-Sep-2026 09:49:47 Europe/Berlin] User department: ICT Department, ID: e5986514-7943-4121-a2e9-8a03f955232a
+[17-Sep-2026 09:49:47 Europe/Berlin] Items query params: select=%2A&order=name.asc&department_id=eq.e5986514-7943-4121-a2e9-8a03f955232a
+[17-Sep-2026 09:49:48 Europe/Berlin] Items fetched: 8 items
+[17-Sep-2026 09:49:48 Europe/Berlin] Suppliers query params: select=%2A&order=name.asc&department_id=eq.e5986514-7943-4121-a2e9-8a03f955232a
+[17-Sep-2026 09:49:49 Europe/Berlin] Suppliers fetched: 4 suppliers

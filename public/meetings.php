@@ -48,6 +48,7 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet"
         integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous" />
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" />
+    <link rel="stylesheet" href="https://cdn.datatables.net/1.13.7/css/dataTables.bootstrap5.min.css" />
     <link rel="stylesheet" href="sidebar.css" />
     <link rel="stylesheet" href="dashboard.css" />
     <link rel="icon" type="image/svg+xml" href="https://www.texolenergies.com/assets/Texol_icon-AiPT1Z13.png" />
@@ -127,6 +128,12 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
         .attendance-form-printout .page-of-cell {
             text-align: center;
             font-size: 10px;
+        }
+
+        .attendance-form-printout .meeting-id-label {
+            font-size: 10px;
+            font-weight: bold;
+            margin-bottom: 4px;
         }
 
         .attendance-form-printout .main-title {
@@ -371,6 +378,7 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
                                             id="meetingsTable">
                                             <thead>
                                                 <tr>
+                                                    <th>Meeting ID</th>
                                                     <th>Title</th>
                                                     <th>Type</th>
                                                     <th>Date</th>
@@ -383,12 +391,15 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
                                             <tbody id="meetingsTableBody">
                                                 <?php if (empty($meetings)): ?>
                                                     <tr>
-                                                        <td colspan="7" class="text-center text-muted small py-3">No
+                                                        <td colspan="8" class="text-center text-muted small py-3">No
                                                             meetings found.</td>
                                                     </tr>
                                                 <?php else: ?>
                                                     <?php foreach ($meetings as $meeting): ?>
                                                         <tr>
+                                                            <td>
+                                                                <small><?php echo htmlspecialchars($meeting['meeting_id'] ?? '-'); ?></small>
+                                                            </td>
                                                             <td>
                                                                 <strong><?php echo htmlspecialchars($meeting['title'] ?? ''); ?></strong>
                                                             </td>
@@ -544,6 +555,9 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"
         integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz"
         crossorigin="anonymous"></script>
+    <!-- DataTables -->
+    <script src="https://cdn.datatables.net/1.13.7/js/jquery.dataTables.min.js"></script>
+    <script src="https://cdn.datatables.net/1.13.7/js/dataTables.bootstrap5.min.js"></script>
     <!-- Quill JS -->
     <script src="https://cdn.quilljs.com/1.3.6/quill.min.js"></script>
     <!-- QRCode.js -->
@@ -598,6 +612,18 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
         }
 
         loadAttendanceCounts();
+
+        // Initialize DataTables
+        $(document).ready(function() {
+            $('#meetingsTable').DataTable({
+                pageLength: 10,
+                lengthMenu: [10, 25, 50, 100],
+                order: [[4, 'desc']], // Sort by Date column (index 4)
+                columnDefs: [
+                    { orderable: false, targets: 7 } // Disable sorting on Actions column (index 7)
+                ]
+            });
+        });
 
         // Form submission
         const form = document.getElementById('addMeetingForm');
@@ -757,6 +783,7 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
       </td>
     </tr>
   </table>
+                <div class="meeting-id-label">Meeting ID: ${escapeHtml(meeting.meeting_id || '')}</div>
                 <h1 class="main-title">ATTENDANCE FORM</h1>
                 <table class="meta-table">
                     <tr><td class="label">Meeting Title:</td><td>${escapeHtml(meeting.title)}</td></tr>

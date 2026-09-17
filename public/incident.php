@@ -155,6 +155,12 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
             padding: 10mm 12mm 8mm;
         }
 
+        .incident-printout .incident-id-label {
+            font-size: 10px;
+            font-weight: bold;
+            margin-bottom: 4px;
+        }
+
         .incident-printout .info-table {
             margin-bottom: 10px;
         }
@@ -422,6 +428,7 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
                                         id="incidentsTable">
                                         <thead>
                                             <tr>
+                                                <th>Incident ID</th>
                                                 <th>Date</th>
                                                 <th>Station</th>
                                                 <th>Shift</th>
@@ -432,11 +439,12 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
                                         </thead>
                                         <tbody><?php if (empty($incidents)): ?>
                                                 <tr>
-                                                    <td colspan="6" class="text-center text-muted small py-3">No incident
+                                                    <td colspan="7" class="text-center text-muted small py-3">No incident
                                                         reports found.</td>
                                                 </tr><?php else:
                                             foreach ($incidents as $incident): ?>
                                                     <tr>
+                                                        <td><small><?php echo htmlspecialchars($incident['incident_id'] ?? '-'); ?></small></td>
                                                         <td><?php echo htmlspecialchars($incident['incident_date'] ?? '-'); ?>
                                                         </td>
                                                         <td><?php echo htmlspecialchars($incident['station_name'] ?? '-'); ?>
@@ -537,13 +545,13 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
             $('#incidentsTable').DataTable({
                 pageLength: 10,
                 lengthMenu: [5, 10, 25, 50, 100],
-                order: [],
+                order: [[1, 'desc']], // Sort by Date column (index 1)
                 language: {
                     search: '_INPUT_',
                     searchPlaceholder: 'Search incidents...'
                 },
                 columnDefs: [
-                    { orderable: false, targets: 5 }
+                    { orderable: false, targets: 6 } // Disable sorting on Actions column (index 6)
                 ]
             });
         });
@@ -661,7 +669,7 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
             const lines = (value, count) => Array.from({
                 length: count
             }, (_, index) => `<div class="line">${index === 0 ? esc(value) : ''}</div>`).join('');
-            return `<div class="incident-printout"><table><tr><td colspan="3" class="company-title">TEXOL ENERGIES LIMITED</td></tr><tr><td class="logo-cell"><img src="https://www.texolenergies.com/assets/Logo-paGHQfRF.svg" alt="Texol Energies Logo"><small><i>Reliability Redefined</i></small></td><td class="form-title-cell">Incident Report Form</td><td class="doc-info-cell"><div>TEX-RET-FRM-011, Ver 000</div><div>Issue Date: 1<sup>st</sup> Nov 2024</div><div class="page-row">Page 1 of 1</div></td></tr></table><div class="content"><table class="info-table"><tr><td style="width:50%">Date: <span class="fill">${esc(item.incident_date)}</span></td><td>Name: <span class="fill">${esc(item.reporter_name)}</span></td></tr><tr><td>Employee ID: <span class="fill"></span></td><td>Position: <span class="fill"></span></td></tr><tr><td>Station name: <span class="fill">${esc(item.station_name)}</span></td><td>Department: <span class="fill">${esc(item.department)}</span></td></tr></table><div class="section-heading">INCIDENT DETAILS:</div><div class="inline-fields"><div>TIME: <span class="field-line">${esc(item.incident_time)}</span></div><div>SHIFT: <span class="field-line">${esc(item.shift)}</span></div></div><div class="describe-label">Describe the incident - <i>(Be brief, include any damage caused and remedy action)</i></div><div class="lined-box">${lines(item.description, 7)}</div><div class="witness-heading">Witness Information:</div><table class="witness-table"><tr><td class="label" style="width:50%">Witness 1</td><td class="label" style="width:50%">Witness 2:</td></tr><tr><td>Name: ${esc(item.witness1_name)}</td><td>Name: ${esc(item.witness2_name)}</td></tr><tr><td>Position: ${esc(item.witness1_position)}</td><td>Position: ${esc(item.witness2_position)}</td></tr></table><div class="manager-heading">Manager/Supervisor comments: <span class="note">- [Any additional information relevant to the incident]</span></div><div class="lined-box">${lines(item.manager_comments, 6)}</div><table class="signoff-table"><tr><td style="width:33.3%">Completed By:</td><td style="width:33.3%">Checked By: Supervisor</td><td style="width:33.4%">Approved By: Manager</td></tr><tr><td class="label">Name<br><span class="fill">${esc(item.reporter_name)}</span></td><td class="label">Name</td><td class="label">Name</td></tr><tr><td class="label">Position</td><td class="label">Position</td><td class="label">Position</td></tr><tr><td class="label">Signature</td><td class="label">Signature</td><td class="label">Signature</td></tr></table><div class="footer-note">Texol Energies. Incident Report Form</div></div></div>`;
+            return `<div class="incident-printout"><table><tr><td colspan="3" class="company-title">TEXOL ENERGIES LIMITED</td></tr><tr><td class="logo-cell"><img src="https://www.texolenergies.com/assets/Logo-paGHQfRF.svg" alt="Texol Energies Logo"><small><i>Reliability Redefined</i></small></td><td class="form-title-cell">Incident Report Form</td><td class="doc-info-cell"><div>TEX-RET-FRM-011, Ver 000</div><div>Issue Date: 1<sup>st</sup> Nov 2024</div><div class="page-row">Page 1 of 1</div></td></tr></table><div class="content"><div class="incident-id-label">Incident ID: ${esc(item.incident_id || '')}</div><table class="info-table"><tr><td style="width:50%">Date: <span class="fill">${esc(item.incident_date)}</span></td><td>Name: <span class="fill">${esc(item.reporter_name)}</span></td></tr><tr><td>Employee ID: <span class="fill"></span></td><td>Position: <span class="fill"></span></td></tr><tr><td>Station name: <span class="fill">${esc(item.station_name)}</span></td><td>Department: <span class="fill">${esc(item.department)}</span></td></tr></table><div class="section-heading">INCIDENT DETAILS:</div><div class="inline-fields"><div>TIME: <span class="field-line">${esc(item.incident_time)}</span></div><div>SHIFT: <span class="field-line">${esc(item.shift)}</span></div></div><div class="describe-label">Describe the incident - <i>(Be brief, include any damage caused and remedy action)</i></div><div class="lined-box">${lines(item.description, 7)}</div><div class="witness-heading">Witness Information:</div><table class="witness-table"><tr><td class="label" style="width:50%">Witness 1</td><td class="label" style="width:50%">Witness 2:</td></tr><tr><td>Name: ${esc(item.witness1_name)}</td><td>Name: ${esc(item.witness2_name)}</td></tr><tr><td>Position: ${esc(item.witness1_position)}</td><td>Position: ${esc(item.witness2_position)}</td></tr></table><div class="manager-heading">Manager/Supervisor comments: <span class="note">- [Any additional information relevant to the incident]</span></div><div class="lined-box">${lines(item.manager_comments, 6)}</div><table class="signoff-table"><tr><td style="width:33.3%">Completed By:</td><td style="width:33.3%">Checked By: Supervisor</td><td style="width:33.4%">Approved By: Manager</td></tr><tr><td class="label">Name<br><span class="fill">${esc(item.reporter_name)}</span></td><td class="label">Name</td><td class="label">Name</td></tr><tr><td class="label">Position</td><td class="label">Position</td><td class="label">Position</td></tr><tr><td class="label">Signature</td><td class="label">Signature</td><td class="label">Signature</td></tr></table><div class="footer-note">Texol Energies. Incident Report Form</div></div></div>`;
         }
         const originalIncidentFormHtml = incidentFormHtml;
         incidentFormHtml = item => {

@@ -157,6 +157,12 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
             line-height: 1.6;
         }
 
+        .settlement-printout .settlement-id-label {
+            font-size: 11px;
+            font-weight: bold;
+            margin-bottom: 4px;
+        }
+
         .settlement-printout .doc-heading {
             text-align: center;
             font-weight: bold;
@@ -416,6 +422,7 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
                                         id="settlementsTable">
                                         <thead>
                                             <tr>
+                                                <th>Settlement ID</th>
                                                 <th>Date</th>
                                                 <th>Client</th>
                                                 <th>Vehicle</th>
@@ -431,12 +438,14 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
                                                     <td>-</td>
                                                     <td>-</td>
                                                     <td>-</td>
+                                                    <td>-</td>
                                                     <td><span class="badge bg-secondary">-</span></td>
                                                     <td class="text-end">-</td>
                                                 </tr>
                                             <?php else:
                                                 foreach ($settlements as $settlement): ?>
                                                     <tr>
+                                                        <td><small><?php echo htmlspecialchars($settlement['settlement_id'] ?? '-'); ?></small></td>
                                                         <td><?php echo htmlspecialchars($settlement['agreement_date'] ?? '-'); ?>
                                                         </td>
                                                         <td><?php echo htmlspecialchars($settlement['client_name'] ?? '-'); ?>
@@ -571,13 +580,13 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
             $('#settlementsTable').DataTable({
                 pageLength: 10,
                 lengthMenu: [5, 10, 25, 50, 100],
-                order: [],
+                order: [[1, 'desc']], // Sort by Date column (index 1)
                 language: {
                     search: '_INPUT_',
                     searchPlaceholder: 'Search settlements...'
                 },
                 columnDefs: [
-                    { orderable: false, targets: 5 }
+                    { orderable: false, targets: 6 } // Disable sorting on Actions column (index 6)
                 ],
                 autoWidth: false
             });
@@ -767,6 +776,7 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
   </table>
 
   <div class="content">
+    <div class="settlement-id-label">Settlement ID: ${esc(item.settlement_id || '')}</div>
     <div class="doc-heading">DAMAGE SETTLEMENT AGREEMENT</div>
 
     <p>This Settlement Agreement is made and entered into on this <span class="blank-line short">${day}</span> day of <span class="blank-line medium">${month}</span>, 20<span class="blank-line short" style="min-width:30px;">${year}</span>.</p>
@@ -831,6 +841,7 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
   </table>
 
   <div class="content">
+    <div class="settlement-id-label">Settlement ID: ${esc(item.settlement_id || '')}</div>
     <ol class="clauses" start="3">
       <li>
         <span class="clause-title">Release of Liability</span>
@@ -883,6 +894,7 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
   </table>
 
   <div class="content">
+    <div class="settlement-id-label">Settlement ID: ${esc(item.settlement_id || '')}</div>
     <p><strong>Signed by the said;</strong></p>
 
     <div class="signature-block">
