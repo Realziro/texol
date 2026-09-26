@@ -411,6 +411,166 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $message = $response['message'];
             $messageType = $response['success'] ? 'success' : 'error';
         }
+    } elseif ($action === 'update') {
+        // Update existing requisition
+        header('Content-Type: application/json');
+
+        $reqId = $_POST['req_id'] ?? '';
+        $requiredDate = $_POST['required_date'] ?? '';
+        $description = $_POST['description'] ?? '';
+        $supplierId = $_POST['supplier_id'] ?? '';
+        $sharedWith = $_POST['shared_with'] ?? '';
+
+        $itemIds = $_POST['item_id'] ?? [];
+        $quantities = $_POST['quantity'] ?? [];
+        $units = $_POST['unit'] ?? [];
+        $unitPrices = $_POST['unit_price'] ?? [];
+
+        if (empty($reqId) || empty($requiredDate) || empty($itemIds) || empty($quantities)) {
+            echo json_encode(['success' => false, 'message' => 'Please fill in all required fields.']);
+            exit;
+        }
+
+        if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
+            $supabaseUrl = rtrim(SUPABASE_URL, '/');
+            $supabaseKey = SUPABASE_ANON_KEY;
+
+            // Get current user ID
+            $query = http_build_query(['select' => 'id', 'email' => 'eq.' . $userEmail]);
+            $ch = curl_init();
+            curl_setopt_array($ch, [
+                CURLOPT_URL => $supabaseUrl . '/rest/v1/users?' . $query,
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_HTTPHEADER => [
+                    'apikey: ' . $supabaseKey,
+                    'Authorization: Bearer ' . $supabaseKey,
+                    'Accept: application/json',
+                ],
+            ]);
+            $response = curl_exec($ch);
+            $userData = json_decode($response, true);
+            $userId = $userData[0]['id'] ?? null;
+            curl_close($ch);
+
+            if (!$userId) {
+                echo json_encode(['success' => false, 'message' => 'User not found.']);
+                exit;
+            }
+
+            // Fetch current requisition to verify ownership and check if it can be edited
+            $query = http_build_query(['select' => '*', 'id' => 'eq.' . $reqId]);
+            $ch = curl_init();
+            curl_setopt_array($ch, [
+                CURLOPT_URL => $supabaseUrl . '/rest/v1/requisitions?' . $query,
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_HTTPHEADER => [
+                    'apikey: ' . $supabaseKey,
+                    'Authorization: Bearer ' . $supabaseKey,
+                    'Accept: application/json',
+                ],
+            ]);
+            $reqResponse = curl_exec($ch);
+            $reqData = json_decode($reqResponse, true);
+            curl_close($ch);
+
+            if (empty($reqData) || !is_array($reqData) || empty($reqData[0])) {
+                echo json_encode(['success' => false, 'message' => 'Requisition not found.']);
+                exit;
+            }
+
+            $requisition = $reqData[0];
+
+            // Check if user is the requester
+            if ($requisition['requested_by'] !== $userId) {
+                echo json_encode(['success' => false, 'message' => 'You can only edit your own requisitions.']);
+                exit;
+            }
+
+            // Check if requisition can be edited (must be pending and have no approvals)
+            $approvedByUsers = $requisition['approved_by_users'] ?? [];
+            $approvedByArray = is_array($approvedByUsers) ? $approvedByUsers : (!empty($approvedByUsers) ? json_decode($approvedByUsers, true) : []);
+
+            if (!empty($approvedByArray)) {
+                echo json_encode(['success' => false, 'message' => 'Cannot edit requisition after it has been approved.']);
+                exit;
+            }
+
+            if ($requisition['status'] !== 'pending') {
+                echo json_encode(['success' => false, 'message' => 'Can only edit pending requisitions.']);
+                exit;
+            }
+
+            // Update requisition
+            $requisitionData = [
+                'required_date' => $requiredDate,
+                'description' => $description,
+                'supplier_id' => $supplierId ?: null,
+                'shared_with' => $sharedWith ?: null,
+            ];
+
+            $ch = curl_init();
+            curl_setopt_array($ch, [
+                CURLOPT_URL => $supabaseUrl . '/rest/v1/requisitions?id=eq.' . $reqId,
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_CUSTOMREQUEST => 'PATCH',
+                CURLOPT_HTTPHEADER => [
+                    'apikey: ' . $supabaseKey,
+                    'Authorization: Bearer ' . $supabaseKey,
+                    'Content-Type: application/json',
+                    'Prefer: return=representation',
+                ],
+                CURLOPT_POSTFIELDS => json_encode($requisitionData),
+            ]);
+            $response = curl_exec($ch);
+            curl_close($ch);
+
+            // Delete existing requisition items
+            $ch = curl_init();
+            curl_setopt_array($ch, [
+                CURLOPT_URL => $supabaseUrl . '/rest/v1/requisition_items?requisition_id=eq.' . $reqId,
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_CUSTOMREQUEST => 'DELETE',
+                CURLOPT_HTTPHEADER => [
+                    'apikey: ' . $supabaseKey,
+                    'Authorization: Bearer ' . $supabaseKey,
+                ],
+            ]);
+            curl_exec($ch);
+            curl_close($ch);
+
+            // Create new requisition items
+            foreach ($itemIds as $index => $itemId) {
+                if (empty($itemId) || empty($quantities[$index])) continue;
+
+                $itemData = [
+                    'requisition_id' => $reqId,
+                    'item_id' => $itemId,
+                    'quantity' => $quantities[$index],
+                    'unit' => $units[$index] ?? 'pieces',
+                    'unit_price' => $unitPrices[$index] ?? 0,
+                ];
+
+                $ch = curl_init();
+                curl_setopt_array($ch, [
+                    CURLOPT_URL => $supabaseUrl . '/rest/v1/requisition_items',
+                    CURLOPT_RETURNTRANSFER => true,
+                    CURLOPT_POST => true,
+                    CURLOPT_HTTPHEADER => [
+                        'apikey: ' . $supabaseKey,
+                        'Authorization: Bearer ' . $supabaseKey,
+                        'Content-Type: application/json',
+                    ],
+                    CURLOPT_POSTFIELDS => json_encode($itemData),
+                ]);
+                curl_exec($ch);
+                curl_close($ch);
+            }
+
+            echo json_encode(['success' => true, 'message' => 'Requisition updated successfully!']);
+        } else {
+            echo json_encode(['success' => false, 'message' => 'Supabase configuration not found.']);
+        }
+        exit;
     } elseif ($action === 'create') {
         // Create new requisition (standalone, without ticket ID)
         // Clear any previous output
@@ -1321,47 +1481,67 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
                                                         <span class="text-muted small">-</span>
                                                     <?php endif; ?>
                                                 </td>
-                                                <td class="small">
-                                                    <button class="btn btn-sm btn-outline-primary me-1" onclick="viewRequisition(<?php echo htmlspecialchars(json_encode($req)); ?>)">
-                                                        <i class="bi bi-eye"></i> View
-                                                    </button>
-                                                    <button class="btn btn-sm btn-outline-secondary me-1" onclick="openUploadModal('<?php echo htmlspecialchars($req['id']); ?>')">
-                                                        <i class="bi bi-upload"></i> Upload
-                                                    </button>
-                                                    <?php
-                                                    // Show approve button if user is in shared_with and hasn't approved yet
-                                                    // Requester cannot approve their own requisition unless explicitly in approvers list
-                                                    $isRequester = ($req['requested_by'] ?? '') === $currentUserId;
-                                                    $currentUserInShared = in_array($currentUserId, $sharedWithArray);
-                                                    $currentUserApproved = false;
-                                                    foreach ($approvedByArray as $approval) {
-                                                        if (is_array($approval) && isset($approval['user_id']) && $approval['user_id'] === $currentUserId) {
-                                                            $currentUserApproved = true;
-                                                            break;
-                                                        } elseif (is_string($approval) && $approval === $currentUserId) {
-                                                            // Handle old format (just user IDs)
-                                                            $currentUserApproved = true;
-                                                            break;
-                                                        }
-                                                    }
-                                                    // Check if current user is one of the first 2 in shared_with (only they can approve/reject)
-                                                    $currentUserIndex = array_search($currentUserId, $sharedWithArray);
-                                                    $isFirstOrSecondApprover = $currentUserIndex !== false && $currentUserIndex < 2;
-                                                    // User can approve if: in shared_with AND hasn't approved AND status not approved or rejected AND is first or second approver
-                                                    // Requester can only approve if they are explicitly in the shared_with list
-                                                    $canApprove = $currentUserInShared && !$currentUserApproved && !in_array(($req['status'] ?? ''), ['approved', 'rejected']) && $isFirstOrSecondApprover;
-                                                    // User can reject if: in shared_with AND status is pending or partially_approved AND is first or second approver
-                                                    $canReject = $currentUserInShared && in_array(($req['status'] ?? ''), ['pending', 'partially_approved']) && $isFirstOrSecondApprover;
-                                                    if ($canApprove): ?>
-                                                        <button type="button" class="btn btn-sm btn-outline-success me-1" onclick="openApproveModal('<?php echo htmlspecialchars($req['id']); ?>')">
-                                                            <i class="bi bi-check-circle"></i>
+                                                <td class="text-end">
+                                                    <div class="dropdown">
+                                                        <button class="btn btn-sm btn-outline-secondary" type="button"
+                                                            data-bs-toggle="dropdown" aria-expanded="false"
+                                                            title="Form actions" aria-label="Form actions">
+                                                            <i class="bi bi-three-dots-vertical"></i>
                                                         </button>
-                                                    <?php endif; ?>
-                                                    <?php if ($canReject): ?>
-                                                        <button type="button" class="btn btn-sm btn-outline-danger me-1" onclick="openRejectModal('<?php echo htmlspecialchars($req['id']); ?>')">
-                                                            <i class="bi bi-x-circle"></i>
-                                                        </button>
-                                                    <?php endif; ?>
+                                                        <ul class="dropdown-menu dropdown-menu-end">
+                                                            <li>
+                                                                <button class="dropdown-item" type="button"
+                                                                    onclick="viewRequisition(<?php echo htmlspecialchars(json_encode($req)); ?>)">
+                                                                    <i class="bi bi-eye me-2"></i>View
+                                                                </button>
+                                                            </li>
+                                                            <li>
+                                                                <button class="dropdown-item" type="button"
+                                                                    onclick="openUploadModal('<?php echo htmlspecialchars($req['id']); ?>')">
+                                                                    <i class="bi bi-upload me-2"></i>Upload
+                                                                </button>
+                                                            </li>
+                                                            <?php
+                                                            // Show approve button if user is in shared_with and hasn't approved yet
+                                                            // Requester cannot approve their own requisition unless explicitly in approvers list
+                                                            $currentUserInShared = in_array($currentUserId, $sharedWithArray);
+                                                            $currentUserApproved = false;
+                                                            foreach ($approvedByArray as $approval) {
+                                                                if (is_array($approval) && isset($approval['user_id']) && $approval['user_id'] === $currentUserId) {
+                                                                    $currentUserApproved = true;
+                                                                    break;
+                                                                } elseif (is_string($approval) && $approval === $currentUserId) {
+                                                                    // Handle old format (just user IDs)
+                                                                    $currentUserApproved = true;
+                                                                    break;
+                                                                }
+                                                            }
+                                                            // Check if current user is one of the first 2 in shared_with (only they can approve/reject)
+                                                            $currentUserIndex = array_search($currentUserId, $sharedWithArray);
+                                                            $isFirstOrSecondApprover = $currentUserIndex !== false && $currentUserIndex < 2;
+                                                            // User can approve if: in shared_with AND hasn't approved AND status not approved or rejected AND is first or second approver
+                                                            // Requester can only approve if they are explicitly in the shared_with list
+                                                            $canApprove = $currentUserInShared && !$currentUserApproved && !in_array(($req['status'] ?? ''), ['approved', 'rejected']) && $isFirstOrSecondApprover;
+                                                            // User can reject if: in shared_with AND status is pending or partially_approved AND is first or second approver
+                                                            $canReject = $currentUserInShared && in_array(($req['status'] ?? ''), ['pending', 'partially_approved']) && $isFirstOrSecondApprover;
+                                                            if ($canApprove): ?>
+                                                                <li>
+                                                                    <button class="dropdown-item" type="button"
+                                                                        onclick="openApproveModal('<?php echo htmlspecialchars($req['id']); ?>')">
+                                                                        <i class="bi bi-check-circle me-2"></i>Approve
+                                                                    </button>
+                                                                </li>
+                                                            <?php endif; ?>
+                                                            <?php if ($canReject): ?>
+                                                                <li>
+                                                                    <button class="dropdown-item text-danger" type="button"
+                                                                        onclick="openRejectModal('<?php echo htmlspecialchars($req['id']); ?>')">
+                                                                        <i class="bi bi-x-circle me-2"></i>Reject
+                                                                    </button>
+                                                                </li>
+                                                            <?php endif; ?>
+                                                        </ul>
+                                                    </div>
                                                 </td>
                                             </tr>
                                         <?php endforeach; ?>
@@ -1506,7 +1686,7 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
         loadUsers();
 
         // Reusable function to initialize user search
-        window.initUserSearch = function(inputId, dropdownId, selectedDivId, hiddenInputId) {
+        window.initUserSearch = function(inputId, dropdownId, selectedDivId, hiddenInputId, preSelectedUsers = []) {
             const input = document.getElementById(inputId);
             const dropdown = document.getElementById(dropdownId);
             const selectedDiv = document.getElementById(selectedDivId);
@@ -1517,7 +1697,12 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
                 return;
             }
 
-            let localSelectedUsers = [];
+            let localSelectedUsers = [...preSelectedUsers];
+
+            // Update display with pre-selected users
+            if (preSelectedUsers.length > 0) {
+                updateSelectedUsersDisplay();
+            }
 
             input.addEventListener('input', function() {
                 const searchTerm = this.value.toLowerCase();
@@ -1575,6 +1760,9 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
                 updateSelectedUsersDisplay();
             }
 
+            // Make removeUserFromSelection accessible globally for edit modal
+            window.removeUserFromSelection = removeUserFromSelection;
+
             // Close dropdown when clicking outside
             document.addEventListener('click', function(e) {
                 if (!input.contains(e.target) && !dropdown.contains(e.target)) {
@@ -1584,6 +1772,10 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
 
             function removeUserFromSelection(userId) {
                 localSelectedUsers = localSelectedUsers.filter(u => u.id !== userId);
+                // Also update window.editSelectedUsers if this is the edit modal
+                if (hiddenInputId === 'editSharedWith' && window.editSelectedUsers) {
+                    window.editSelectedUsers = window.editSelectedUsers.filter(u => u.id !== userId);
+                }
                 updateSelectedUsersDisplay();
             }
 
@@ -1610,6 +1802,11 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
                         removeUserFromSelection(this.dataset.userId);
                     });
                 });
+
+                // Store reference to localSelectedUsers for external access
+                if (hiddenInputId === 'editSharedWith') {
+                    window.editLocalSelectedUsers = localSelectedUsers;
+                }
             }
         };
 
@@ -2118,8 +2315,50 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
                 fetchUserDetails(secondSharedUserId, 'approvedBy');
             }
 
+            // Check if user can edit this requisition (requester + pending + no approvals)
+            const isRequester = req.requested_by === currentUserId;
+            let hasApprovals = false;
+
+            if (req.approved_by_users) {
+                try {
+                    const approvedByArray = Array.isArray(req.approved_by_users) ? req.approved_by_users : JSON.parse(req.approved_by_users);
+                    hasApprovals = approvedByArray && approvedByArray.length > 0;
+                } catch (e) {
+                    // If parsing fails, assume no approvals
+                    hasApprovals = false;
+                }
+            }
+
+            const canEdit = isRequester && req.status === 'pending' && !hasApprovals;
+
+            // Show/hide edit button
+            const editBtn = document.getElementById('editRequisitionBtn');
+            if (editBtn) {
+                if (canEdit) {
+                    editBtn.classList.remove('d-none');
+                } else {
+                    editBtn.classList.add('d-none');
+                }
+            }
+
             const bsModal = new bootstrap.Modal(modal);
             bsModal.show();
+        };
+
+        // Edit current requisition from view modal
+        window.editCurrentRequisition = function() {
+            const req = window.currentRequisition;
+            if (!req) return;
+
+            // Close view modal
+            const viewModal = document.getElementById('viewRequisitionModal');
+            const viewBsModal = bootstrap.Modal.getInstance(viewModal);
+            if (viewBsModal) {
+                viewBsModal.hide();
+            }
+
+            // Open edit modal
+            openEditModal(req.id);
         };
 
         async function fetchUserDetails(userId, prefix) {
@@ -2166,6 +2405,9 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
                                 <div id="requisitionDetails"></div>
                             </div>
                             <div class="modal-footer">
+                                <button type="button" class="btn btn-warning d-none" id="editRequisitionBtn" onclick="editCurrentRequisition()">
+                                    <i class="bi bi-pencil me-1"></i> Edit
+                                </button>
                                 <button type="button" class="btn btn-primary" onclick="printRequisition()">
                                     <i class="bi bi-printer me-1"></i> Print
                                 </button>
@@ -3143,6 +3385,306 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
             window.selectedFiles = [];
             const bootstrapModal = new bootstrap.Modal(modal);
             bootstrapModal.show();
+        };
+
+        // Open edit modal
+        window.openEditModal = async function(reqId) {
+            try {
+                // If no reqId provided, use current requisition from view modal
+                if (!reqId && window.currentRequisition) {
+                    reqId = window.currentRequisition.id;
+                }
+
+                if (!reqId) {
+                    alert('No requisition ID provided');
+                    return;
+                }
+
+                // Fetch requisition details
+                const { data: requisition, error } = await supabase
+                    .from('requisitions')
+                    .select('*, requisition_items(*, item:items(*))')
+                    .eq('id', reqId)
+                    .single();
+
+                if (error) throw error;
+
+                // Create edit modal if it doesn't exist
+                let modal = document.getElementById('editRequisitionModal');
+                if (!modal) {
+                    const modalHtml = `
+                        <div class="modal fade" id="editRequisitionModal" tabindex="-1">
+                            <div class="modal-dialog modal-lg">
+                                <div class="modal-content">
+                                    <div class="modal-header">
+                                        <h5 class="modal-title">Edit Requisition</h5>
+                                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                    </div>
+                                    <div class="modal-body">
+                                        <div id="editError" class="alert alert-danger d-none mb-3"></div>
+                                        <form id="editRequisitionForm" class="row g-3">
+                                            <input type="hidden" name="req_id" id="editReqId">
+                                            <div class="col-md-6">
+                                                <label class="form-label small fw-semibold">Required Date</label>
+                                                <input type="date" class="form-control form-control-sm" name="required_date" id="editRequiredDate" required>
+                                            </div>
+                                            <div class="col-md-6">
+                                                <label class="form-label small fw-semibold">Description</label>
+                                                <input type="text" class="form-control form-control-sm" name="description" id="editDescription">
+                                            </div>
+                                            <div class="col-md-6">
+                                                <label class="form-label small fw-semibold">Supplier</label>
+                                                <div class="input-group">
+                                                    <select class="form-select form-select-sm" name="supplier_id" id="editSupplierSelect">
+                                                        <option value="">Select Supplier</option>
+                                                        <?php foreach ($suppliers as $supplier): ?>
+                                                            <option value="<?php echo htmlspecialchars($supplier['id']); ?>">
+                                                                <?php echo htmlspecialchars($supplier['name']); ?>
+                                                            </option>
+                                                        <?php endforeach; ?>
+                                                    </select>
+                                                    <button type="button" class="btn btn-outline-secondary btn-sm" onclick="openAddSupplierModal(this)">
+                                                        <i class="bi bi-plus"></i>
+                                                    </button>
+                                                </div>
+                                            </div>
+                                            <div class="col-md-6">
+                                                <label class="form-label small fw-semibold">Share With (For Approval)</label>
+                                                <small class="text-muted d-block mb-1">Search users by name or email to share for approval (multiple users allowed)</small>
+                                                <div class="position-relative">
+                                                    <input type="text" class="form-control form-control-sm" id="editSharedWithInput" placeholder="Search users..." autocomplete="off">
+                                                    <div id="editSharedWithDropdown" class="dropdown-menu w-100" style="position: absolute; z-index: 1000; max-height: 200px; overflow-y: auto;"></div>
+                                                </div>
+                                                <div id="editSelectedUsers" class="mt-1"></div>
+                                                <input type="hidden" name="shared_with" id="editSharedWith" value="">
+                                            </div>
+                                            <div class="col-12">
+                                                <label class="form-label small fw-semibold">Items</label>
+                                                <div id="editItemsContainer">
+                                                </div>
+                                                <button type="button" class="btn btn-sm btn-outline-secondary mt-2" onclick="window.addItem('editItemsContainer')">
+                                                    <i class="bi bi-plus"></i> Add Item
+                                                </button>
+                                            </div>
+                                            <div class="col-12">
+                                                <button type="submit" class="btn btn-sm btn-primary">
+                                                    <i class="bi bi-check-circle"></i> Update Requisition
+                                                </button>
+                                            </div>
+                                        </form>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                    document.body.insertAdjacentHTML('beforeend', modalHtml);
+                    modal = document.getElementById('editRequisitionModal');
+                }
+
+                // Populate form with requisition data
+                document.getElementById('editReqId').value = requisition.id;
+                document.getElementById('editRequiredDate').value = requisition.required_date || '';
+                document.getElementById('editDescription').value = requisition.description || '';
+                document.getElementById('editSupplierSelect').value = requisition.supplier_id || '';
+
+                // Populate shared_with
+                const sharedWith = requisition.shared_with || '';
+                const sharedWithArray = sharedWith ? sharedWith.split(',').map(id => id.trim()) : [];
+                let editSelectedUsers = [];
+
+                if (sharedWithArray.length > 0) {
+                    // Fetch user details for shared_with users
+                    const { data: sharedUsers, error: usersError } = await supabase
+                        .from('users')
+                        .select('id, email, full_name')
+                        .in('id', sharedWithArray);
+
+                    if (!usersError && sharedUsers) {
+                        editSelectedUsers = sharedUsers;
+                    }
+                }
+
+                // Display selected users
+                const editSelectedUsersDiv = document.getElementById('editSelectedUsers');
+                const editSharedWithHidden = document.getElementById('editSharedWith');
+                editSelectedUsersDiv.innerHTML = '';
+                const userIds = [];
+
+                editSelectedUsers.forEach(user => {
+                    userIds.push(user.id);
+                    const badge = document.createElement('span');
+                    badge.className = 'badge bg-primary me-1 mb-1';
+                    badge.innerHTML = `
+                        ${user.full_name || user.email}
+                        <button type="button" class="btn-close btn-close-white ms-1" data-user-id="${user.id}"></button>
+                    `;
+                    editSelectedUsersDiv.appendChild(badge);
+                });
+
+                // Add event listeners to remove buttons
+                editSelectedUsersDiv.querySelectorAll('.btn-close').forEach(btn => {
+                    btn.addEventListener('click', function() {
+                        if (window.removeUserFromSelection) {
+                            window.removeUserFromSelection(this.dataset.userId);
+                        }
+                    });
+                });
+
+                editSharedWithHidden.value = userIds.join(',');
+
+                // Store selected users for edit modal BEFORE initializing user search
+                window.editSelectedUsers = editSelectedUsers;
+
+                // Initialize user search for edit modal (pass pre-selected users)
+                initUserSearch('editSharedWithInput', 'editSharedWithDropdown', 'editSelectedUsers', 'editSharedWith', editSelectedUsers);
+
+                // Populate items
+                const editItemsContainer = document.getElementById('editItemsContainer');
+                editItemsContainer.innerHTML = '';
+
+                if (requisition.requisition_items && requisition.requisition_items.length > 0) {
+                    requisition.requisition_items.forEach((reqItem, index) => {
+                        const newRow = document.createElement('div');
+                        newRow.className = 'item-row row g-2 mb-2';
+
+                        let itemOptions = '<option value="">Select Item</option>';
+                        window.itemsData.forEach(item => {
+                            const selected = item.id === reqItem.item_id ? 'selected' : '';
+                            itemOptions += `<option value="${item.id}" data-unit="${item.unit}" data-price="${item.unit_price || 0}" ${selected}>${item.name}</option>`;
+                        });
+
+                        newRow.innerHTML = `
+                            <div class="col-md-3">
+                                <div class="input-group">
+                                    <select class="form-select form-select-sm item-select" name="item_id[]" onchange="window.updateUnitFromItem(this)">
+                                        ${itemOptions}
+                                    </select>
+                                    <button type="button" class="btn btn-outline-secondary btn-sm" onclick="window.openAddItemModal(this)">
+                                        <i class="bi bi-plus"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="col-md-2">
+                                <input type="number" step="0.01" class="form-control form-control-sm" name="quantity[]" value="${reqItem.quantity}" required>
+                            </div>
+                            <div class="col-md-2">
+                                <select class="form-select form-select-sm unit-select" name="unit[]">
+                                    <option value="kg" ${reqItem.unit === 'kg' ? 'selected' : ''}>kg</option>
+                                    <option value="liters" ${reqItem.unit === 'liters' ? 'selected' : ''}>liters</option>
+                                    <option value="pieces" ${reqItem.unit === 'pieces' ? 'selected' : ''}>pieces</option>
+                                    <option value="meters" ${reqItem.unit === 'meters' ? 'selected' : ''}>meters</option>
+                                    <option value="units" ${reqItem.unit === 'units' ? 'selected' : ''}>units</option>
+                                </select>
+                            </div>
+                            <div class="col-md-2">
+                                <input type="number" step="0.01" class="form-control form-control-sm price-input" name="unit_price[]" value="${reqItem.unit_price || 0}">
+                            </div>
+                            <div class="col-md-2">
+                                <button type="button" class="btn btn-outline-danger btn-sm w-100" onclick="window.removeItem(this)">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </div>
+                        `;
+                        editItemsContainer.appendChild(newRow);
+                    });
+                } else {
+                    // Add empty item row if no items exist
+                    const newRow = document.createElement('div');
+                    newRow.className = 'item-row row g-2 mb-2';
+
+                    let itemOptions = '<option value="">Select Item</option>';
+                    window.itemsData.forEach(item => {
+                        itemOptions += `<option value="${item.id}" data-unit="${item.unit}" data-price="${item.unit_price || 0}">${item.name}</option>`;
+                    });
+
+                    newRow.innerHTML = `
+                        <div class="col-md-3">
+                            <div class="input-group">
+                                <select class="form-select form-select-sm item-select" name="item_id[]" onchange="window.updateUnitFromItem(this)">
+                                    ${itemOptions}
+                                </select>
+                                <button type="button" class="btn btn-outline-secondary btn-sm" onclick="window.openAddItemModal(this)">
+                                    <i class="bi bi-plus"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="col-md-2">
+                            <input type="number" step="0.01" class="form-control form-control-sm" name="quantity[]" placeholder="Quantity" required>
+                        </div>
+                        <div class="col-md-2">
+                            <select class="form-select form-select-sm unit-select" name="unit[]">
+                                <option value="kg">kg</option>
+                                <option value="liters">liters</option>
+                                <option value="pieces">pieces</option>
+                                <option value="meters">meters</option>
+                                <option value="units">units</option>
+                            </select>
+                        </div>
+                        <div class="col-md-2">
+                            <input type="number" step="0.01" class="form-control form-control-sm price-input" name="unit_price[]" placeholder="Unit Price">
+                        </div>
+                        <div class="col-md-2">
+                            <button type="button" class="btn btn-outline-danger btn-sm w-100" onclick="window.removeItem(this)">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </div>
+                    `;
+                    editItemsContainer.appendChild(newRow);
+                }
+
+                // Show modal
+                const bootstrapModal = new bootstrap.Modal(modal);
+                bootstrapModal.show();
+
+                // Handle form submission
+                const editForm = document.getElementById('editRequisitionForm');
+                editForm.onsubmit = async function(e) {
+                    e.preventDefault();
+                    const formEl = this;
+                    const formData = new FormData(formEl);
+                    formData.append('action', 'update');
+
+                    const submitBtn = formEl.querySelector('button[type="submit"]');
+                    const originalBtnText = submitBtn.innerHTML;
+                    const errorDiv = document.getElementById('editError');
+
+                    errorDiv.classList.add('d-none');
+                    submitBtn.disabled = true;
+                    submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Updating...';
+
+                    try {
+                        const response = await fetch('requisition.php', { method: 'POST', body: formData });
+                        const responseText = await response.text();
+                        const data = JSON.parse(responseText);
+
+                        if (data.success) {
+                            alert(data.message);
+                            bootstrapModal.hide();
+                            location.reload();
+                        } else {
+                            errorDiv.textContent = data.message;
+                            errorDiv.classList.remove('d-none');
+                            submitBtn.disabled = false;
+                            submitBtn.innerHTML = originalBtnText;
+                        }
+                    } catch (error) {
+                        console.error('Error:', error);
+                        errorDiv.textContent = 'An error occurred while updating the requisition.';
+                        errorDiv.classList.remove('d-none');
+                        submitBtn.disabled = false;
+                        submitBtn.innerHTML = originalBtnText;
+                    }
+                };
+
+                // Clean up modal on hide
+                modal.addEventListener('hidden.bs.modal', function() {
+                    editForm.onsubmit = null;
+                }, { once: true });
+
+            } catch (error) {
+                console.error('Error opening edit modal:', error);
+                alert('Failed to load requisition details: ' + error.message);
+            }
         };
 
         // Store selected files

@@ -87,6 +87,12 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
             font-size: 12px;
         }
 
+        .attendance-form-printout .company-title {
+            text-align: center;
+            font-weight: bold;
+            font-size: 12px;
+        }
+
         .attendance-form-printout .logo-cell {
             width: 120px;
             text-align: center;
@@ -134,6 +140,7 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
             font-size: 10px;
             font-weight: bold;
             margin-bottom: 4px;
+            color: red;
         }
 
         .attendance-form-printout .main-title {

@@ -64,6 +64,7 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY') && SUPABASE_URL !== 
     />
     <link rel="stylesheet" href="sidebar.css" />
     <link rel="stylesheet" href="dashboard.css" />
+    <link rel="stylesheet" href="https://cdn.datatables.net/1.13.7/css/dataTables.bootstrap5.min.css" />
     <link rel="icon" type="image/svg+xml" href="https://www.texolenergies.com/assets/Texol_icon-AiPT1Z13.png" />
 </head>
 <body class="dashboard-body">
@@ -160,7 +161,7 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY') && SUPABASE_URL !== 
                                 </div>
                                 <div class="card-body px-2 px-md-3 py-3">
                                     <div class="table-responsive">
-                                        <table class="table table-sm align-middle mb-0">
+                                        <table class="table table-sm align-middle mb-0" id="categoriesTable">
                                             <thead class="table-light">
                                                 <tr>
                                                     <th class="small text-uppercase text-muted">Name</th>
@@ -169,12 +170,7 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY') && SUPABASE_URL !== 
                                                     <th class="small text-uppercase text-muted text-end">Actions</th>
                                                 </tr>
                                             </thead>
-                                            <tbody id="categoriesTableBody">
-                                                <tr>
-                                                    <td colspan="4" class="text-center small text-muted py-3">
-                                                        Loading categories...
-                                                    </td>
-                                                </tr>
+                                            <tbody>
                                             </tbody>
                                         </table>
                                     </div>
@@ -242,9 +238,34 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY') && SUPABASE_URL !== 
         crossorigin="anonymous"
     ></script>
     <script src="app.js"></script>
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+    <script src="https://cdn.datatables.net/1.13.7/js/jquery.dataTables.min.js"></script>
+    <script src="https://cdn.datatables.net/1.13.7/js/dataTables.bootstrap5.min.js"></script>
 
     <script type="module">
         import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+
+        let categoriesTable;
+
+        // Initialize DataTables
+        $(document).ready(function() {
+            categoriesTable = $('#categoriesTable').DataTable({
+                pageLength: 10,
+                lengthMenu: [5, 10, 25, 50, 100],
+                order: [],
+                language: {
+                    search: '_INPUT_',
+                    searchPlaceholder: 'Search categories...'
+                },
+                columnDefs: [
+                    { orderable: false, targets: 3 }
+                ],
+                autoWidth: false
+            });
+
+            // Load categories after DataTables is initialized
+            loadCategories();
+        });
 
         const supabaseUrl = '<?php echo defined("SUPABASE_URL") ? SUPABASE_URL : ""; ?>';
         const supabaseKey = '<?php echo defined("SUPABASE_ANON_KEY") ? SUPABASE_ANON_KEY : ""; ?>';
@@ -255,7 +276,6 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY') && SUPABASE_URL !== 
         const resetBtn = document.getElementById('resetCategoryForm');
         const refreshBtn = document.getElementById('refreshCategoriesBtn');
         const alertBox = document.getElementById('categoryFormAlert');
-        const tableBody = document.getElementById('categoriesTableBody');
 
         function escapeHtml(value) {
             return (value || '')
@@ -280,11 +300,12 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY') && SUPABASE_URL !== 
         }
 
         async function loadCategories() {
-            if (!tableBody) return;
-            tableBody.innerHTML = `
-                <tr>
-                    <td colspan="4" class="text-center small text-muted py-3">Loading categories...</td>
-                </tr>`;
+            if (!categoriesTable) {
+                console.error('DataTables not initialized');
+                return;
+            }
+
+            categoriesTable.clear();
 
             try {
                 const { data, error } = await supabase
@@ -293,18 +314,13 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY') && SUPABASE_URL !== 
                     .order('created_at', { ascending: false });
 
                 if (error) {
-                    tableBody.innerHTML = `
-                        <tr>
-                            <td colspan="4" class="text-center small text-danger py-3">${escapeHtml(error.message || 'Failed to load categories.')}</td>
-                        </tr>`;
+                    categoriesTable.row.add(['-', '-', '-', '-']).draw();
+                    showAlert('danger', error.message || 'Failed to load categories.');
                     return;
                 }
 
                 if (!data || data.length === 0) {
-                    tableBody.innerHTML = `
-                        <tr>
-                            <td colspan="4" class="text-center small text-muted py-3">No categories found yet.</td>
-                        </tr>`;
+                    categoriesTable.row.add(['-', '-', '-', '-']).draw();
                     return;
                 }
 
@@ -320,33 +336,41 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY') && SUPABASE_URL !== 
                     });
                 }
 
-                tableBody.innerHTML = '';
-               data.forEach((cat) => {
-    const tr = document.createElement('tr');
-    const departmentName = cat.department_id && deptMap[cat.department_id] ? deptMap[cat.department_id] : '';
+                data.forEach((cat) => {
+                    const departmentName = cat.department_id && deptMap[cat.department_id] ? deptMap[cat.department_id] : '';
+                    const editButton = `<button class="btn btn-sm btn-outline-primary edit-cat-btn"
+                        data-id="${cat.id}"
+                        data-name="${escapeHtml(cat.name)}"
+                        data-description="${escapeHtml(cat.description)}"
+                        data-department-id="${cat.department_id || ''}">
+                        <i class="bi bi-pencil"></i>
+                    </button>`;
 
-    tr.innerHTML = `
-        <td class="small fw-semibold">${escapeHtml(cat.name)}</td>
-        <td class="small text-muted">${escapeHtml(cat.description)}</td>
-        <td class="small text-muted">${escapeHtml(departmentName)}</td>
-        <td class="text-end">
-            <button class="btn btn-sm btn-outline-primary edit-cat-btn"
-                data-id="${cat.id}"
-                data-name="${escapeHtml(cat.name)}"
-                data-description="${escapeHtml(cat.description)}"
-                data-department-id="${cat.department_id || ''}">
-                <i class="bi bi-pencil"></i>
-            </button>
-        </td>
-    `;
+                    categoriesTable.row.add([
+                        escapeHtml(cat.name),
+                        escapeHtml(cat.description),
+                        escapeHtml(departmentName),
+                        editButton
+                    ]);
+                });
 
-    tableBody.appendChild(tr);
-});
+                categoriesTable.draw();
+
+                // Re-attach event listeners to edit buttons
+                document.querySelectorAll('.edit-cat-btn').forEach(btn => {
+                    btn.addEventListener('click', function() {
+                        document.getElementById('editCategoryId').value = this.dataset.id;
+                        document.getElementById('editCategoryName').value = this.dataset.name;
+                        document.getElementById('editCategoryDescription').value = this.dataset.description;
+                        document.getElementById('editCategoryDepartment').value = this.dataset.departmentId || '';
+                        catModal.show();
+                    });
+                });
+
             } catch (err) {
-                tableBody.innerHTML = `
-                    <tr>
-                        <td colspan="4" class="text-center small text-danger py-3">Unexpected error loading categories.</td>
-                    </tr>`;
+                console.error('Error loading categories:', err);
+                categoriesTable.row.add(['-', '-', '-', '-']).draw();
+                showAlert('danger', 'Unexpected error loading categories.');
             }
         }
 
@@ -405,18 +429,6 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY') && SUPABASE_URL !== 
         }
 const catModal = new bootstrap.Modal(document.getElementById('editCategoryModal'));
 
-document.addEventListener('click', (e) => {
-    const btn = e.target.closest('.edit-cat-btn');
-    if (!btn) return;
-
-    document.getElementById('editCategoryId').value = btn.dataset.id;
-    document.getElementById('editCategoryName').value = btn.dataset.name;
-    document.getElementById('editCategoryDescription').value = btn.dataset.description;
-    document.getElementById('editCategoryDepartment').value = btn.dataset.departmentId || '';
-
-    catModal.show();
-});
-
 document.getElementById('updateCategoryBtn').addEventListener('click', async () => {
     const id = document.getElementById('editCategoryId').value;
 
@@ -471,7 +483,6 @@ document.getElementById('deleteCategoryBtn').addEventListener('click', async () 
     catModal.hide();
     loadCategories();
 });
-        loadCategories();
     </script>
 </body>
 </html>

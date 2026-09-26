@@ -134,6 +134,37 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY') && SUPABASE_URL !== 
     }
 }
 
+// Fetch priorities from database
+$priorities = [];
+if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY') && SUPABASE_URL !== '' && SUPABASE_ANON_KEY !== '') {
+    $supabaseUrl = rtrim(SUPABASE_URL, '/');
+    $supabaseKey = SUPABASE_ANON_KEY;
+
+    $query = http_build_query([
+        'select' => 'id,name',
+        'order' => 'name.asc'
+    ]);
+
+    $ch = curl_init();
+    curl_setopt_array($ch, [
+        CURLOPT_URL => $supabaseUrl . '/rest/v1/priorities?' . $query,
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_HTTPHEADER => [
+            'apikey: ' . $supabaseKey,
+            'Authorization: Bearer ' . $supabaseKey,
+            'Accept' => 'application/json',
+        ],
+    ]);
+
+    $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+
+    if ($httpCode === 200 && $response) {
+        $priorities = json_decode($response, true) ?: [];
+    }
+}
+
 // Fetch categories from database
 $categories = [];
 if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY') && SUPABASE_URL !== '' && SUPABASE_ANON_KEY !== '') {
@@ -614,50 +645,15 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY') && SUPABASE_URL !== 
                                         </div>
 
                                         <div class="col-12 col-md-6">
-                                            <label class="form-label small fw-semibold" for="ticketStatus">
-                                                Status
-                                            </label>
-                                            <select class="form-select form-select-sm" id="ticketStatus">
-                                                <option value="Open">Open</option>
-                                                <option value="Pending">Pending</option>
-                                                <option value="In Progress">In Progress</option>
-                                                <option value="Resolved">Resolved</option>
-                                                <option value="Closed">Closed</option>
-                                            </select>
-                                        </div>
-
-                                        <div class="col-12 col-md-6">
-                                            <label class="form-label small fw-semibold" for="ticketUrgency">
-                                                Urgency
-                                            </label>
-                                            <select class="form-select form-select-sm" id="ticketUrgency">
-                                                <option value="low">Low</option>
-                                                <option value="medium">Medium</option>
-                                                <option value="high">High</option>
-                                                <option value="urgent">Urgent</option>
-                                            </select>
-                                        </div>
-
-                                        <div class="col-12 col-md-6">
-                                            <label class="form-label small fw-semibold" for="ticketImpact">
-                                                Impact
-                                            </label>
-                                            <select class="form-select form-select-sm" id="ticketImpact">
-                                                <option value="low">Low</option>
-                                                <option value="medium">Medium</option>
-                                                <option value="high">High</option>
-                                            </select>
-                                        </div>
-
-                                        <div class="col-12 col-md-6">
                                             <label class="form-label small fw-semibold" for="ticketPriority">
                                                 Priority
                                             </label>
                                             <select class="form-select form-select-sm" id="ticketPriority">
-                                                <option value="low">Low</option>
-                                                <option value="medium">Medium</option>
-                                                <option value="high">High</option>
-                                                <option value="urgent">Urgent</option>
+                                                <?php foreach ($priorities as $priority): ?>
+                                                    <option value="<?php echo htmlspecialchars($priority['name']); ?>">
+                                                        <?php echo htmlspecialchars($priority['name']); ?>
+                                                    </option>
+                                                <?php endforeach; ?>
                                             </select>
                                         </div>
 
@@ -677,11 +673,17 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY') && SUPABASE_URL !== 
 
                                         <div class="col-12 col-md-6">
                                             <label class="form-label small fw-semibold" for="ticketTechnician">
-                                                Assign Technician
+                                                Assign Technicians
                                             </label>
-                                            <select class="form-select form-select-sm" id="ticketTechnician">
-                                                <option value="">Select technician</option>
-                                            </select>
+                                            <small class="text-muted d-block mb-1">Search and select technicians to assign</small>
+                                            <div class="position-relative">
+                                                <input type="text" class="form-control form-control-sm" id="ticketTechnician"
+                                                    placeholder="Search technicians..." autocomplete="off">
+                                                <div id="technicianDropdown" class="dropdown-menu w-100"
+                                                    style="position:absolute;z-index:1000;max-height:200px;overflow-y:auto;">
+                                                </div>
+                                            </div>
+                                            <div id="selectedTechnicians" class="mt-1"></div>
                                         </div>
 
                   <div class="col-12">
@@ -924,10 +926,11 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY') && SUPABASE_URL !== 
                                     <div class="col-6 col-lg-2">
                                         <select class="form-select form-select-sm" id="adminFilterPriority">
                                             <option value="">All Priorities</option>
-                                            <option value="Low">Low</option>
-                                            <option value="Medium">Medium</option>
-                                            <option value="High">High</option>
-                                            <option value="Critical">Critical</option>
+                                            <?php foreach ($priorities as $priority): ?>
+                                                <option value="<?php echo htmlspecialchars($priority['name']); ?>">
+                                                    <?php echo htmlspecialchars($priority['name']); ?>
+                                                </option>
+                                            <?php endforeach; ?>
                                         </select>
                                     </div>
                                     <div class="col-6 col-lg-2">
@@ -952,8 +955,8 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY') && SUPABASE_URL !== 
                                                 <th class="small text-uppercase text-muted">Ticket ID</th>
                                                 <th class="small text-uppercase text-muted">Title</th>
                                                 <th class="small text-uppercase text-muted">Requester</th>
-                                                <th class="small text-uppercase text-muted">Dept</th>
-                                                <th class="small text-uppercase text-muted">Branch</th>
+                                                <th class="small text-uppercase text-muted">Dept To</th>
+                                                <th class="small text-uppercase text-muted">Branch From</th>
                                                 <th class="small text-uppercase text-muted">Category</th>
                                                 <th class="small text-uppercase text-muted">Priority</th>
                                                 <th class="small text-uppercase text-muted">Assigned To</th>
@@ -1066,25 +1069,6 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY') && SUPABASE_URL !== 
                         </div>
 
                         <div class="col-12 col-md-3">
-                            <label class="form-label small fw-semibold" for="editTicketUrgency">Urgency</label>
-                            <select class="form-select form-select-sm" id="editTicketUrgency">
-                                <option value="low">Low</option>
-                                <option value="medium">Medium</option>
-                                <option value="high">High</option>
-                                <option value="urgent">Urgent</option>
-                            </select>
-                        </div>
-
-                        <div class="col-12 col-md-3">
-                            <label class="form-label small fw-semibold" for="editTicketImpact">Impact</label>
-                            <select class="form-select form-select-sm" id="editTicketImpact">
-                                <option value="low">Low</option>
-                                <option value="medium">Medium</option>
-                                <option value="high">High</option>
-                            </select>
-                        </div>
-
-                        <div class="col-12 col-md-3">
                             <label class="form-label small fw-semibold" for="editTicketBranch">Branch</label>
                             <select class="form-select form-select-sm" id="editTicketBranch">
                                 <option value="">Select branch</option>
@@ -1099,10 +1083,11 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY') && SUPABASE_URL !== 
                         <div class="col-12 col-md-3">
                             <label class="form-label small fw-semibold" for="editTicketPriority">Priority</label>
                             <select class="form-select form-select-sm" id="editTicketPriority" required>
-                                <option value="low">Low</option>
-                                <option value="medium">Medium</option>
-                                <option value="high">High</option>
-                                <option value="urgent">Urgent</option>
+                                <?php foreach ($priorities as $priority): ?>
+                                    <option value="<?php echo htmlspecialchars($priority['name']); ?>">
+                                        <?php echo htmlspecialchars($priority['name']); ?>
+                                    </option>
+                                <?php endforeach; ?>
                             </select>
                         </div>
 
@@ -1362,6 +1347,84 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY') && SUPABASE_URL !== 
         const adminFilterAssignment = document.getElementById('adminFilterAssignment');
         const clearAdminFiltersBtn = document.getElementById('clearAdminFiltersBtn');
         let adminAllTicketsData = [];
+
+        // Technician selection variables
+        let selectedTechnicians = [];
+        const technicianInput = document.getElementById('ticketTechnician');
+        const technicianDropdown = document.getElementById('technicianDropdown');
+        const selectedTechniciansDiv = document.getElementById('selectedTechnicians');
+
+        function renderSelectedTechnicians() {
+            if (!selectedTechniciansDiv) return;
+            selectedTechniciansDiv.innerHTML = selectedTechnicians.map((tech, index) => 
+                `<span class="badge bg-primary me-1 mb-1">${escapeHtml(tech.full_name || tech.email)} <button type="button" class="btn-close btn-close-white ms-1" data-tech-id="${escapeHtml(tech.id || tech.email)}"></button></span>`
+            ).join('');
+            selectedTechniciansDiv.querySelectorAll('.btn-close').forEach(button => button.addEventListener('click', () => {
+                const techId = button.dataset.techId;
+                selectedTechnicians = selectedTechnicians.filter(tech => (tech.id || tech.email) !== techId);
+                renderSelectedTechnicians();
+            }));
+        }
+
+        // Technician search functionality
+        if (technicianInput && technicianDropdown) {
+            technicianInput.addEventListener('input', () => {
+                const term = technicianInput.value.trim().toLowerCase();
+                technicianDropdown.innerHTML = '';
+                if (term.length < 2) {
+                    technicianDropdown.classList.remove('show');
+                    return;
+                }
+                
+                const filteredTechnicians = (technicians || []).filter(tech => 
+                    !selectedTechnicians.some(selected => (selected.id || selected.email) === (tech.id || tech.email)) &&
+                    `${tech.full_name || ''} ${tech.email || ''}`.toLowerCase().includes(term)
+                );
+                
+                filteredTechnicians.forEach(tech => {
+                    const option = document.createElement('button');
+                    option.type = 'button';
+                    option.className = 'dropdown-item';
+                    option.textContent = `${tech.full_name || tech.email} (${tech.email})`;
+                    option.addEventListener('click', () => {
+                        selectedTechnicians.push(tech);
+                        technicianInput.value = '';
+                        technicianDropdown.classList.remove('show');
+                        renderSelectedTechnicians();
+                    });
+                    technicianDropdown.appendChild(option);
+                });
+                
+                technicianDropdown.classList.toggle('show', filteredTechnicians.length > 0);
+            });
+
+            // Close dropdown when clicking outside
+            document.addEventListener('click', (e) => {
+                if (technicianDropdown && !technicianDropdown.contains(e.target) && e.target !== technicianInput) {
+                    technicianDropdown.classList.remove('show');
+                }
+            });
+        }
+
+        // Load all users for technician search (similar to share with functionality)
+        async function loadAllUsers() {
+            try {
+                const { data, error } = await supabase
+                    .from('users')
+                    .select('id, email, full_name, role, status')
+                    .eq('status', 'active')
+                    .order('full_name', { ascending: true });
+                
+                if (!error && data) {
+                    technicians = data || [];
+                }
+            } catch (err) {
+                console.error('Error loading users:', err);
+            }
+        }
+
+        // Load users on page load
+        loadAllUsers();
 
         // Track technicians (users who can be assigned)
         let technicians = [];
@@ -1758,8 +1821,6 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY') && SUPABASE_URL !== 
             editTicketCategory.value = ticket.category || '';
             editTicketBranch.value = ticket.branch || '';
             editTicketStatus.value = ticket.status || 'Open';
-            editTicketUrgency.value = ticket.urgency || 'medium';
-            editTicketImpact.value = ticket.impact || 'medium';
             editTicketPriority.value = ticket.priority || 'medium';
 
             // Handle datetime fields
@@ -3092,9 +3153,8 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY') && SUPABASE_URL !== 
             try {
                 const { data, error } = await supabase
                     .from('users')
-                    .select('email, full_name, role, status')
+                    .select('id, email, full_name, role, status')
                     .eq('status', 'active')
-                    .eq('department', 'ICT Department')
                     .order('full_name', { ascending: true });
 
                 if (error) {
@@ -3104,18 +3164,6 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY') && SUPABASE_URL !== 
                 }
 
                 technicians = data || [];
-
-                // Populate ticket creation technician dropdown
-                const ticketTechnicianSelect = document.getElementById('ticketTechnician');
-                if (ticketTechnicianSelect) {
-                    ticketTechnicianSelect.innerHTML = '<option value="">Select technician</option>';
-                    technicians.forEach(tech => {
-                        const option = document.createElement('option');
-                        option.value = tech.email;
-                        option.textContent = tech.full_name || tech.email;
-                        ticketTechnicianSelect.appendChild(option);
-                    });
-                }
             } catch (err) {
                 console.error(err);
                 showAdminTicketsAlert('danger', 'Unexpected error loading technicians.');
@@ -3461,14 +3509,16 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY') && SUPABASE_URL !== 
                 const department = document.getElementById('ticketDepartment').value;
                 const category = document.getElementById('ticketCategory').value;
                 const branch = document.getElementById('ticketBranch').value;
-                const status = document.getElementById('ticketStatus').value;
-                const urgency = document.getElementById('ticketUrgency').value;
-                const impact = document.getElementById('ticketImpact').value;
                 const priority = document.getElementById('ticketPriority').value;
                 const plannedStartDate = document.getElementById('ticketPlannedStartDate').value;
                 const plannedEndDate = document.getElementById('ticketPlannedEndDate').value;
                 const ccEmails = document.getElementById('ticketCcEmails')?.value || '';
-                const technicianEmail = document.getElementById('ticketTechnician')?.value || '';
+                const technicianEmails = selectedTechnicians.map(t => t.email || t.id).filter(Boolean);
+
+                // Set default values
+                const status = 'Open';
+                const urgency = 'low';
+                const impact = 'low';
 
                 // Handle attachments
                 const attachmentInput = document.getElementById('ticketAttachments');
@@ -3550,34 +3600,36 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY') && SUPABASE_URL !== 
                         return;
                     }
 
-                    // Insert into ticket_assignees if technician is selected
-                    console.log('Technician email:', technicianEmail);
+                    // Insert into ticket_assignees if technicians are selected
+                    console.log('Technician emails:', technicianEmails);
                     console.log('Ticket data:', data);
-                    if (technicianEmail && data && data.length > 0) {
+                    if (technicianEmails.length > 0 && data && data.length > 0) {
                         const ticketId = data[0].id;
-                        console.log('Inserting into ticket_assignees with ticket_id:', ticketId, 'technician_email:', technicianEmail);
+                        console.log('Inserting into ticket_assignees with ticket_id:', ticketId, 'technician_emails:', technicianEmails);
                         try {
+                            const assigneeInserts = technicianEmails.map((email, index) => ({
+                                ticket_id: ticketId,
+                                technician_email: email,
+                                assigned_at: new Date().toISOString(),
+                                assigned_by: currentUserId || null,
+                                is_primary: index === 0 // First technician is primary
+                            }));
+
                             const { error: assigneeError } = await supabase
                                 .from('ticket_assignees')
-                                .insert([{
-                                    ticket_id: ticketId,
-                                    technician_email: technicianEmail,
-                                    assigned_at: new Date().toISOString(),
-                                    assigned_by: currentUserId || null,
-                                    is_primary: true
-                                }]);
+                                .insert(assigneeInserts);
 
                             if (assigneeError) {
-                                console.error('Error assigning technician:', assigneeError);
+                                console.error('Error assigning technicians:', assigneeError);
                                 // Don't fail the ticket creation, just log the error
                             } else {
-                                console.log('Successfully assigned technician to ticket');
+                                console.log('Successfully assigned technicians to ticket');
                             }
                         } catch (assigneeErr) {
-                            console.error('Error assigning technician:', assigneeErr);
+                            console.error('Error assigning technicians:', assigneeErr);
                         }
                     } else {
-                        console.log('Skipping technician assignment - technicianEmail:', technicianEmail, 'data:', data);
+                        console.log('Skipping technician assignment - technicianEmails:', technicianEmails, 'data:', data);
                     }
 
                     showTicketAlert('success', 'Ticket created successfully.');
@@ -3725,8 +3777,6 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY') && SUPABASE_URL !== 
                 const category = editTicketCategory?.value;
                 const branch = editTicketBranch?.value;
                 const status = editTicketStatus?.value;
-                const urgency = editTicketUrgency?.value;
-                const impact = editTicketImpact?.value;
                 const priority = editTicketPriority?.value;
                 const plannedStartDateLocal = editTicketPlannedStartDate?.value || '';
                 const plannedStartDateIso = plannedStartDateLocal ? new Date(plannedStartDateLocal).toISOString() : null;
@@ -3734,6 +3784,10 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY') && SUPABASE_URL !== 
                 const plannedEndDateIso = plannedEndDateLocal ? new Date(plannedEndDateLocal).toISOString() : null;
                 const dueDateLocal = editTicketDueDate?.value || '';
                 const dueDateIso = dueDateLocal ? new Date(dueDateLocal).toISOString() : null;
+
+                // Set default values for urgency and impact
+                const urgency = 'low';
+                const impact = 'low';
 
                 if (!id || !title || !requester || !source || !description || !department) {
                     showEditAlert('warning', 'Please fill in all required fields.');

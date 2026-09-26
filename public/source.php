@@ -33,6 +33,7 @@ if (!check_permission('source', 'view')) {
     />
     <link rel="stylesheet" href="sidebar.css" />
     <link rel="stylesheet" href="dashboard.css" />
+    <link rel="stylesheet" href="https://cdn.datatables.net/1.13.7/css/dataTables.bootstrap5.min.css" />
     <link rel="icon" type="image/svg+xml" href="https://www.texolenergies.com/assets/Texol_icon-AiPT1Z13.png" />
 </head>
 <body class="dashboard-body">
@@ -117,7 +118,7 @@ if (!check_permission('source', 'view')) {
                                 </div>
                                 <div class="card-body px-2 px-md-3 py-3">
                                     <div class="table-responsive">
-                                        <table class="table table-sm align-middle mb-0">
+                                        <table class="table table-sm align-middle mb-0" id="sourcesTable">
                                             <thead class="table-light">
                                                 <tr>
                                                     <th class="small text-uppercase text-muted">Name</th>
@@ -125,12 +126,7 @@ if (!check_permission('source', 'view')) {
                                                     <th class="small text-uppercase text-muted text-end">Actions</th>
                                                 </tr>
                                             </thead>
-                                            <tbody id="sourcesTableBody">
-                                                <tr>
-                                                    <td colspan="3" class="text-center small text-muted py-3">
-                                                        Loading sources...
-                                                    </td>
-                                                </tr>
+                                            <tbody>
                                             </tbody>
                                         </table>
                                     </div>
@@ -186,9 +182,34 @@ if (!check_permission('source', 'view')) {
         crossorigin="anonymous"
     ></script>
     <script src="app.js"></script>
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+    <script src="https://cdn.datatables.net/1.13.7/js/jquery.dataTables.min.js"></script>
+    <script src="https://cdn.datatables.net/1.13.7/js/dataTables.bootstrap5.min.js"></script>
 
     <script type="module">
         import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+
+        let sourcesTable;
+
+        // Initialize DataTables
+        $(document).ready(function() {
+            sourcesTable = $('#sourcesTable').DataTable({
+                pageLength: 10,
+                lengthMenu: [5, 10, 25, 50, 100],
+                order: [],
+                language: {
+                    search: '_INPUT_',
+                    searchPlaceholder: 'Search sources...'
+                },
+                columnDefs: [
+                    { orderable: false, targets: 2 }
+                ],
+                autoWidth: false
+            });
+
+            // Load sources after DataTables is initialized
+            loadSources();
+        });
 
         const supabaseUrl = '<?php echo defined("SUPABASE_URL") ? SUPABASE_URL : ""; ?>';
         const supabaseKey = '<?php echo defined("SUPABASE_ANON_KEY") ? SUPABASE_ANON_KEY : ""; ?>';
@@ -199,7 +220,6 @@ if (!check_permission('source', 'view')) {
         const resetBtn = document.getElementById('resetSourceForm');
         const refreshBtn = document.getElementById('refreshSourcesBtn');
         const alertBox = document.getElementById('sourceFormAlert');
-        const tableBody = document.getElementById('sourcesTableBody');
 
         function escapeHtml(value) {
             return (value || '')
@@ -224,11 +244,12 @@ if (!check_permission('source', 'view')) {
         }
 
         async function loadSources() {
-            if (!tableBody) return;
-            tableBody.innerHTML = `
-                <tr>
-                    <td colspan="3" class="text-center small text-muted py-3">Loading sources...</td>
-                </tr>`;
+            if (!sourcesTable) {
+                console.error('DataTables not initialized');
+                return;
+            }
+
+            sourcesTable.clear();
 
             try {
                 const { data, error } = await supabase
@@ -237,45 +258,47 @@ if (!check_permission('source', 'view')) {
                     .order('created_at', { ascending: false });
 
                 if (error) {
-                    tableBody.innerHTML = `
-                        <tr>
-                            <td colspan="3" class="text-center small text-danger py-3">${escapeHtml(error.message || 'Failed to load sources.')}</td>
-                        </tr>`;
+                    sourcesTable.row.add(['-', '-', '-']).draw();
+                    showAlert('danger', error.message || 'Failed to load sources.');
                     return;
                 }
 
                 if (!data || data.length === 0) {
-                    tableBody.innerHTML = `
-                        <tr>
-                            <td colspan="3" class="text-center small text-muted py-3">No sources found yet.</td>
-                        </tr>`;
+                    sourcesTable.row.add(['-', '-', '-']).draw();
                     return;
                 }
 
-                tableBody.innerHTML = '';
-               data.forEach((source) => {
-    const tr = document.createElement('tr');
+                data.forEach((source) => {
+                    const editButton = `<button class="btn btn-sm btn-outline-primary edit-source-btn"
+                        data-id="${source.id}"
+                        data-name="${escapeHtml(source.name)}"
+                        data-description="${escapeHtml(source.description)}">
+                        <i class="bi bi-pencil"></i>
+                    </button>`;
 
-    tr.innerHTML = `
-        <td class="small fw-semibold">${escapeHtml(source.name)}</td>
-        <td class="small text-muted">${escapeHtml(source.description)}</td>
-        <td class="text-end">
-            <button class="btn btn-sm btn-outline-primary edit-source-btn"
-                data-id="${source.id}"
-                data-name="${escapeHtml(source.name)}"
-                data-description="${escapeHtml(source.description)}">
-                <i class="bi bi-pencil"></i>
-            </button>
-        </td>
-    `;
+                    sourcesTable.row.add([
+                        escapeHtml(source.name),
+                        escapeHtml(source.description),
+                        editButton
+                    ]);
+                });
 
-    tableBody.appendChild(tr);
-});
+                sourcesTable.draw();
+
+                // Re-attach event listeners to edit buttons
+                document.querySelectorAll('.edit-source-btn').forEach(btn => {
+                    btn.addEventListener('click', function() {
+                        document.getElementById('editSourceId').value = this.dataset.id;
+                        document.getElementById('editSourceName').value = this.dataset.name;
+                        document.getElementById('editSourceDescription').value = this.dataset.description;
+                        sourceModal.show();
+                    });
+                });
+
             } catch (err) {
-                tableBody.innerHTML = `
-                    <tr>
-                        <td colspan="3" class="text-center small text-danger py-3">Unexpected error loading sources.</td>
-                    </tr>`;
+                console.error('Error loading sources:', err);
+                sourcesTable.row.add(['-', '-', '-']).draw();
+                showAlert('danger', 'Unexpected error loading sources.');
             }
         }
 
@@ -332,17 +355,6 @@ if (!check_permission('source', 'view')) {
         }
 const sourceModal = new bootstrap.Modal(document.getElementById('editSourceModal'));
 
-document.addEventListener('click', (e) => {
-    const btn = e.target.closest('.edit-source-btn');
-    if (!btn) return;
-
-    document.getElementById('editSourceId').value = btn.dataset.id;
-    document.getElementById('editSourceName').value = btn.dataset.name;
-    document.getElementById('editSourceDescription').value = btn.dataset.description;
-
-    sourceModal.show();
-});
-
 document.getElementById('updateSourceBtn').addEventListener('click', async () => {
     const id = document.getElementById('editSourceId').value;
 
@@ -396,7 +408,6 @@ document.getElementById('deleteSourceBtn').addEventListener('click', async () =>
     sourceModal.hide();
     loadSources();
 });
-        loadSources();
     </script>
 </body>
 </html>

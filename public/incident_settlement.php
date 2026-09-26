@@ -161,6 +161,7 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
             font-size: 11px;
             font-weight: bold;
             margin-bottom: 4px;
+            color: red;
         }
 
         .settlement-printout .doc-heading {

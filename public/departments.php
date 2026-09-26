@@ -28,6 +28,7 @@ if (! isset($_SESSION['user_email'])) {
     />
     <link rel="stylesheet" href="sidebar.css" />
     <link rel="stylesheet" href="dashboard.css" />
+    <link rel="stylesheet" href="https://cdn.datatables.net/1.13.7/css/dataTables.bootstrap5.min.css" />
     <link rel="icon" type="image/svg+xml" href="https://www.texolenergies.com/assets/Texol_icon-AiPT1Z13.png" />
 </head>
 <body class="dashboard-body">
@@ -124,7 +125,7 @@ if (! isset($_SESSION['user_email'])) {
                                 </div>
                                 <div class="card-body px-2 px-md-3 py-3">
                                     <div class="table-responsive">
-                                        <table class="table table-sm align-middle mb-0">
+                                        <table class="table table-sm align-middle mb-0" id="departmentsTable">
                                             <thead class="table-light">
                                                 <tr>
                                                     <th class="small text-uppercase text-muted">Name</th>
@@ -134,12 +135,7 @@ if (! isset($_SESSION['user_email'])) {
                                               <th class="small text-uppercase text-muted text-end">Actions</th>
                                                 </tr>
                                             </thead>
-                                            <tbody id="departmentsTableBody">
-                                                <tr>
-                                                    <td colspan="4" class="text-center small text-muted py-3">
-                                                        Loading departments...
-                                                    </td>
-                                                </tr>
+                                            <tbody>
                                             </tbody>
                                         </table>
                                     </div>
@@ -204,9 +200,34 @@ if (! isset($_SESSION['user_email'])) {
         crossorigin="anonymous"
     ></script>
     <script src="app.js"></script>
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+    <script src="https://cdn.datatables.net/1.13.7/js/jquery.dataTables.min.js"></script>
+    <script src="https://cdn.datatables.net/1.13.7/js/dataTables.bootstrap5.min.js"></script>
 
     <script type="module">
         import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+
+        let departmentsTable;
+
+        // Initialize DataTables
+        $(document).ready(function() {
+            departmentsTable = $('#departmentsTable').DataTable({
+                pageLength: 10,
+                lengthMenu: [5, 10, 25, 50, 100],
+                order: [],
+                language: {
+                    search: '_INPUT_',
+                    searchPlaceholder: 'Search departments...'
+                },
+                columnDefs: [
+                    { orderable: false, targets: 4 }
+                ],
+                autoWidth: false
+            });
+
+            // Load departments after DataTables is initialized
+            loadDepartments();
+        });
 
         const supabaseUrl = '<?php echo defined("SUPABASE_URL") ? SUPABASE_URL : ""; ?>';
         const supabaseKey = '<?php echo defined("SUPABASE_ANON_KEY") ? SUPABASE_ANON_KEY : ""; ?>';
@@ -217,7 +238,6 @@ if (! isset($_SESSION['user_email'])) {
         const resetBtn = document.getElementById('resetDepartmentForm');
         const refreshBtn = document.getElementById('refreshDepartmentsBtn');
         const alertBox = document.getElementById('departmentFormAlert');
-        const tableBody = document.getElementById('departmentsTableBody');
 
 
         async function loadUsers() {
@@ -282,11 +302,12 @@ loadUsers();
         }
 
         async function loadDepartments() {
-            if (!tableBody) return;
-            tableBody.innerHTML = `
-                <tr>
-                    <td colspan="4" class="text-center small text-muted py-3">Loading departments...</td>
-                </tr>`;
+            if (!departmentsTable) {
+                console.error('DataTables not initialized');
+                return;
+            }
+
+            departmentsTable.clear();
 
             try {
                 const { data, error } = await supabase
@@ -295,49 +316,53 @@ loadUsers();
                     .order('created_at', { ascending: false });
 
                 if (error) {
-                    tableBody.innerHTML = `
-                        <tr>
-                            <td colspan="4" class="text-center small text-danger py-3">${escapeHtml(error.message || 'Failed to load departments.')}</td>
-                        </tr>`;
+                    departmentsTable.row.add(['-', '-', '-', '-', '-']).draw();
+                    showAlert('danger', error.message || 'Failed to load departments.');
                     return;
                 }
 
                 if (!data || data.length === 0) {
-                    tableBody.innerHTML = `
-                        <tr>
-                            <td colspan="4" class="text-center small text-muted py-3">No departments found yet.</td>
-                        </tr>`;
+                    departmentsTable.row.add(['-', '-', '-', '-', '-']).draw();
                     return;
                 }
 
-                tableBody.innerHTML = '';
-               data.forEach((dept) => {
-    const tr = document.createElement('tr');
+                data.forEach((dept) => {
+                    const editButton = `<button class="btn btn-sm btn-outline-primary edit-dept-btn"
+                        data-id="${dept.id}"
+                        data-name="${escapeHtml(dept.name)}"
+                        data-description="${escapeHtml(dept.description)}"
+                        data-head="${escapeHtml(dept.department_head)}"
+                        data-prime="${escapeHtml(dept.prime_user)}">
+                        <i class="bi bi-pencil"></i>
+                    </button>`;
 
-    tr.innerHTML = `
-        <td class="small fw-semibold">${escapeHtml(dept.name)}</td>
-        <td class="small text-muted">${escapeHtml(dept.description)}</td>
-        <td class="small">${escapeHtml(dept.department_head)}</td>
-        <td class="small">${escapeHtml(dept.prime_user)}</td>
-        <td class="text-end">
-            <button class="btn btn-sm btn-outline-primary edit-dept-btn"
-                data-id="${dept.id}"
-                data-name="${escapeHtml(dept.name)}"
-                data-description="${escapeHtml(dept.description)}"
-                data-head="${escapeHtml(dept.department_head)}"
-                data-prime="${escapeHtml(dept.prime_user)}">
-                <i class="bi bi-pencil"></i>
-            </button>
-        </td>
-    `;
+                    departmentsTable.row.add([
+                        escapeHtml(dept.name),
+                        escapeHtml(dept.description),
+                        escapeHtml(dept.department_head),
+                        escapeHtml(dept.prime_user),
+                        editButton
+                    ]);
+                });
 
-    tableBody.appendChild(tr);
-});
+                departmentsTable.draw();
+
+                // Re-attach event listeners to edit buttons
+                document.querySelectorAll('.edit-dept-btn').forEach(btn => {
+                    btn.addEventListener('click', function() {
+                        document.getElementById('editDepartmentId').value = this.dataset.id;
+                        document.getElementById('editDepartmentName').value = this.dataset.name;
+                        document.getElementById('editDepartmentDescription').value = this.dataset.description;
+                        document.getElementById('editDepartmentHead').value = this.dataset.head;
+                        document.getElementById('editPrimeUser').value = this.dataset.prime;
+                        deptModal.show();
+                    });
+                });
+
             } catch (err) {
-                tableBody.innerHTML = `
-                    <tr>
-                        <td colspan="4" class="text-center small text-danger py-3">Unexpected error loading departments.</td>
-                    </tr>`;
+                console.error('Error loading departments:', err);
+                departmentsTable.row.add(['-', '-', '-', '-', '-']).draw();
+                showAlert('danger', 'Unexpected error loading departments.');
             }
         }
 
@@ -398,19 +423,6 @@ loadUsers();
         }
 const deptModal = new bootstrap.Modal(document.getElementById('editDepartmentModal'));
 
-document.addEventListener('click', (e) => {
-    const btn = e.target.closest('.edit-dept-btn');
-    if (!btn) return;
-
-    document.getElementById('editDepartmentId').value = btn.dataset.id;
-    document.getElementById('editDepartmentName').value = btn.dataset.name;
-    document.getElementById('editDepartmentDescription').value = btn.dataset.description;
-    document.getElementById('editDepartmentHead').value = btn.dataset.head;
-    document.getElementById('editPrimeUser').value = btn.dataset.prime;
-
-    deptModal.show();
-});
-
 document.getElementById('updateDepartmentBtn').addEventListener('click', async () => {
     const id = document.getElementById('editDepartmentId').value;
 
@@ -466,7 +478,6 @@ document.getElementById('deleteDepartmentBtn').addEventListener('click', async (
     deptModal.hide();
     loadDepartments();
 });
-        loadDepartments();
     </script>
 </body>
 </html>

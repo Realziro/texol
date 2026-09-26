@@ -725,18 +725,36 @@ $activeMenu = 'customer_feedback';
                             <td>${feedback.station}</td>
                             <td>${feedback.feedback_details.substring(0, 50)}${feedback.feedback_details.length > 50 ? '...' : ''}</td>
                             <td>${feedback.status === 'resolved' ? '<span class="badge bg-success">Resolved</span>' : '<span class="badge bg-warning">New</span>'}</td>
-                            <td>
-                                ${canEdit ? `
-                                <button class="btn btn-sm btn-outline-primary me-1" onclick="editFeedback(${feedback.id})">
-                                    <i class="bi bi-pencil"></i>
-                                </button>
-                                ` : ''}
-                                <button class="btn btn-sm btn-outline-danger me-1" onclick="deleteFeedback(${feedback.id})">
-                                    <i class="bi bi-trash"></i>
-                                </button>
-                                <button class="btn btn-sm btn-outline-secondary" onclick="printFeedback(${feedback.id})">
-                                    <i class="bi bi-printer"></i>
-                                </button>
+                            <td class="text-end">
+                                <div class="dropdown">
+                                    <button class="btn btn-sm btn-outline-secondary" type="button"
+                                        data-bs-toggle="dropdown" aria-expanded="false"
+                                        title="Form actions" aria-label="Form actions">
+                                        <i class="bi bi-three-dots-vertical"></i>
+                                    </button>
+                                    <ul class="dropdown-menu dropdown-menu-end">
+                                        ${canEdit ? `
+                                        <li>
+                                            <button class="dropdown-item" type="button"
+                                                onclick="editFeedback(${feedback.id})">
+                                                <i class="bi bi-pencil me-2"></i>Edit
+                                            </button>
+                                        </li>
+                                        ` : ''}
+                                        <li>
+                                            <button class="dropdown-item" type="button"
+                                                onclick="printFeedback(${feedback.id})">
+                                                <i class="bi bi-printer me-2"></i>Print
+                                            </button>
+                                        </li>
+                                        <li>
+                                            <button class="dropdown-item text-danger" type="button"
+                                                onclick="deleteFeedback(${feedback.id})">
+                                                <i class="bi bi-trash me-2"></i>Delete
+                                            </button>
+                                        </li>
+                                    </ul>
+                                </div>
                             </td>
                         </tr>
                     `;
@@ -1118,7 +1136,7 @@ $activeMenu = 'customer_feedback';
                                 </table>
 
                                 <div style="display:flex; justify-content:center; align-items:center; margin-bottom:12px; position:relative;">
-                                    <div style="position:absolute; left:0; font-weight:bold; font-size:9pt;">CFID: ${data.cfid || 'N/A'}</div>
+                                    <div style="position:absolute; left:0; font-weight:bold; color:red; font-size:9pt;">CFID: ${data.cfid || 'N/A'}</div>
                                     <h1 class="form-title" style="margin:0;">Customer Feedback Form</h1>
                                 </div>
 

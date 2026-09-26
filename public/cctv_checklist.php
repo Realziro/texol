@@ -166,12 +166,6 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
             padding: 8mm 10mm 6mm;
         }
 
-        .cctv-printout .checklist-id-label {
-            font-size: 11px;
-            font-weight: bold;
-            margin-bottom: 4px;
-        }
-
         .cctv-printout .doc-heading {
             text-align: center;
             font-weight: bold;
@@ -346,7 +340,6 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
                                 <table class="table table-sm table-hover align-middle cctv-table" id="cctvTable">
                                     <thead>
                                         <tr>
-                                            <th>Checklist ID</th>
                                             <th>Date</th>
                                             <th>Stations</th>
                                             <th>Total Cameras</th>
@@ -361,14 +354,12 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
                                                     <td>-</td>
                                                     <td>-</td>
                                                     <td>-</td>
-                                                    <td>-</td>
                                                     <td><span class="badge bg-secondary">-</span></td>
                                                     <td class="text-end">-</td>
                                                 </tr>
                                             <?php else:
                                                 foreach ($checklists as $checklist): ?>
                                                     <tr>
-                                                        <td><small><?php echo htmlspecialchars($checklist['checklist_id'] ?? '-'); ?></small></td>
                                                  <td><?php echo htmlspecialchars(!empty($checklist['checklist_date']) ? date('d-m-Y', strtotime($checklist['checklist_date'])) : '-'); ?>
 </td>
                                                         <td><?php echo htmlspecialchars($checklist['station_count'] ?? '-'); ?>
@@ -523,13 +514,13 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
             $('#cctvTable').DataTable({
                 pageLength: 10,
                 lengthMenu: [5, 10, 25, 50, 100],
-                order: [[1, 'desc']], // Sort by Date column (index 1)
+                order: [[0, 'desc']], // Sort by Date column (index 0)
                 language: {
                     search: '_INPUT_',
                     searchPlaceholder: 'Search checklists...'
                 },
                 columnDefs: [
-                    { orderable: false, targets: 6 } // Disable sorting on Actions column (index 6)
+                    { orderable: false, targets: 5 } // Disable sorting on Actions column (index 5)
                 ],
                 autoWidth: false
             });
@@ -912,7 +903,6 @@ document.getElementById('saveCctvBtn').addEventListener('click', async function(
   </table>
 
   <div class="content">
-    <div class="checklist-id-label">Checklist ID: ${esc(item.checklist_id || '')}</div>
     <div class="doc-heading">TEXOL ENERGIES LIMITED CCTV SURVEILLANCE CHECKLIST (TEXOL)</div>
 
     <div class="purpose">Purpose: To monitor and maintain operational efficiency of CCTV system across all Texol stations.</div>

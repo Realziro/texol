@@ -111,6 +111,37 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY') && SUPABASE_URL !== 
         $branches = json_decode($response, true) ?: [];
     }
 }
+
+// Fetch priorities from database
+$priorities = [];
+if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY') && SUPABASE_URL !== '' && SUPABASE_ANON_KEY !== '') {
+    $supabaseUrl = rtrim(SUPABASE_URL, '/');
+    $supabaseKey = SUPABASE_ANON_KEY;
+
+    $query = http_build_query([
+        'select' => 'id,name',
+        'order' => 'name.asc'
+    ]);
+
+    $ch = curl_init();
+    curl_setopt_array($ch, [
+        CURLOPT_URL => $supabaseUrl . '/rest/v1/priorities?' . $query,
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_HTTPHEADER => [
+            'apikey: ' . $supabaseKey,
+            'Authorization: Bearer ' . $supabaseKey,
+            'Accept' => 'application/json',
+        ],
+    ]);
+
+    $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+
+    if ($httpCode === 200 && $response) {
+        $priorities = json_decode($response, true) ?: [];
+    }
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -361,10 +392,11 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY') && SUPABASE_URL !== 
                                 Priority
                             </label>
                             <select class="form-select form-select-sm" id="ticketPriority">
-                                <option value="low">Low</option>
-                                <option value="medium" selected>Medium</option>
-                                <option value="high">High</option>
-                                <option value="critical">Critical</option>
+                                <?php foreach ($priorities as $priority): ?>
+                                    <option value="<?php echo htmlspecialchars($priority['name'], ENT_QUOTES, 'UTF-8'); ?>" <?php echo $priority['name'] === 'Medium' ? 'selected' : ''; ?>>
+                                        <?php echo htmlspecialchars($priority['name'], ENT_QUOTES, 'UTF-8'); ?>
+                                    </option>
+                                <?php endforeach; ?>
                             </select>
                         </div>
 
@@ -825,8 +857,8 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY') && SUPABASE_URL !== 
                             branch,
                             priority,
                             status: 'Open',
-                            urgency: 'medium',
-                            impact: 'medium',
+                            urgency: 'low',
+                            impact: 'low',
                             requested_by: currentUserId,
                             planned_start_date: plannedStartDate || null,
                             planned_end_date: plannedEndDate || null,

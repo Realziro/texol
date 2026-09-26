@@ -30,6 +30,37 @@ $viewTitles = [
     'closed' => 'Closed Tickets',
 ];
 $pageTitle = $viewTitles[$view] ?? 'All Tickets';
+
+// Fetch priorities from database
+$priorities = [];
+if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY') && SUPABASE_URL !== '' && SUPABASE_ANON_KEY !== '') {
+    $supabaseUrl = rtrim(SUPABASE_URL, '/');
+    $supabaseKey = SUPABASE_ANON_KEY;
+
+    $query = http_build_query([
+        'select' => 'id,name',
+        'order' => 'name.asc'
+    ]);
+
+    $ch = curl_init();
+    curl_setopt_array($ch, [
+        CURLOPT_URL => $supabaseUrl . '/rest/v1/priorities?' . $query,
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_HTTPHEADER => [
+            'apikey: ' . $supabaseKey,
+            'Authorization: Bearer ' . $supabaseKey,
+            'Accept' => 'application/json',
+        ],
+    ]);
+
+    $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+
+    if ($httpCode === 200 && $response) {
+        $priorities = json_decode($response, true) ?: [];
+    }
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -612,10 +643,11 @@ $pageTitle = $viewTitles[$view] ?? 'All Tickets';
                         <div class="col-md-6">
                             <label class="form-label small text-muted">Priority</label>
                             <select class="form-select" id="editTicketPriority">
-                                <option value="Low">Low</option>
-                                <option value="Medium">Medium</option>
-                                <option value="High">High</option>
-                                <option value="Critical">Critical</option>
+                                <?php foreach ($priorities as $priority): ?>
+                                    <option value="<?php echo htmlspecialchars($priority['name'], ENT_QUOTES, 'UTF-8'); ?>">
+                                        <?php echo htmlspecialchars($priority['name'], ENT_QUOTES, 'UTF-8'); ?>
+                                    </option>
+                                <?php endforeach; ?>
                             </select>
                         </div>
 

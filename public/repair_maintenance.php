@@ -123,7 +123,8 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
         .repair-printout .repair-id-label {
             font-size: 10px;
             font-weight: bold;
-            margin-bottom: 4px
+            margin-bottom: 4px;
+            color: red;
         }
 
         .repair-printout .form-heading {

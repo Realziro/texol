@@ -28,6 +28,7 @@ if (! isset($_SESSION['user_email'])) {
     />
     <link rel="stylesheet" href="sidebar.css" />
     <link rel="stylesheet" href="dashboard.css" />
+    <link rel="stylesheet" href="https://cdn.datatables.net/1.13.7/css/dataTables.bootstrap5.min.css" />
     <link rel="icon" type="image/svg+xml" href="https://www.texolenergies.com/assets/Texol_icon-AiPT1Z13.png" />
 </head>
 <body class="dashboard-body">
@@ -112,7 +113,7 @@ if (! isset($_SESSION['user_email'])) {
                                 </div>
                                 <div class="card-body px-2 px-md-3 py-3">
                                     <div class="table-responsive">
-                                        <table class="table table-sm align-middle mb-0">
+                                        <table class="table table-sm align-middle mb-0" id="prioritiesTable">
                                             <thead class="table-light">
                                                 <tr>
                                                     <th class="small text-uppercase text-muted">Name</th>
@@ -122,12 +123,7 @@ if (! isset($_SESSION['user_email'])) {
                                                     <th class="small text-uppercase text-muted text-end">Actions</th>
                                                 </tr>
                                             </thead>
-                                            <tbody id="prioritiesTableBody">
-                                                <tr>
-                                                    <td colspan="5" class="text-center small text-muted py-3">
-                                                        Loading priorities...
-                                                    </td>
-                                                </tr>
+                                            <tbody>
                                             </tbody>
                                         </table>
                                     </div>
@@ -188,9 +184,34 @@ if (! isset($_SESSION['user_email'])) {
         crossorigin="anonymous"
     ></script>
     <script src="app.js"></script>
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+    <script src="https://cdn.datatables.net/1.13.7/js/jquery.dataTables.min.js"></script>
+    <script src="https://cdn.datatables.net/1.13.7/js/dataTables.bootstrap5.min.js"></script>
 
     <script type="module">
         import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+
+        let prioritiesTable;
+
+        // Initialize DataTables
+        $(document).ready(function() {
+            prioritiesTable = $('#prioritiesTable').DataTable({
+                pageLength: 10,
+                lengthMenu: [5, 10, 25, 50, 100],
+                order: [],
+                language: {
+                    search: '_INPUT_',
+                    searchPlaceholder: 'Search priorities...'
+                },
+                columnDefs: [
+                    { orderable: false, targets: 4 }
+                ],
+                autoWidth: false
+            });
+
+            // Load priorities after DataTables is initialized
+            loadPriorities();
+        });
 
         const supabaseUrl = '<?php echo defined("SUPABASE_URL") ? SUPABASE_URL : ""; ?>';
         const supabaseKey = '<?php echo defined("SUPABASE_ANON_KEY") ? SUPABASE_ANON_KEY : ""; ?>';
@@ -201,7 +222,6 @@ if (! isset($_SESSION['user_email'])) {
         const resetBtn = document.getElementById('resetPriorityForm');
         const refreshBtn = document.getElementById('refreshPrioritiesBtn');
         const alertBox = document.getElementById('priorityFormAlert');
-        const tableBody = document.getElementById('prioritiesTableBody');
         const DEFAULT_PRIORITY_COLOR = '#cccccc';
 
         function escapeHtml(value) {
@@ -227,11 +247,12 @@ if (! isset($_SESSION['user_email'])) {
         }
 
         async function loadPriorities() {
-            if (!tableBody) return;
-            tableBody.innerHTML = `
-                <tr>
-                    <td colspan="5" class="text-center small text-muted py-3">Loading priorities...</td>
-                </tr>`;
+            if (!prioritiesTable) {
+                console.error('DataTables not initialized');
+                return;
+            }
+
+            prioritiesTable.clear();
 
             try {
                 const { data, error } = await supabase
@@ -240,49 +261,55 @@ if (! isset($_SESSION['user_email'])) {
                     .order('level', { ascending: true });
 
                 if (error) {
-                    tableBody.innerHTML = `
-                        <tr>
-                            <td colspan="5" class="text-center small text-danger py-3">${escapeHtml(error.message || 'Failed to load priorities.')}</td>
-                        </tr>`;
+                    prioritiesTable.row.add(['-', '-', '-', '-', '-']).draw();
+                    showAlert('danger', error.message || 'Failed to load priorities.');
                     return;
                 }
 
                 if (!data || data.length === 0) {
-                    tableBody.innerHTML = `
-                        <tr>
-                            <td colspan="5" class="text-center small text-muted py-3">No priorities found yet.</td>
-                        </tr>`;
+                    prioritiesTable.row.add(['-', '-', '-', '-', '-']).draw();
                     return;
                 }
 
-                tableBody.innerHTML = '';
                 data.forEach((priority) => {
-                    const tr = document.createElement('tr');
                     const swatch = `<span style="display:inline-block;width:14px;height:14px;border-radius:3px;background:${escapeHtml(priority.color || '#cccccc')};border:1px solid rgba(0,0,0,.1);"></span>`;
+                    const colorCell = `${swatch} <span class="text-muted">${escapeHtml(priority.color || '-')}</span>`;
+                    const createdAtCell = priority.created_at ? new Date(priority.created_at).toLocaleString() : '-';
 
-                    tr.innerHTML = `
-                        <td class="small fw-semibold">${escapeHtml(priority.name)}</td>
-                        <td class="small">${escapeHtml(priority.level)}</td>
-                        <td class="small">${swatch} <span class="text-muted">${escapeHtml(priority.color || '-')}</span></td>
-                        <td class="small text-muted">${priority.created_at ? new Date(priority.created_at).toLocaleString() : '-'}</td>
-                        <td class="text-end">
-                            <button class="btn btn-sm btn-outline-primary edit-priority-btn"
-                                data-id="${priority.id}"
-                                data-name="${escapeHtml(priority.name)}"
-                                data-level="${escapeHtml(priority.level)}"
-                                data-color="${escapeHtml(priority.color || '#cccccc')}">
-                                <i class="bi bi-pencil"></i>
-                            </button>
-                        </td>
-                    `;
+                    const editButton = `<button class="btn btn-sm btn-outline-primary edit-priority-btn"
+                        data-id="${priority.id}"
+                        data-name="${escapeHtml(priority.name)}"
+                        data-level="${escapeHtml(priority.level)}"
+                        data-color="${escapeHtml(priority.color || '#cccccc')}">
+                        <i class="bi bi-pencil"></i>
+                    </button>`;
 
-                    tableBody.appendChild(tr);
+                    prioritiesTable.row.add([
+                        escapeHtml(priority.name),
+                        escapeHtml(priority.level),
+                        colorCell,
+                        createdAtCell,
+                        editButton
+                    ]);
                 });
+
+                prioritiesTable.draw();
+
+                // Re-attach event listeners to edit buttons
+                document.querySelectorAll('.edit-priority-btn').forEach(btn => {
+                    btn.addEventListener('click', function() {
+                        document.getElementById('editPriorityId').value = this.dataset.id;
+                        document.getElementById('editPriorityName').value = this.dataset.name;
+                        document.getElementById('editPriorityLevel').value = this.dataset.level;
+                        document.getElementById('editPriorityColor').value = this.dataset.color;
+                        priorityModal.show();
+                    });
+                });
+
             } catch (err) {
-                tableBody.innerHTML = `
-                    <tr>
-                        <td colspan="5" class="text-center small text-danger py-3">Unexpected error loading priorities.</td>
-                    </tr>`;
+                console.error('Error loading priorities:', err);
+                prioritiesTable.row.add(['-', '-', '-', '-', '-']).draw();
+                showAlert('danger', 'Unexpected error loading priorities.');
             }
         }
 
@@ -341,18 +368,6 @@ if (! isset($_SESSION['user_email'])) {
 
         const priorityModal = new bootstrap.Modal(document.getElementById('editPriorityModal'));
 
-        document.addEventListener('click', (e) => {
-            const btn = e.target.closest('.edit-priority-btn');
-            if (!btn) return;
-
-            document.getElementById('editPriorityId').value = btn.dataset.id;
-            document.getElementById('editPriorityName').value = btn.dataset.name;
-            document.getElementById('editPriorityLevel').value = btn.dataset.level;
-            document.getElementById('editPriorityColor').value = btn.dataset.color;
-
-            priorityModal.show();
-        });
-
         document.getElementById('updatePriorityBtn').addEventListener('click', async () => {
             const id = document.getElementById('editPriorityId').value;
 
@@ -407,8 +422,6 @@ if (! isset($_SESSION['user_email'])) {
             priorityModal.hide();
             loadPriorities();
         });
-
-        loadPriorities();
     </script>
 </body>
 </html>

@@ -28,6 +28,7 @@ if (! isset($_SESSION['user_email'])) {
     />
     <link rel="stylesheet" href="sidebar.css" />
     <link rel="stylesheet" href="dashboard.css" />
+    <link rel="stylesheet" href="https://cdn.datatables.net/1.13.7/css/dataTables.bootstrap5.min.css" />
     <link rel="icon" type="image/svg+xml" href="https://www.texolenergies.com/assets/Texol_icon-AiPT1Z13.png" />
 </head>
 <body class="dashboard-body">
@@ -99,14 +100,15 @@ if (! isset($_SESSION['user_email'])) {
                                 </div>
                                 <div class="card-body px-2 px-md-3 py-3">
                                     <div class="table-responsive">
-                                        <table class="table table-sm align-middle mb-0">
-                                          <th class="small text-uppercase text-muted">Role Name</th>
-<th class="small text-uppercase text-muted">Description</th>
-<th class="small text-uppercase text-muted text-end">Actions</th>
-                                            <tbody id="rolesTableBody">
+                                        <table class="table table-sm align-middle mb-0" id="rolesTable">
+                                            <thead class="table-light">
                                                 <tr>
-                                                    <td colspan="2" class="text-center small text-muted py-3">Loading roles...</td>
+                                                    <th class="small text-uppercase text-muted">Role Name</th>
+                                                    <th class="small text-uppercase text-muted">Description</th>
+                                                    <th class="small text-uppercase text-muted text-end">Actions</th>
                                                 </tr>
+                                            </thead>
+                                            <tbody>
                                             </tbody>
                                         </table>
                                     </div>
@@ -162,9 +164,34 @@ if (! isset($_SESSION['user_email'])) {
         crossorigin="anonymous"
     ></script>
     <script src="app.js"></script>
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+    <script src="https://cdn.datatables.net/1.13.7/js/jquery.dataTables.min.js"></script>
+    <script src="https://cdn.datatables.net/1.13.7/js/dataTables.bootstrap5.min.js"></script>
 
     <script type="module">
         import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+
+        let rolesTable;
+
+        // Initialize DataTables
+        $(document).ready(function() {
+            rolesTable = $('#rolesTable').DataTable({
+                pageLength: 10,
+                lengthMenu: [5, 10, 25, 50, 100],
+                order: [],
+                language: {
+                    search: '_INPUT_',
+                    searchPlaceholder: 'Search roles...'
+                },
+                columnDefs: [
+                    { orderable: false, targets: 2 }
+                ],
+                autoWidth: false
+            });
+
+            // Load roles after DataTables is initialized
+            loadRoles();
+        });
 
         const supabaseUrl = '<?php echo defined("SUPABASE_URL") ? SUPABASE_URL : ""; ?>';
         const supabaseKey = '<?php echo defined("SUPABASE_ANON_KEY") ? SUPABASE_ANON_KEY : ""; ?>';
@@ -175,7 +202,6 @@ if (! isset($_SESSION['user_email'])) {
         const resetBtn = document.getElementById('resetRoleForm');
         const refreshBtn = document.getElementById('refreshRolesBtn');
         const alertBox = document.getElementById('roleFormAlert');
-        const tableBody = document.getElementById('rolesTableBody');
 
         function esc(value) {
             return (value || '')
@@ -200,11 +226,12 @@ if (! isset($_SESSION['user_email'])) {
         }
 
         async function loadRoles() {
-            if (!tableBody) return;
-            tableBody.innerHTML = `
-                <tr>
-                    <td colspan="2" class="text-center small text-muted py-3">Loading roles...</td>
-                </tr>`;
+            if (!rolesTable) {
+                console.error('DataTables not initialized');
+                return;
+            }
+
+            rolesTable.clear();
 
             try {
                 const { data, error } = await supabase
@@ -213,45 +240,47 @@ if (! isset($_SESSION['user_email'])) {
                     .order('created_at', { ascending: false });
 
                 if (error) {
-                    tableBody.innerHTML = `
-                        <tr>
-                            <td colspan="2" class="text-center small text-danger py-3">${esc(error.message || 'Failed to load roles.')}</td>
-                        </tr>`;
+                    rolesTable.row.add(['-', '-', '-']).draw();
+                    showAlert('danger', error.message || 'Failed to load roles.');
                     return;
                 }
 
                 if (!data || data.length === 0) {
-                    tableBody.innerHTML = `
-                        <tr>
-                            <td colspan="2" class="text-center small text-muted py-3">No roles found yet.</td>
-                        </tr>`;
+                    rolesTable.row.add(['-', '-', '-']).draw();
                     return;
                 }
 
-                tableBody.innerHTML = '';
-            data.forEach((role) => {
-    const tr = document.createElement('tr');
+                data.forEach((role) => {
+                    const editButton = `<button class="btn btn-sm btn-outline-primary edit-btn"
+                        data-id="${role.id}"
+                        data-name="${esc(role.name)}"
+                        data-description="${esc(role.description)}">
+                        <i class="bi bi-pencil"></i>
+                    </button>`;
 
-    tr.innerHTML = `
-        <td class="small fw-semibold">${esc(role.name)}</td>
-        <td class="small text-muted">${esc(role.description)}</td>
-        <td class="text-end">
-            <button class="btn btn-sm btn-outline-primary edit-btn"
-                data-id="${role.id}"
-                data-name="${esc(role.name)}"
-                data-description="${esc(role.description)}">
-                <i class="bi bi-pencil"></i>
-            </button>
-        </td>
-    `;
+                    rolesTable.row.add([
+                        esc(role.name),
+                        esc(role.description),
+                        editButton
+                    ]);
+                });
 
-    tableBody.appendChild(tr);
-});
+                rolesTable.draw();
+
+                // Re-attach event listeners to edit buttons
+                document.querySelectorAll('.edit-btn').forEach(btn => {
+                    btn.addEventListener('click', function() {
+                        document.getElementById('editRoleId').value = this.dataset.id;
+                        document.getElementById('editRoleName').value = this.dataset.name;
+                        document.getElementById('editRoleDescription').value = this.dataset.description;
+                        editModal.show();
+                    });
+                });
+
             } catch (err) {
-                tableBody.innerHTML = `
-                    <tr>
-                        <td colspan="2" class="text-center small text-danger py-3">Unexpected error loading roles.</td>
-                    </tr>`;
+                console.error('Error loading roles:', err);
+                rolesTable.row.add(['-', '-', '-']).draw();
+                showAlert('danger', 'Unexpected error loading roles.');
             }
         }
 
@@ -302,18 +331,6 @@ if (! isset($_SESSION['user_email'])) {
             });
         }
 const editModal = new bootstrap.Modal(document.getElementById('editRoleModal'));
-
-document.addEventListener('click', (e) => {
-    if (e.target.closest('.edit-btn')) {
-        const btn = e.target.closest('.edit-btn');
-
-        document.getElementById('editRoleId').value = btn.dataset.id;
-        document.getElementById('editRoleName').value = btn.dataset.name;
-        document.getElementById('editRoleDescription').value = btn.dataset.description;
-
-        editModal.show();
-    }
-});
 document.getElementById('updateRoleBtn').addEventListener('click', async () => {
     const id = document.getElementById('editRoleId').value;
     const name = document.getElementById('editRoleName').value.trim();
@@ -356,7 +373,6 @@ document.getElementById('deleteRoleBtn').addEventListener('click', async () => {
     editModal.hide();
     loadRoles();
 });
-        loadRoles();
     </script>
 </body>
 </html>

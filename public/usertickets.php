@@ -28,6 +28,37 @@ $viewTitles = [
     'closed' => 'Closed Tickets',
 ];
 $pageTitle = $viewTitles[$view] ?? 'User Tickets';
+
+// Fetch priorities from database
+$priorities = [];
+if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY') && SUPABASE_URL !== '' && SUPABASE_ANON_KEY !== '') {
+    $supabaseUrl = rtrim(SUPABASE_URL, '/');
+    $supabaseKey = SUPABASE_ANON_KEY;
+
+    $query = http_build_query([
+        'select' => 'id,name',
+        'order' => 'name.asc'
+    ]);
+
+    $ch = curl_init();
+    curl_setopt_array($ch, [
+        CURLOPT_URL => $supabaseUrl . '/rest/v1/priorities?' . $query,
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_HTTPHEADER => [
+            'apikey: ' . $supabaseKey,
+            'Authorization: Bearer ' . $supabaseKey,
+            'Accept' => 'application/json',
+        ],
+    ]);
+
+    $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+
+    if ($httpCode === 200 && $response) {
+        $priorities = json_decode($response, true) ?: [];
+    }
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">

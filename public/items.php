@@ -31,6 +31,7 @@ $userDepartment = $_SESSION['user_department'] ?? $_SESSION['department'] ?? '';
     />
     <link rel="stylesheet" href="sidebar.css" />
     <link rel="stylesheet" href="dashboard.css" />
+    <link rel="stylesheet" href="https://cdn.datatables.net/1.13.7/css/dataTables.bootstrap5.min.css" />
     <link rel="icon" type="image/svg+xml" href="https://www.texolenergies.com/assets/Texol_icon-AiPT1Z13.png" />
 </head>
 <body class="dashboard-body">
@@ -140,7 +141,7 @@ $userDepartment = $_SESSION['user_department'] ?? $_SESSION['department'] ?? '';
                                 </div>
                                 <div class="card-body px-2 px-md-3 py-3">
                                     <div class="table-responsive">
-                                        <table class="table table-sm align-middle mb-0">
+                                        <table class="table table-sm align-middle mb-0" id="itemsTable">
                                             <thead class="table-light">
                                                 <tr>
                                                     <th class="small text-uppercase text-muted">Name</th>
@@ -150,12 +151,7 @@ $userDepartment = $_SESSION['user_department'] ?? $_SESSION['department'] ?? '';
                                                     <th class="small text-uppercase text-muted text-end">Actions</th>
                                                 </tr>
                                             </thead>
-                                            <tbody id="itemsTableBody">
-                                                <tr>
-                                                    <td colspan="5" class="text-center small text-muted py-3">
-                                                        Loading items...
-                                                    </td>
-                                                </tr>
+                                            <tbody>
                                             </tbody>
                                         </table>
                                     </div>
@@ -231,9 +227,34 @@ $userDepartment = $_SESSION['user_department'] ?? $_SESSION['department'] ?? '';
         crossorigin="anonymous"
     ></script>
     <script src="app.js"></script>
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+    <script src="https://cdn.datatables.net/1.13.7/js/jquery.dataTables.min.js"></script>
+    <script src="https://cdn.datatables.net/1.13.7/js/dataTables.bootstrap5.min.js"></script>
 
     <script type="module">
         import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+
+        let itemsTable;
+
+        // Initialize DataTables
+        $(document).ready(function() {
+            itemsTable = $('#itemsTable').DataTable({
+                pageLength: 10,
+                lengthMenu: [5, 10, 25, 50, 100],
+                order: [],
+                language: {
+                    search: '_INPUT_',
+                    searchPlaceholder: 'Search items...'
+                },
+                columnDefs: [
+                    { orderable: false, targets: 4 }
+                ],
+                autoWidth: false
+            });
+
+            // Load items after DataTables is initialized
+            loadItems();
+        });
 
         const supabaseUrl = '<?php echo defined("SUPABASE_URL") ? SUPABASE_URL : ""; ?>';
         const supabaseKey = '<?php echo defined("SUPABASE_ANON_KEY") ? SUPABASE_ANON_KEY : ""; ?>';
@@ -249,7 +270,6 @@ $userDepartment = $_SESSION['user_department'] ?? $_SESSION['department'] ?? '';
         const resetBtn = document.getElementById('resetItemForm');
         const refreshBtn = document.getElementById('refreshItemsBtn');
         const alertBox = document.getElementById('itemFormAlert');
-        const tableBody = document.getElementById('itemsTableBody');
 
         async function loadDepartments() {
             try {
@@ -349,11 +369,12 @@ $userDepartment = $_SESSION['user_department'] ?? $_SESSION['department'] ?? '';
         }
 
         async function loadItems() {
-            if (!tableBody) return;
-            tableBody.innerHTML = `
-                <tr>
-                    <td colspan="5" class="text-center small text-muted py-3">Loading items...</td>
-                </tr>`;
+            if (!itemsTable) {
+                console.error('DataTables not initialized');
+                return;
+            }
+
+            itemsTable.clear();
 
             try {
                 console.log('Loading items - userRole:', userRole, 'userDepartment:', userDepartment);
@@ -392,18 +413,13 @@ $userDepartment = $_SESSION['user_department'] ?? $_SESSION['department'] ?? '';
                 const { data: items, error } = await query;
 
                 if (error) {
-                    tableBody.innerHTML = `
-                        <tr>
-                            <td colspan="5" class="text-center small text-danger py-3">${escapeHtml(error.message || 'Failed to load items.')}</td>
-                        </tr>`;
+                    itemsTable.row.add(['-', '-', '-', '-', '-']).draw();
+                    showAlert('danger', error.message || 'Failed to load items.');
                     return;
                 }
 
                 if (!items || items.length === 0) {
-                    tableBody.innerHTML = `
-                        <tr>
-                            <td colspan="5" class="text-center small text-muted py-3">No items found yet.</td>
-                        </tr>`;
+                    itemsTable.row.add(['-', '-', '-', '-', '-']).draw();
                     return;
                 }
 
@@ -419,34 +435,43 @@ $userDepartment = $_SESSION['user_department'] ?? $_SESSION['department'] ?? '';
                     });
                 }
 
-                tableBody.innerHTML = '';
                 items.forEach((item) => {
-                    const tr = document.createElement('tr');
+                    const editButton = `<button class="btn btn-sm btn-outline-primary edit-item-btn"
+                        data-id="${item.id}"
+                        data-name="${escapeHtml(item.name)}"
+                        data-description="${escapeHtml(item.description)}"
+                        data-unit="${escapeHtml(item.unit)}"
+                        data-department-id="${item.department_id}">
+                        <i class="bi bi-pencil"></i>
+                    </button>`;
 
-                    tr.innerHTML = `
-                        <td class="small fw-semibold">${escapeHtml(item.name)}</td>
-                        <td class="small text-muted">${escapeHtml(item.description)}</td>
-                        <td class="small">${escapeHtml(item.unit)}</td>
-                        <td class="small">${escapeHtml(deptMap[item.department_id] || '-')}</td>
-                        <td class="text-end">
-                            <button class="btn btn-sm btn-outline-primary edit-item-btn"
-                                data-id="${item.id}"
-                                data-name="${escapeHtml(item.name)}"
-                                data-description="${escapeHtml(item.description)}"
-                                data-unit="${escapeHtml(item.unit)}"
-                                data-department-id="${item.department_id}">
-                                <i class="bi bi-pencil"></i>
-                            </button>
-                        </td>
-                    `;
-
-                    tableBody.appendChild(tr);
+                    itemsTable.row.add([
+                        escapeHtml(item.name),
+                        escapeHtml(item.description),
+                        escapeHtml(item.unit),
+                        escapeHtml(deptMap[item.department_id] || '-'),
+                        editButton
+                    ]);
                 });
+
+                itemsTable.draw();
+
+                // Re-attach event listeners to edit buttons
+                document.querySelectorAll('.edit-item-btn').forEach(btn => {
+                    btn.addEventListener('click', function() {
+                        document.getElementById('editItemId').value = this.dataset.id;
+                        document.getElementById('editItemName').value = this.dataset.name;
+                        document.getElementById('editItemDescription').value = this.dataset.description;
+                        document.getElementById('editItemUnit').value = this.dataset.unit;
+                        document.getElementById('editItemDepartment').value = this.dataset.departmentId;
+                        itemModal.show();
+                    });
+                });
+
             } catch (err) {
-                tableBody.innerHTML = `
-                    <tr>
-                        <td colspan="5" class="text-center small text-danger py-3">Unexpected error loading items.</td>
-                    </tr>`;
+                console.error('Error loading items:', err);
+                itemsTable.row.add(['-', '-', '-', '-', '-']).draw();
+                showAlert('danger', 'Unexpected error loading items.');
             }
         }
 
@@ -530,19 +555,6 @@ $userDepartment = $_SESSION['user_department'] ?? $_SESSION['department'] ?? '';
         }
 
         const itemModal = new bootstrap.Modal(document.getElementById('editItemModal'));
-
-        document.addEventListener('click', (e) => {
-            const btn = e.target.closest('.edit-item-btn');
-            if (!btn) return;
-
-            document.getElementById('editItemId').value = btn.dataset.id;
-            document.getElementById('editItemName').value = btn.dataset.name;
-            document.getElementById('editItemDescription').value = btn.dataset.description;
-            document.getElementById('editItemUnit').value = btn.dataset.unit;
-            document.getElementById('editItemDepartment').value = btn.dataset.departmentId;
-
-            itemModal.show();
-        });
 
         document.getElementById('updateItemBtn').addEventListener('click', async () => {
             const id = document.getElementById('editItemId').value;

@@ -31,6 +31,7 @@ $userDepartment = $_SESSION['user_department'] ?? $_SESSION['department'] ?? '';
     />
     <link rel="stylesheet" href="sidebar.css" />
     <link rel="stylesheet" href="dashboard.css" />
+    <link rel="stylesheet" href="https://cdn.datatables.net/1.13.7/css/dataTables.bootstrap5.min.css" />
     <link rel="icon" type="image/svg+xml" href="https://www.texolenergies.com/assets/Texol_icon-AiPT1Z13.png" />
 </head>
 <body class="dashboard-body">
@@ -140,7 +141,7 @@ $userDepartment = $_SESSION['user_department'] ?? $_SESSION['department'] ?? '';
                                 </div>
                                 <div class="card-body px-2 px-md-3 py-3">
                                     <div class="table-responsive">
-                                        <table class="table table-sm align-middle mb-0">
+                                        <table class="table table-sm align-middle mb-0" id="suppliersTable">
                                             <thead class="table-light">
                                                 <tr>
                                                     <th class="small text-uppercase text-muted">Name</th>
@@ -151,12 +152,7 @@ $userDepartment = $_SESSION['user_department'] ?? $_SESSION['department'] ?? '';
                                                     <th class="small text-uppercase text-muted text-end">Actions</th>
                                                 </tr>
                                             </thead>
-                                            <tbody id="suppliersTableBody">
-                                                <tr>
-                                                    <td colspan="6" class="text-center small text-muted py-3">
-                                                        Loading suppliers...
-                                                    </td>
-                                                </tr>
+                                            <tbody>
                                             </tbody>
                                         </table>
                                     </div>
@@ -232,9 +228,34 @@ $userDepartment = $_SESSION['user_department'] ?? $_SESSION['department'] ?? '';
         crossorigin="anonymous"
     ></script>
     <script src="app.js"></script>
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+    <script src="https://cdn.datatables.net/1.13.7/js/jquery.dataTables.min.js"></script>
+    <script src="https://cdn.datatables.net/1.13.7/js/dataTables.bootstrap5.min.js"></script>
 
     <script type="module">
         import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+
+        let suppliersTable;
+
+        // Initialize DataTables
+        $(document).ready(function() {
+            suppliersTable = $('#suppliersTable').DataTable({
+                pageLength: 10,
+                lengthMenu: [5, 10, 25, 50, 100],
+                order: [],
+                language: {
+                    search: '_INPUT_',
+                    searchPlaceholder: 'Search suppliers...'
+                },
+                columnDefs: [
+                    { orderable: false, targets: 5 }
+                ],
+                autoWidth: false
+            });
+
+            // Load suppliers after DataTables is initialized
+            loadSuppliers();
+        });
 
         const supabaseUrl = '<?php echo defined("SUPABASE_URL") ? SUPABASE_URL : ""; ?>';
         const supabaseKey = '<?php echo defined("SUPABASE_ANON_KEY") ? SUPABASE_ANON_KEY : ""; ?>';
@@ -250,7 +271,6 @@ $userDepartment = $_SESSION['user_department'] ?? $_SESSION['department'] ?? '';
         const resetBtn = document.getElementById('resetSupplierForm');
         const refreshBtn = document.getElementById('refreshSuppliersBtn');
         const alertBox = document.getElementById('supplierFormAlert');
-        const tableBody = document.getElementById('suppliersTableBody');
 
         async function loadDepartments() {
             try {
@@ -351,11 +371,12 @@ $userDepartment = $_SESSION['user_department'] ?? $_SESSION['department'] ?? '';
         }
 
         async function loadSuppliers() {
-            if (!tableBody) return;
-            tableBody.innerHTML = `
-                <tr>
-                    <td colspan="6" class="text-center small text-muted py-3">Loading suppliers...</td>
-                </tr>`;
+            if (!suppliersTable) {
+                console.error('DataTables not initialized');
+                return;
+            }
+
+            suppliersTable.clear();
 
             try {
                 console.log('Loading suppliers - userRole:', userRole, 'userDepartment:', userDepartment);
@@ -394,18 +415,13 @@ $userDepartment = $_SESSION['user_department'] ?? $_SESSION['department'] ?? '';
                 const { data: suppliers, error } = await query;
 
                 if (error) {
-                    tableBody.innerHTML = `
-                        <tr>
-                            <td colspan="6" class="text-center small text-danger py-3">${escapeHtml(error.message || 'Failed to load suppliers.')}</td>
-                        </tr>`;
+                    suppliersTable.row.add(['-', '-', '-', '-', '-', '-']).draw();
+                    showAlert('danger', error.message || 'Failed to load suppliers.');
                     return;
                 }
 
                 if (!suppliers || suppliers.length === 0) {
-                    tableBody.innerHTML = `
-                        <tr>
-                            <td colspan="6" class="text-center small text-muted py-3">No suppliers found yet.</td>
-                        </tr>`;
+                    suppliersTable.row.add(['-', '-', '-', '-', '-', '-']).draw();
                     return;
                 }
 
@@ -421,37 +437,48 @@ $userDepartment = $_SESSION['user_department'] ?? $_SESSION['department'] ?? '';
                     });
                 }
 
-                tableBody.innerHTML = '';
                 suppliers.forEach((supplier) => {
-                    const tr = document.createElement('tr');
+                    const editButton = `<button class="btn btn-sm btn-outline-primary edit-supplier-btn"
+                        data-id="${supplier.id}"
+                        data-name="${escapeHtml(supplier.name)}"
+                        data-contact="${escapeHtml(supplier.contact_person)}"
+                        data-email="${escapeHtml(supplier.email)}"
+                        data-phone="${escapeHtml(supplier.phone)}"
+                        data-address="${escapeHtml(supplier.address)}"
+                        data-department-id="${supplier.department_id}">
+                        <i class="bi bi-pencil"></i>
+                    </button>`;
 
-                    tr.innerHTML = `
-                        <td class="small fw-semibold">${escapeHtml(supplier.name)}</td>
-                        <td class="small text-muted">${escapeHtml(supplier.contact_person)}</td>
-                        <td class="small">${escapeHtml(supplier.email)}</td>
-                        <td class="small">${escapeHtml(supplier.phone)}</td>
-                        <td class="small">${escapeHtml(deptMap[supplier.department_id] || '-')}</td>
-                        <td class="text-end">
-                            <button class="btn btn-sm btn-outline-primary edit-supplier-btn"
-                                data-id="${supplier.id}"
-                                data-name="${escapeHtml(supplier.name)}"
-                                data-contact="${escapeHtml(supplier.contact_person)}"
-                                data-email="${escapeHtml(supplier.email)}"
-                                data-phone="${escapeHtml(supplier.phone)}"
-                                data-address="${escapeHtml(supplier.address)}"
-                                data-department-id="${supplier.department_id}">
-                                <i class="bi bi-pencil"></i>
-                            </button>
-                        </td>
-                    `;
-
-                    tableBody.appendChild(tr);
+                    suppliersTable.row.add([
+                        escapeHtml(supplier.name),
+                        escapeHtml(supplier.contact_person),
+                        escapeHtml(supplier.email),
+                        escapeHtml(supplier.phone),
+                        escapeHtml(deptMap[supplier.department_id] || '-'),
+                        editButton
+                    ]);
                 });
+
+                suppliersTable.draw();
+
+                // Re-attach event listeners to edit buttons
+                document.querySelectorAll('.edit-supplier-btn').forEach(btn => {
+                    btn.addEventListener('click', function() {
+                        document.getElementById('editSupplierId').value = this.dataset.id;
+                        document.getElementById('editSupplierName').value = this.dataset.name;
+                        document.getElementById('editSupplierContact').value = this.dataset.contact;
+                        document.getElementById('editSupplierEmail').value = this.dataset.email;
+                        document.getElementById('editSupplierPhone').value = this.dataset.phone;
+                        document.getElementById('editSupplierAddress').value = this.dataset.address;
+                        document.getElementById('editSupplierDepartment').value = this.dataset.departmentId;
+                        supplierModal.show();
+                    });
+                });
+
             } catch (err) {
-                tableBody.innerHTML = `
-                    <tr>
-                        <td colspan="6" class="text-center small text-danger py-3">Unexpected error loading suppliers.</td>
-                    </tr>`;
+                console.error('Error loading suppliers:', err);
+                suppliersTable.row.add(['-', '-', '-', '-', '-', '-']).draw();
+                showAlert('danger', 'Unexpected error loading suppliers.');
             }
         }
 
@@ -539,21 +566,6 @@ $userDepartment = $_SESSION['user_department'] ?? $_SESSION['department'] ?? '';
         }
 
         const supplierModal = new bootstrap.Modal(document.getElementById('editSupplierModal'));
-
-        document.addEventListener('click', (e) => {
-            const btn = e.target.closest('.edit-supplier-btn');
-            if (!btn) return;
-
-            document.getElementById('editSupplierId').value = btn.dataset.id;
-            document.getElementById('editSupplierName').value = btn.dataset.name;
-            document.getElementById('editSupplierContact').value = btn.dataset.contact;
-            document.getElementById('editSupplierEmail').value = btn.dataset.email;
-            document.getElementById('editSupplierPhone').value = btn.dataset.phone;
-            document.getElementById('editSupplierAddress').value = btn.dataset.address;
-            document.getElementById('editSupplierDepartment').value = btn.dataset.departmentId;
-
-            supplierModal.show();
-        });
 
         document.getElementById('updateSupplierBtn').addEventListener('click', async () => {
             const id = document.getElementById('editSupplierId').value;
