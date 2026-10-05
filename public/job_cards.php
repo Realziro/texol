@@ -997,99 +997,20 @@ async function updateTask() {
 
         console.log('Updated row:', data);
 
-        // Send email notification if assigned technician changed
-        if (assignedTo && assignedTo !== oldAssignedTo && data?.length) {
-            try {
-                const task = data[0];
-                const jobCardUrl = `${window.location.origin}/job_cards?id=${currentJobCard.id}`;
-
-                console.log("Sending task reassignment email to:", assignedTo);
-
-                const subject = `Task Re-assigned: ${title}`;
-                const body = `
-<div style='font-family: Arial, sans-serif; background:#f4f6f9; padding:20px;'>
-   <img
-                src='https://texolenergies.com/assets/Logo-paGHQfRF.svg'
-                alt='Texol Energies'
-                style='width:140px; margin-bottom:10px; display:block; margin-left:auto; margin-right:auto;'
-            />
-    <div style='max-width:650px; margin:0 auto; background:#ffffff; border-radius:12px; overflow:hidden; box-shadow:0 2px 12px rgba(0,0,0,0.08);'>
-
-        <!-- HEADER -->
-        <div style='background:#1f3c88; color:#ffffff; padding:25px; text-align:center;'>
-
-            <h2 style='margin:0; font-size:20px;'>Task Re-assignment</h2>
-
-        </div>
-
-        <!-- BODY -->
-        <div style='padding:25px;'>
-
-            <!-- TITLE -->
-            <h3 style='margin:0 0 10px; font-size:18px; color:#333;'>${title}</h3>
-
-            <!-- DESCRIPTION -->
-            <p style='font-size:14px; color:#555; line-height:1.6; margin-bottom:20px;'>
-${description}            </p>
-
-            <!-- BADGES -->
-            <div style='margin-bottom:20px;'>
-                <span style='display:inline-block; padding:6px 12px; border-radius:20px; font-size:12px; background:#e8f0ff; color:#1f3c88; margin:3px;'>
-                    Status: ${task.status || 'N/A'}
-                </span>
-                <span style='display:inline-block; padding:6px 12px; border-radius:20px; font-size:12px; background:#fff4e5; color:#b26a00; margin:3px;'>
-                    Priority: ${task.priority || 'N/A'}
-                </span>
-            </div>
-
-            <p style='font-size:14px; color:#555; line-height:1.6; margin-bottom:20px;'>
-                <a href="${jobCardUrl}" style='color:#1f3c88; text-decoration:none; font-weight:bold;'>View Job Card</a>
-            </p>
-
-            <!-- FOOTER TAGS -->
-            <div style='margin-top:25px; text-align:center;'>
-
-                <span style='display:inline-block; padding:6px 12px; border-radius:20px; font-size:12px; background:#1f3c88; color:#fff; margin:3px;'>
-                    Task Notification
-                </span>
-
-                <span style='display:inline-block; padding:6px 12px; border-radius:20px; font-size:12px; background:#e9f7ef; color:#1e7e34; margin:3px;'>
-                    System Generated
-                </span>
-
-            </div>
-
-        </div>
-
-        <!-- FOOTER -->
-        <div style='background:#f4f6f9; padding:15px; text-align:center; font-size:12px; color:#777;'>
-
-            <p style='margin:0;'>Texol Energies - THI Support </p>
-            <p style='margin:5px 0 0;'>Please do not reply to this email.</p>
-
-        </div>
-
-    </div>
-
-</div>
-                `;
-
-                const res = await fetch('sendmail.php', {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-                    body: new URLSearchParams({
-                        to: assignedTo,
-                        subject: subject,
-                        body: body
-                    })
-                });
-
-                const result = await res.text();
-                console.log("MAIL RESPONSE:", result);
-
-            } catch (emailErr) {
-                console.error('Error sending task email:', emailErr);
-            }
+        // Send email notification using role-based system
+        try {
+            await fetch('notify_job_cards.php', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    job_card_id: currentJobCard.id,
+                    task_id: taskId,
+                    action: 'updated',
+                    added_by: '<?php echo $_SESSION['user_name'] ?? 'Unknown User'; ?>'
+                })
+            });
+        } catch (emailErr) {
+            console.error('Failed to send email notification:', emailErr);
         }
 
         bootstrap.Modal.getInstance(document.getElementById('editTaskModal')).hide();
@@ -1240,14 +1161,20 @@ ${description}            </p>
                         }]);
              
              
-             await fetch('sendmail.php', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams({
-        to: email,
-        subject: `Task Shared: ${currentJobCard.title}`,
-   body: `
-<div style='font-family: Arial, sans-serif; background:#f4f6f9; padding:20px;'>
+             // Send email notification using role-based system
+             try {
+                 await fetch('notify_job_cards.php', {
+                     method: 'POST',
+                     headers: { 'Content-Type': 'application/json' },
+                     body: JSON.stringify({
+                         job_card_id: currentJobCard.id,
+                         action: 'created',
+                         added_by: '<?php echo $_SESSION['user_name'] ?? 'Unknown User'; ?>'
+                     })
+                 });
+             } catch (emailErr) {
+                 console.error('Failed to send email notification:', emailErr);
+             }
    <img
                 src='https://texolenergies.com/assets/Logo-paGHQfRF.svg'
                 alt='Texol Energies'
@@ -1916,100 +1843,19 @@ async function createJobCard() {
                 .eq('id', currentJobCard.id)
                 .select();
 
-            // Send email notification if technician changed
-            const oldTechnician = currentJobCard.technician_email;
-            if (technicianEmail && technicianEmail !== oldTechnician && result.data?.length) {
-                try {
-                    const jobCard = result.data[0];
-                    const jobCardUrl = `${window.location.origin}/job_cards?id=${jobCard.id}`;
-
-                    console.log("Sending job card update email to:", technicianEmail);
-
-                    const subject = `Updated Job Card Assigned: ${title}`;
-                    const body = `
-<div style='font-family: Arial, sans-serif; background:#f4f6f9; padding:20px;'>
-   <img
-                src='https://texolenergies.com/assets/Logo-paGHQfRF.svg'
-                alt='Texol Energies'
-                style='width:140px; margin-bottom:10px; display:block; margin-left:auto; margin-right:auto;'
-            />
-    <div style='max-width:650px; margin:0 auto; background:#ffffff; border-radius:12px; overflow:hidden; box-shadow:0 2px 12px rgba(0,0,0,0.08);'>
-
-        <!-- HEADER -->
-        <div style='background:#1f3c88; color:#ffffff; padding:25px; text-align:center;'>
-
-            <h2 style='margin:0; font-size:20px;'>Job Card Re-assignment</h2>
-
-        </div>
-
-        <!-- BODY -->
-        <div style='padding:25px;'>
-
-            <!-- TITLE -->
-            <h3 style='margin:0 0 10px; font-size:18px; color:#333;'>${title}</h3>
-
-            <!-- DESCRIPTION -->
-            <p style='font-size:14px; color:#555; line-height:1.6; margin-bottom:20px;'>
-${description}            </p>
-
-            <!-- BADGES -->
-            <div style='margin-bottom:20px;'>
-                <span style='display:inline-block; padding:6px 12px; border-radius:20px; font-size:12px; background:#e8f0ff; color:#1f3c88; margin:3px;'>
-                    Status: ${jobCard.status || 'N/A'}
-                </span>
-                <span style='display:inline-block; padding:6px 12px; border-radius:20px; font-size:12px; background:#fff4e5; color:#b26a00; margin:3px;'>
-                    Priority: ${jobCard.priority || 'N/A'}
-                </span>
-            </div>
-
-            <p style='font-size:14px; color:#555; line-height:1.6; margin-bottom:20px;'>
-                <a href="${jobCardUrl}" style='color:#1f3c88; text-decoration:none; font-weight:bold;'>View Job Card</a>
-            </p>
-
-            <!-- FOOTER TAGS -->
-            <div style='margin-top:25px; text-align:center;'>
-
-                <span style='display:inline-block; padding:6px 12px; border-radius:20px; font-size:12px; background:#1f3c88; color:#fff; margin:3px;'>
-                    Task Notification
-                </span>
-
-                <span style='display:inline-block; padding:6px 12px; border-radius:20px; font-size:12px; background:#e9f7ef; color:#1e7e34; margin:3px;'>
-                    System Generated
-                </span>
-
-            </div>
-
-        </div>
-
-        <!-- FOOTER -->
-        <div style='background:#f4f6f9; padding:15px; text-align:center; font-size:12px; color:#777;'>
-
-            <p style='margin:0;'>Texol Energies - THI Support </p>
-            <p style='margin:5px 0 0;'>Please do not reply to this email.</p>
-
-        </div>
-
-    </div>
-
-</div>
-                    `;
-
-                    const res = await fetch('sendmail.php', {
-                        method: 'POST',
-                        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-                        body: new URLSearchParams({
-                            to: technicianEmail,
-                            subject: subject,
-                            body: body
-                        })
-                    });
-
-                    const mailResult = await res.text();
-                    console.log("MAIL RESPONSE:", mailResult);
-
-                } catch (emailErr) {
-                    console.error('Error sending job card update email:', emailErr);
-                }
+            // Send email notification using role-based system
+            try {
+                await fetch('notify_job_cards.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        job_card_id: currentJobCard.id,
+                        action: 'updated',
+                        added_by: '<?php echo $_SESSION['user_name'] ?? 'Unknown User'; ?>'
+                    })
+                });
+            } catch (emailErr) {
+                console.error('Failed to send email notification:', emailErr);
             }
         }
 
@@ -2068,101 +1914,19 @@ ${description}            </p>
                 }]);
         }
 
-        // =========================
-        // Send email notification to technician
-        // =========================
-        if (technicianEmail && data?.length) {
-            try {
-                const jobCard = data[0];
-                const jobCardUrl = `${window.location.origin}/job_cards?id=${jobCard.id}`;
-
-                console.log("Sending job card email to:", technicianEmail);
-
-                const subject = `New Job Card Assigned: ${title}`;
-                const body = `
-<div style='font-family: Arial, sans-serif; background:#f4f6f9; padding:20px;'>
-   <img
-                src='https://texolenergies.com/assets/Logo-paGHQfRF.svg'
-                alt='Texol Energies'
-                style='width:140px; margin-bottom:10px; display:block; margin-left:auto; margin-right:auto;'
-            />
-    <div style='max-width:650px; margin:0 auto; background:#ffffff; border-radius:12px; overflow:hidden; box-shadow:0 2px 12px rgba(0,0,0,0.08);'>
-
-        <!-- HEADER -->
-        <div style='background:#1f3c88; color:#ffffff; padding:25px; text-align:center;'>
-
-            <h2 style='margin:0; font-size:20px;'>New Job Card Assignment</h2>
-
-        </div>
-
-        <!-- BODY -->
-        <div style='padding:25px;'>
-
-            <!-- TITLE -->
-            <h3 style='margin:0 0 10px; font-size:18px; color:#333;'>${title}</h3>
-
-            <!-- DESCRIPTION -->
-            <p style='font-size:14px; color:#555; line-height:1.6; margin-bottom:20px;'>
-${description}            </p>
-
-            <!-- BADGES -->
-            <div style='margin-bottom:20px;'>
-                <span style='display:inline-block; padding:6px 12px; border-radius:20px; font-size:12px; background:#e8f0ff; color:#1f3c88; margin:3px;'>
-                    Status: ${jobCard.status || 'N/A'}
-                </span>
-                <span style='display:inline-block; padding:6px 12px; border-radius:20px; font-size:12px; background:#fff4e5; color:#b26a00; margin:3px;'>
-                    Priority: ${jobCard.priority || 'N/A'}
-                </span>
-            </div>
-
-            <p style='font-size:14px; color:#555; line-height:1.6; margin-bottom:20px;'>
-                <a href="${jobCardUrl}" style='color:#1f3c88; text-decoration:none; font-weight:bold;'>View Job Card</a>
-            </p>
-
-            <!-- FOOTER TAGS -->
-            <div style='margin-top:25px; text-align:center;'>
-
-                <span style='display:inline-block; padding:6px 12px; border-radius:20px; font-size:12px; background:#1f3c88; color:#fff; margin:3px;'>
-                    Task Notification
-                </span>
-
-                <span style='display:inline-block; padding:6px 12px; border-radius:20px; font-size:12px; background:#e9f7ef; color:#1e7e34; margin:3px;'>
-                    System Generated
-                </span>
-
-            </div>
-
-        </div>
-
-        <!-- FOOTER -->
-        <div style='background:#f4f6f9; padding:15px; text-align:center; font-size:12px; color:#777;'>
-
-            <p style='margin:0;'>Texol Energies - THI Support </p>
-            <p style='margin:5px 0 0;'>Please do not reply to this email.</p>
-
-        </div>
-
-    </div>
-
-</div>
-                `;
-
-                const res = await fetch('sendmail.php', {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-                    body: new URLSearchParams({
-                        to: technicianEmail,
-                        subject: subject,
-                        body: body
-                    })
-                });
-
-                const result = await res.text();
-                console.log("MAIL RESPONSE:", result);
-
-            } catch (emailErr) {
-                console.error('Error sending job card email:', emailErr);
-            }
+        // Send email notification using role-based system
+        try {
+            await fetch('notify_job_cards.php', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    job_card_id: data[0].id,
+                    action: 'created',
+                    added_by: '<?php echo $_SESSION['user_name'] ?? 'Unknown User'; ?>'
+                })
+            });
+        } catch (emailErr) {
+            console.error('Failed to send email notification:', emailErr);
         }
 
         // =========================
@@ -2707,104 +2471,21 @@ window.removeShare = async function (shareId) {
             
                 if (error) throw error;
 
-                // Send email notification to assigned technician
-              if (assignedTo && data && data[0]) {
-    try {
-        const task = data[0];
-        const jobCardUrl = `${window.location.origin}/job_cards?id=${currentJobCard.id}`;
-
-        // ✅ GET EMAIL HERE
-        const taskSelect = document.getElementById('taskAssignedTo');
-        const technicianEmail = taskSelect ? taskSelect.value : null;
-
-        console.log("Sending email to:", technicianEmail); // debug
-
-        const subject = `New Task Assigned: ${title}`;
-        const body = `
-<div style='font-family: Arial, sans-serif; background:#f4f6f9; padding:20px;'>
-   <img
-                src='https://texolenergies.com/assets/Logo-paGHQfRF.svg'
-                alt='Texol Energies'
-                style='width:140px; margin-bottom:10px; display:block; margin-left:auto; margin-right:auto;'
-            />
-    <div style='max-width:650px; margin:0 auto; background:#ffffff; border-radius:12px; overflow:hidden; box-shadow:0 2px 12px rgba(0,0,0,0.08);'>
-
-        <!-- HEADER -->
-        <div style='background:#1f3c88; color:#ffffff; padding:25px; text-align:center;'>
-
-            <h2 style='margin:0; font-size:20px;'>New Task Assignment</h2>
-
-        </div>
-
-        <!-- BODY -->
-        <div style='padding:25px;'>
-
-            <!-- TITLE -->
-            <h3 style='margin:0 0 10px; font-size:18px; color:#333;'>${title}</h3>
-
-            <!-- DESCRIPTION -->
-            <p style='font-size:14px; color:#555; line-height:1.6; margin-bottom:20px;'>
-${description}            </p>
-
-            <!-- BADGES -->
-            <div style='margin-bottom:20px;'>
-                <span style='display:inline-block; padding:6px 12px; border-radius:20px; font-size:12px; background:#e8f0ff; color:#1f3c88; margin:3px;'>
-                    Status: ${task.status || 'N/A'}
-                </span>
-                <span style='display:inline-block; padding:6px 12px; border-radius:20px; font-size:12px; background:#fff4e5; color:#b26a00; margin:3px;'>
-                    Priority: ${task.priority || 'N/A'}
-                </span>
-            </div>
-
-            <p style='font-size:14px; color:#555; line-height:1.6; margin-bottom:20px;'>
-                <a href="${jobCardUrl}" style='color:#1f3c88; text-decoration:none; font-weight:bold;'>View Job Card</a>
-            </p>
-
-            <!-- FOOTER TAGS -->
-            <div style='margin-top:25px; text-align:center;'>
-
-                <span style='display:inline-block; padding:6px 12px; border-radius:20px; font-size:12px; background:#1f3c88; color:#fff; margin:3px;'>
-                    Task Notification
-                </span>
-
-                <span style='display:inline-block; padding:6px 12px; border-radius:20px; font-size:12px; background:#e9f7ef; color:#1e7e34; margin:3px;'>
-                    System Generated
-                </span>
-
-            </div>
-
-        </div>
-
-        <!-- FOOTER -->
-        <div style='background:#f4f6f9; padding:15px; text-align:center; font-size:12px; color:#777;'>
-
-            <p style='margin:0;'>Texol Energies - THI Support </p>
-            <p style='margin:5px 0 0;'>Please do not reply to this email.</p>
-
-        </div>
-
-    </div>
-
-</div>
-        `;
-
-   const res = await fetch('sendmail.php', {
-    method: 'POST',
-    headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-    body: new URLSearchParams({
-        to: technicianEmail,
-        subject: subject,
-        body: body
-    })
-});
-
-const result = await res.text();
-console.log("MAIL RESPONSE:", result);
-
-    } catch (emailErr) {
-        console.error('Error sending task email:', emailErr);
-    }
-}
+                // Send email notification using role-based system
+                try {
+                    await fetch('notify_job_cards.php', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            job_card_id: currentJobCard.id,
+                            task_id: data[0].id,
+                            action: 'created',
+                            added_by: '<?php echo $_SESSION['user_name'] ?? 'Unknown User'; ?>'
+                        })
+                    });
+                } catch (emailErr) {
+                    console.error('Failed to send email notification:', emailErr);
+                }
 
                 bootstrap.Modal.getInstance(document.getElementById('createTaskModal')).hide();
                 document.getElementById('createTaskForm').reset();

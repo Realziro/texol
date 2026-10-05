@@ -190,6 +190,7 @@ if (! isset($_SESSION['user_email'])) {
             </main>
         </div>
     </div>
+
 <!-- Edit/Delete Branch Modal -->
 <div class="modal fade" id="editBranchModal" tabindex="-1">
   <div class="modal-dialog">
@@ -220,19 +221,20 @@ if (! isset($_SESSION['user_email'])) {
       </div>
 
       <div class="modal-footer d-flex justify-content-between">
-        <button class="btn btn-danger" id="deleteBranchBtn">
+        <button type="button" class="btn btn-danger" id="deleteBranchBtn">
           <i class="bi bi-trash"></i> Delete
         </button>
 
         <div>
-          <button class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-          <button class="btn btn-primary" id="updateBranchBtn">Update</button>
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="button" class="btn btn-primary" id="updateBranchBtn">Update</button>
         </div>
       </div>
 
     </div>
   </div>
 </div>
+
     <script
         src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"
         integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz"
@@ -245,28 +247,6 @@ if (! isset($_SESSION['user_email'])) {
 
     <script type="module">
         import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
-        
-        let branchesTable;
-        
-        // Initialize DataTables
-        $(document).ready(function() {
-            branchesTable = $('#branchesTable').DataTable({
-                pageLength: 10,
-                lengthMenu: [5, 10, 25, 50, 100],
-                order: [[3, 'desc']],
-                language: {
-                    search: '_INPUT_',
-                    searchPlaceholder: 'Search branches...'
-                },
-                columnDefs: [
-                    { orderable: false, targets: 4 }
-                ],
-                autoWidth: false
-            });
-            
-            // Load branches after DataTables is initialized
-            loadBranches();
-        });
 
         const supabaseUrl = '<?php echo defined("SUPABASE_URL") ? SUPABASE_URL : ""; ?>';
         const supabaseKey = '<?php echo defined("SUPABASE_ANON_KEY") ? SUPABASE_ANON_KEY : ""; ?>';
@@ -278,44 +258,16 @@ if (! isset($_SESSION['user_email'])) {
         const refreshBtn = document.getElementById('refreshBranchesBtn');
         const alertBox = document.getElementById('branchFormAlert');
 
-
-        async function loadUsers() {
-    try {
-        const { data, error } = await supabase
-            .from('users')
-            .select('id, full_name, email')
-            .order('full_name', { ascending: true });
-
-        if (error) {
-            console.error('Failed to load users:', error.message);
-            return;
-        }
-
-        const managerSelect = document.getElementById('branchManager');
+        const updateBtn = document.getElementById('updateBranchBtn');
+        const deleteBtn = document.getElementById('deleteBranchBtn');
         const editManagerSelect = document.getElementById('editBranchManager');
+        const branchModal = new bootstrap.Modal(document.getElementById('editBranchModal'));
 
-        function populateSelect(selectElement) {
-            selectElement.innerHTML = '<option value="">Select Manager</option>';
-            data.forEach(user => {
-                const option = document.createElement('option');
-                option.value = user.email; // store email in db
-                option.textContent = `${user.full_name} (${user.email})`;
-                selectElement.appendChild(option);
-            });
-        }
+        let branchesTable;
+        let usersLoaded = null; // promise, resolves once the manager dropdowns are filled
 
-        populateSelect(managerSelect);
-        populateSelect(editManagerSelect);
-
-    } catch (err) {
-        console.error('Unexpected error fetching users:', err);
-    }
-}
-
-// Call this once when page loads
-loadUsers();
         function escapeHtml(value) {
-            return (value || '')
+            return (value ?? '')
                 .toString()
                 .replaceAll('&', '&amp;')
                 .replaceAll('<', '&lt;')
@@ -337,14 +289,47 @@ loadUsers();
             alertBox.classList.add('d-none');
         }
 
+        // ---------- Users (manager dropdowns) ----------
+        async function loadUsers() {
+            try {
+                const { data, error } = await supabase
+                    .from('users')
+                    .select('id, full_name, email')
+                    .order('full_name', { ascending: true });
+
+                if (error) {
+                    console.error('Failed to load users:', error.message);
+                    return;
+                }
+
+                const managerSelect = document.getElementById('branchManager');
+
+                function populateSelect(selectElement) {
+                    selectElement.innerHTML = '<option value="">Select Manager</option>';
+                    (data || []).forEach(user => {
+                        const option = document.createElement('option');
+                        option.value = user.email; // store email in db
+                        option.textContent = `${user.full_name} (${user.email})`;
+                        selectElement.appendChild(option);
+                    });
+                }
+
+                populateSelect(managerSelect);
+                populateSelect(editManagerSelect);
+            } catch (err) {
+                console.error('Unexpected error fetching users:', err);
+            }
+        }
+
+        // ---------- Branches table ----------
         async function loadBranches() {
             if (!branchesTable) {
                 console.error('DataTables not initialized');
                 return;
             }
-            
+
             branchesTable.clear();
-            
+
             try {
                 const { data, error } = await supabase
                     .from('branches')
@@ -352,25 +337,20 @@ loadUsers();
                     .order('created_at', { ascending: false });
 
                 if (error) {
-                    branchesTable.row.add(['-', '-', '-', '-', '-']).draw();
+                    branchesTable.draw();
                     showAlert('danger', error.message || 'Failed to load branches.');
                     return;
                 }
 
-                if (!data || data.length === 0) {
-                    branchesTable.row.add(['-', '-', '-', '-', '-']).draw();
-                    return;
-                }
-
-                data.forEach((branch) => {
-                    const editButton = `<button class="btn btn-sm btn-outline-primary edit-branch-btn"
-                        data-id="${branch.id}"
+                (data || []).forEach((branch) => {
+                    const editButton = `<button type="button" class="btn btn-sm btn-outline-primary edit-branch-btn"
+                        data-id="${escapeHtml(branch.id)}"
                         data-name="${escapeHtml(branch.name)}"
                         data-manager="${escapeHtml(branch.manager_email)}"
                         data-cameras="${escapeHtml(branch.total_cameras || 0)}">
                         <i class="bi bi-pencil"></i>
                     </button>`;
-                    
+
                     branchesTable.row.add([
                         escapeHtml(branch.name),
                         escapeHtml(branch.manager_email),
@@ -379,27 +359,42 @@ loadUsers();
                         editButton
                     ]);
                 });
-                
+
+                // No per-button listeners needed: a delegated handler (below) covers
+                // every row on every page, including after search/sort/paging.
                 branchesTable.draw();
-                
-                // Re-attach event listeners to edit buttons
-                document.querySelectorAll('.edit-branch-btn').forEach(btn => {
-                    btn.addEventListener('click', function() {
-                        document.getElementById('editBranchId').value = this.dataset.id;
-                        document.getElementById('editBranchName').value = this.dataset.name;
-                        document.getElementById('editBranchManager').value = this.dataset.manager;
-                        document.getElementById('editTotalCameras').value = this.dataset.cameras;
-                        branchModal.show();
-                    });
-                });
-                
             } catch (err) {
                 console.error('Error loading branches:', err);
-                branchesTable.row.add(['-', '-', '-', '-', '-']).draw();
+                branchesTable.draw();
                 showAlert('danger', 'Unexpected error loading branches.');
             }
         }
 
+        // ---------- Edit button (event delegation) ----------
+        // Bound once to the tbody, so it works for rows on any page.
+        $('#branchesTable tbody').on('click', '.edit-branch-btn', async function () {
+            // Make sure the manager list has finished loading before we set its value
+            if (usersLoaded) await usersLoaded;
+
+            const managerEmail = this.dataset.manager || '';
+
+            // If the manager isn't in the users list (deleted/renamed user, different
+            // casing, etc.), add them so the select isn't blank and Update still works.
+            if (managerEmail && ![...editManagerSelect.options].some(o => o.value === managerEmail)) {
+                const opt = document.createElement('option');
+                opt.value = managerEmail;
+                opt.textContent = `${managerEmail} (not in users list)`;
+                editManagerSelect.appendChild(opt);
+            }
+
+            document.getElementById('editBranchId').value = this.dataset.id;
+            document.getElementById('editBranchName').value = this.dataset.name;
+            editManagerSelect.value = managerEmail;
+            document.getElementById('editTotalCameras').value = this.dataset.cameras;
+            branchModal.show();
+        });
+
+        // ---------- Add branch ----------
         if (resetBtn && form) {
             resetBtn.addEventListener('click', () => {
                 form.reset();
@@ -453,62 +448,113 @@ loadUsers();
                 }
             });
         }
-const branchModal = new bootstrap.Modal(document.getElementById('editBranchModal'));
 
-document.getElementById('updateBranchBtn').addEventListener('click', async () => {
-    const id = document.getElementById('editBranchId').value;
+        // ---------- Update branch ----------
+        updateBtn.addEventListener('click', async () => {
+            const id = document.getElementById('editBranchId').value;
 
-    if (!id) {
-        alert("Invalid branch ID");
-        return;
-    }
+            if (!id) {
+                alert('Invalid branch ID');
+                return;
+            }
 
-    const name = document.getElementById('editBranchName').value.trim();
-    const manager_email = document.getElementById('editBranchManager').value.trim();
-    const total_cameras = document.getElementById('editTotalCameras').value || 0;
+            const name = document.getElementById('editBranchName').value.trim();
+            const manager_email = editManagerSelect.value.trim();
+            const total_cameras = document.getElementById('editTotalCameras').value || 0;
 
-    if (!name || !manager_email) {
-        alert('Fill all fields');
-        return;
-    }
+            if (!name || !manager_email) {
+                alert('Fill all fields');
+                return;
+            }
 
-    const { error } = await supabase
-        .from('branches')
-        .update({ name, manager_email, total_cameras: parseInt(total_cameras) || 0 })
-        .eq('id', id);
+            updateBtn.disabled = true;
+            try {
+                // .select() returns the updated rows so we can detect when
+                // RLS silently blocks the update (0 rows, no error).
+                const { data, error } = await supabase
+                    .from('branches')
+                    .update({ name, manager_email, total_cameras: parseInt(total_cameras) || 0 })
+                    .eq('id', id)
+                    .select();
 
-    if (error) {
-        alert(error.message);
-        return;
-    }
+                if (error) {
+                    alert(error.message);
+                    return;
+                }
 
-    branchModal.hide();
-    loadBranches();
-});
+                if (!data || data.length === 0) {
+                    alert('Update did not change any row. Check the Row Level Security (UPDATE) policy on the branches table.');
+                    return;
+                }
 
-document.getElementById('deleteBranchBtn').addEventListener('click', async () => {
-    const id = document.getElementById('editBranchId').value;
+                branchModal.hide();
+                loadBranches();
+            } catch (err) {
+                console.error(err);
+                alert('Unexpected error updating branch.');
+            } finally {
+                updateBtn.disabled = false;
+            }
+        });
 
-    if (!id) {
-        alert("Invalid branch ID");
-        return;
-    }
+        // ---------- Delete branch ----------
+        deleteBtn.addEventListener('click', async () => {
+            const id = document.getElementById('editBranchId').value;
 
-    if (!confirm('Are you sure you want to delete this branch?')) return;
+            if (!id) {
+                alert('Invalid branch ID');
+                return;
+            }
 
-    const { error } = await supabase
-        .from('branches')
-        .delete()
-        .eq('id', id);
+            if (!confirm('Are you sure you want to delete this branch?')) return;
 
-    if (error) {
-        alert(error.message);
-        return;
-    }
+            deleteBtn.disabled = true;
+            try {
+                const { data, error } = await supabase
+                    .from('branches')
+                    .delete()
+                    .eq('id', id)
+                    .select();
 
-    branchModal.hide();
-    loadBranches();
-});
+                if (error) {
+                    alert(error.message);
+                    return;
+                }
+
+                if (!data || data.length === 0) {
+                    alert('Delete did not remove any row. Check the Row Level Security (DELETE) policy on the branches table.');
+                    return;
+                }
+
+                branchModal.hide();
+                loadBranches();
+            } catch (err) {
+                console.error(err);
+                alert('Unexpected error deleting branch.');
+            } finally {
+                deleteBtn.disabled = false;
+            }
+        });
+
+        // ---------- Init ----------
+        $(document).ready(function () {
+            branchesTable = $('#branchesTable').DataTable({
+                pageLength: 10,
+                lengthMenu: [5, 10, 25, 50, 100],
+                order: [[3, 'desc']],
+                language: {
+                    search: '_INPUT_',
+                    searchPlaceholder: 'Search branches...'
+                },
+                columnDefs: [
+                    { orderable: false, targets: 4 }
+                ],
+                autoWidth: false
+            });
+
+            usersLoaded = loadUsers();
+            loadBranches();
+        });
     </script>
 </body>
 </html>

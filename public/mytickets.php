@@ -883,165 +883,21 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY') && SUPABASE_URL !== 
 
                     console.log('🔍 [DEBUG] Final ticketId for email:', ticketId);
 
-                  // Send email notification to current user with HOD of selected department as CC
-try {
-    // Get HOD email addresses for the selected department
-    const department = document.getElementById('ticketDepartment')?.value || '';
-    console.log('Selected department for email:', department);
-
-    let ccEmails = '';
-
-    if (department) {
-        const { data: hodData, error: hodError } = await supabase
-            .from("users")
-            .select("email")
-            .eq("role", "HOD")
-            .eq("department", department);
-
-        if (hodError) {
-            console.error("Error fetching HOD emails:", hodError);
-        } else {
-            ccEmails = (hodData || [])
-                .map(user => user.email?.trim())
-                .filter(email => email)
-                .join(",");
-            console.log('HOD emails for department:', ccEmails);
-        }
-    }
-
-    // Also add admins as CC
-    const { data: adminData, error: adminError } = await supabase
-        .from("users")
-        .select("email")
-        .eq("role", "Admin");
-
-    if (adminError) {
-        console.error("Error fetching admin emails:", adminError);
-    }
-
-    const adminEmails = (adminData || [])
-        .map(user => user.email?.trim())
-        .filter(email => email)
-        .join(",");
-
-    // Combine HOD and admin emails
-    const allCcEmails = [ccEmails, adminEmails].filter(email => email).join(",");
-
-    const ticketUrl = `https://support.texolenergies.com/mytickets?ticket_id=${ticketId}`;
-
-    const body = `
-<div style="font-family: Arial, sans-serif; background:#f4f6f9; padding:20px;">
-    
-    <img
-        src="https://texolenergies.com/assets/Logo-paGHQfRF.svg"
-        alt="Texol Energies"
-        style="width:140px; margin:0 auto 15px; display:block;"
-    />
-
-    <div style="max-width:650px; margin:0 auto; background:#ffffff; border-radius:12px; overflow:hidden; box-shadow:0 2px 12px rgba(0,0,0,0.08);">
-
-        <!-- HEADER -->
-        <div style="background:#1f3c88; color:#ffffff; padding:25px; text-align:center;">
-            <h2 style="margin:0;">New Support Ticket Created</h2>
-        </div>
-
-        <!-- BODY -->
-        <div style="padding:25px;">
-
-            <!-- TICKET ID -->
-            <p style="font-size:14px; color:#555; line-height:1.6; margin-bottom:10px;">
-                <strong>Ticket ID:</strong> ${ticketId}
-            </p>
-
-            <h3 style="margin-top:0; color:#333;">
-                ${title}
-            </h3>
-
-            <p style="font-size:14px; color:#555; line-height:1.6;">
-                ${description}
-            </p>
-
-    
-                <!-- BADGES -->
-            <div style='margin-bottom:20px;'>
-                <span style='display:inline-block; padding:6px 12px; border-radius:20px; font-size:12px; background:#e8f0ff; color:#1f3c88; margin:3px;'>
-                    Status: Open
-                </span>
-                <span style='display:inline-block; padding:6px 12px; border-radius:20px; font-size:12px; background:#fff4e5; color:#b26a00; margin:3px;'>
-                    Priority: ${priority}
-                </span>
-                <span style='display:inline-block; padding:6px 12px; border-radius:20px; font-size:12px; background:#f0f0f0; color:#555; margin:3px;'>
-                    Department: ${department}
-                </span>
-                <span style='display:inline-block; padding:6px 12px; border-radius:20px; font-size:12px; background:#f0f0f0; color:#555; margin:3px;'>
-                    Branch: ${branch || 'N/A'}
-                </span>
-                <span style='display:inline-block; padding:6px 12px; border-radius:20px; font-size:12px; background:#f0f0f0; color:#555; margin:3px;'>
-                    Category: ${category || 'N/A'}
-                </span>
-                 <span style='display:inline-block; padding:6px 12px; border-radius:20px; font-size:12px; background:#f0f0f0; color:#555; margin:3px;'>
-                    Requested By: ${currentUserEmail || 'N/A'}
-                </span>
-            </div>
-
-            <div style="text-align:center; margin:30px 0;">
-                <a href="${ticketUrl}"
-                   style="background:#1f3c88; color:#ffffff; text-decoration:none; padding:12px 24px; border-radius:6px; display:inline-block;">
-                    View Ticket
-                </a>
-            </div>
-
-            <p style="font-size:13px; color:#777;">
-                This ticket has been successfully created and is now awaiting action.
-            </p>
-
-        </div>
-
-        <!-- FOOTER -->
-        <div style="background:#f4f6f9; padding:15px; text-align:center; font-size:12px; color:#777;">
-            <strong>Texol Energies - THI Support</strong><br>
-            Please do not reply to this email. This is an automated notification.
-        </div>
-
-    </div>
-
-</div>`;
-
-    const subject = `New Ticket Created: ${title}`;
-
-    // Prepare POST parameters
-    const params = new URLSearchParams({
-        to: currentUserEmail,
-        subject: subject,
-        body: body
-    });
-
-    // Add HOD and admins as CC
-    if (allCcEmails) {
-        params.append("cc", allCcEmails);
-    }
-
-    // Send email
-    const response = await fetch("sendmail.php", {
-        method: "POST",
-        headers: {
-            "Content-Type": "application/x-www-form-urlencoded"
-        },
-        body: params
-    });
-
-    const result = await response.text();
-
-    if (!response.ok) {
-        throw new Error(result);
-    }
-
-    console.log("Email sent successfully:", result);
-
-} catch (emailErr) {
-    console.error("Email sending failed:", emailErr);
-    // Don't stop ticket creation if email fails
-}
+                    // Send email notification using role-based system
+                    try {
+                        const ticketData = data[0];
+                        await fetch('notify_ticket_notes.php', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                ticket_id: ticketData.id,
+                                action: 'created',
+                                added_by: '<?php echo $_SESSION['user_name'] ?? 'Unknown User'; ?>'
+                            })
+                        });
+                    } catch (emailErr) {
+                        console.error('Failed to send email notification:', emailErr);
+                    }
 
                     showTicketAlert('success', 'Ticket created successfully!');
                     ticketForm.reset();
@@ -1341,156 +1197,20 @@ try {
                         return;
                     }
 
-                 // Send email notification to current user with all admins as CC
-try {
-    // Get all admin email addresses
-    const { data: adminData, error: adminError } = await supabase
-        .from("users")
-        .select("email")
-        .eq("role", "Admin");
-
-    if (adminError) {
-        console.error("Error fetching admin emails:", adminError);
-    }
-
-    // Create comma-separated list of admin emails
-    const adminEmails = (adminData || [])
-        .map(user => user.email?.trim())
-        .filter(email => email)
-        .join(",");
-
-    const ticketId = currentTicket.ticket_id || "";
-    const ticketUrl = `https://support.texolenergies.com/mytickets?ticket_id=${ticketId}`;
-
-    const body = `
-<div style="font-family: Arial, sans-serif; background:#f4f6f9; padding:20px;">
-
-    <img
-        src="https://texolenergies.com/assets/Logo-paGHQfRF.svg"
-        alt="Texol Energies"
-        style="width:140px; margin-bottom:10px; display:block; margin-left:auto; margin-right:auto;"
-    />
-
-    <div style="max-width:650px; margin:0 auto; background:#ffffff; border-radius:12px; overflow:hidden; box-shadow:0 2px 12px rgba(0,0,0,0.08);">
-
-        <!-- HEADER -->
-        <div style="background:#1f3c88; color:#ffffff; padding:25px; text-align:center;">
-            <h2 style="margin:0; font-size:20px;"> Support Ticket Updated</h2>
-        </div>
-
-        <!-- BODY -->
-        <div style="padding:25px;">
-
-            <p style="font-size:14px; color:#555; margin-bottom:10px;">
-                <strong>Ticket ID:</strong> ${ticketId}
-            </p>
-
-            <h3 style="margin:0 0 10px; font-size:18px; color:#333;">
-                ${title}
-            </h3>
-
-            <p style="font-size:14px; color:#555; line-height:1.7; margin-bottom:20px;">
-${description}            </p>
-
-            <!-- BADGES -->
-            <div style="margin-bottom:20px;">
-
-                <span style="display:inline-block;padding:6px 12px;border-radius:20px;font-size:12px;background:#e8f0ff;color:#1f3c88;margin:3px;">
-                     Status: ${status || "N/A"}
-                </span>
-
-                <span style="display:inline-block;padding:6px 12px;border-radius:20px;font-size:12px;background:#fff4e5;color:#b26a00;margin:3px;">
-                     Priority: ${priority || "N/A"}
-                </span>
-
-                <span style="display:inline-block;padding:6px 12px;border-radius:20px;font-size:12px;background:#f0f0f0;color:#555;margin:3px;">
-                     Department: ${department || "N/A"}
-                </span>
-
-                <span style="display:inline-block;padding:6px 12px;border-radius:20px;font-size:12px;background:#f0f0f0;color:#555;margin:3px;">
-                     Branch: ${branch || "N/A"}
-                </span>
-
-                <span style="display:inline-block;padding:6px 12px;border-radius:20px;font-size:12px;background:#f0f0f0;color:#555;margin:3px;">
-                     Category: ${category || "N/A"}
-                </span>
-
-                <span style="display:inline-block;padding:6px 12px;border-radius:20px;font-size:12px;background:#e9f7ef;color:#1e7e34;margin:3px;">
-                     Requested By: ${currentUserEmail}
-                </span>
-
-            </div>
-
-            <!-- BUTTON -->
-            <div style="text-align:center; margin:30px 0;">
-                <a href="${ticketUrl}"
-                   style="background:#1f3c88;color:#ffffff;padding:12px 24px;border-radius:6px;text-decoration:none;font-weight:bold;display:inline-block;">
-                    View Ticket
-                </a>
-            </div>
-
-            <p style="font-size:13px;color:#666;line-height:1.6;">
-                This is an automated notification informing you that your support ticket has been updated. All system administrators have also been notified.
-            </p>
-
-            <!-- FOOTER TAGS -->
-            <div style="margin-top:25px;text-align:center;">
-
-                <span style="display:inline-block;padding:6px 12px;border-radius:20px;font-size:12px;background:#1f3c88;color:#fff;margin:3px;">
-                    Ticket Notification
-                </span>
-
-                <span style="display:inline-block;padding:6px 12px;border-radius:20px;font-size:12px;background:#e9f7ef;color:#1e7e34;margin:3px;">
-                    System Generated
-                </span>
-
-            </div>
-
-        </div>
-
-        <!-- FOOTER -->
-        <div style="background:#f4f6f9;padding:15px;text-align:center;font-size:12px;color:#777;">
-            <p style="margin:0;"><strong>Texol Energies - THI Support</strong></p>
-            <p style="margin:5px 0 0;">Please do not reply to this email.</p>
-        </div>
-
-    </div>
-
-</div>`;
-
-    const subject = `Ticket Updated: ${title}`;
-
-    const params = new URLSearchParams({
-        to: currentUserEmail,
-        subject,
-        body
-    });
-
-    // Add all admins as CC
-    if (adminEmails) {
-        params.append("cc", adminEmails);
-    }
-
-    const response = await fetch("sendmail.php", {
-        method: "POST",
-        headers: {
-            "Content-Type": "application/x-www-form-urlencoded"
-        },
-        body: params
-    });
-
-    const result = await response.text();
-
-    if (!response.ok) {
-        throw new Error(result);
-    }
-
-    console.log("Email sent successfully:", result);
-
-} catch (emailErr) {
-    console.error("Email sending failed:", emailErr);
-    // Don't stop ticket update if email fails
-}
+                    // Send email notification using role-based system
+                    try {
+                        await fetch('notify_ticket_notes.php', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                ticket_id: currentTicket.id,
+                                action: 'updated',
+                                added_by: '<?php echo $_SESSION['user_name'] ?? 'Unknown User'; ?>'
+                            })
+                        });
+                    } catch (emailErr) {
+                        console.error('Failed to send email notification:', emailErr);
+                    }
 
                     showEditAlert('success', 'Ticket updated successfully!');
                     await loadTickets();

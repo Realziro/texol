@@ -71,13 +71,11 @@ function texol_is_active(string $menu, string $active): string
              Digitized   Forms
             </a>
             <ul class="dropdown-menu">
-                <?php if (check_permission('requisition_approval', 'view') || (isset($_SESSION['user_role']) && strtolower($_SESSION['user_role']) === 'admin')) : ?>
                 <li>
                     <a class="dropdown-item<?php echo texol_is_active('requisitions', $activeMenu); ?>" href="  requisition">
                         <i class="bi bi-file-earmark-plus me-2"></i>Requisitions
                     </a>
                 </li>
-                <?php endif; ?>
                 <?php if (check_permission('customer_feedback', 'view') || (isset($_SESSION['user_role']) && strtolower($_SESSION['user_role']) === 'call center agent')) : ?>
                 <li>
                     <a class="dropdown-item<?php echo texol_is_active('customer_feedback', $activeMenu); ?>" href="  customer_feedback">
@@ -97,7 +95,7 @@ function texol_is_active(string $menu, string $active): string
                 </li>
                 <li>
                     <a class="dropdown-item<?php echo texol_is_active('incident_settlement', $activeMenu); ?>" href="  incident_settlement">
-                        <i class="bi bi-file-contract me-2"></i>Incident Settlement
+                        <i class="bi bi-clipboard-check-fill me-2"></i>Incident Settlement
                     </a>
                 </li>
                 <li>
@@ -110,11 +108,7 @@ function texol_is_active(string $menu, string $active): string
                         <i class="bi bi-camera-video me-2"></i>CCTV Checklist (STA)
                     </a>
                 </li>
-                <li>
-                    <a class="dropdown-item<?php echo texol_is_active('shortage_acknowledgement', $activeMenu); ?>" href="  shortage_acknowledgement">
-                        <i class="bi bi-cash-coin me-2"></i>Shortage Acknowledgement
-                    </a>
-                </li>
+              
                 <li>
                     <a class="dropdown-item<?php echo texol_is_active('repair_maintenance', $activeMenu); ?>" href="  repair_maintenance">
                         <i class="bi bi-tools me-2"></i>Repair and Maintenance

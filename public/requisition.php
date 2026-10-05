@@ -14,13 +14,7 @@ if (! isset($_SESSION['user_email'])) {
     exit;
 }
 
-// Redirect non-admins and users without requisition_approval permission to mytickets page
-if (!isset($_SESSION['user_role']) || strtolower($_SESSION['user_role']) !== 'admin') {
-    if (!check_permission('requisition_approval', 'view')) {
-        header('Location:   mytickets');
-        exit;
-    }
-}
+// Requisitions are now available to all users without restrictions
 
 $message = '';
 $messageType = '';
@@ -318,6 +312,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         curl_exec($ch);
                         curl_close($ch);
 
+                        // Send email notification for approval
+                        $notificationData = [
+                            'requisition_id' => $reqId,
+                            'action' => 'approved',
+                            'added_by' => $_SESSION['user_name'] ?? 'Unknown User'
+                        ];
+
+                        $ch = curl_init();
+                        curl_setopt_array($ch, [
+                            CURLOPT_URL => 'notify_requisition_created.php',
+                            CURLOPT_RETURNTRANSFER => true,
+                            CURLOPT_POST => true,
+                            CURLOPT_POSTFIELDS => json_encode($notificationData),
+                            CURLOPT_HTTPHEADER => [
+                                'Content-Type: application/json'
+                            ],
+                        ]);
+                        curl_exec($ch);
+                        curl_close($ch);
+
                         $response = ['success' => true, 'message' => 'Requisition approved!'];
                     }
                 }
@@ -566,6 +580,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 curl_close($ch);
             }
 
+            // Send email notification to requester and shared_with users
+            $notificationData = [
+                'requisition_id' => $reqId,
+                'action' => 'updated',
+                'added_by' => $_SESSION['user_name'] ?? 'Unknown User'
+            ];
+
+            $ch = curl_init();
+            curl_setopt_array($ch, [
+                CURLOPT_URL => 'notify_requisition_created.php',
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_POST => true,
+                CURLOPT_POSTFIELDS => json_encode($notificationData),
+                CURLOPT_HTTPHEADER => [
+                    'Content-Type: application/json'
+                ],
+            ]);
+            curl_exec($ch);
+            curl_close($ch);
+
             echo json_encode(['success' => true, 'message' => 'Requisition updated successfully!']);
         } else {
             echo json_encode(['success' => false, 'message' => 'Supabase configuration not found.']);
@@ -747,80 +781,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $sharedWithUsers = json_decode($response, true);
                     curl_close($ch);
 
-                    // Send email to each shared_with user
-                    if (is_array($sharedWithUsers) && !empty($sharedWithUsers)) {
-                        foreach ($sharedWithUsers as $user) {
-                            $approverEmail = $user['email'] ?? '';
-                            $approverName = $user['full_name'] ?? 'Approver';
-
-                            if (!empty($approverEmail)) {
-                                $emailSubject = "New Requisition for Approval - #$requisitionNumber";
-                                $emailBody = "
-                                <div style='font-family: Arial, sans-serif; background:#f4f6f9; padding:20px;'>
-                                    <img src='https://texolenergies.com/assets/Logo-paGHQfRF.svg' alt='Texol Energies' style='width:140px; margin-bottom:10px; display:block; margin-left:auto; margin-right:auto;' />
-                                    <div style='max-width:650px; margin:0 auto; background:#ffffff; border-radius:12px; overflow:hidden; box-shadow:0 2px 12px rgba(0,0,0,0.08);'>
-                                        <div style='background:#1f3c88; color:#ffffff; padding:25px; text-align:center;'>
-                                            <h2 style='margin:0; font-size:20px;'>New Requisition for Approval</h2>
-                                        </div>
-                                        <div style='padding:25px;'>
-                                            <p style='font-size:14px; color:#555; line-height:1.6; margin-bottom:10px;'>
-                                                <strong>Requisition Number:</strong> $requisitionNumber
-                                            </p>
-                                            <p style='font-size:14px; color:#555; line-height:1.6; margin-bottom:10px;'>
-                                                <strong>Department:</strong> $department
-                                            </p>
-                                            <p style='font-size:14px; color:#555; line-height:1.6; margin-bottom:10px;'>
-                                                <strong>Required Date:</strong> $requiredDate
-                                            </p>
-                                            <p style='font-size:14px; color:#555; line-height:1.6; margin-bottom:20px;'>
-                                                <strong>Description:</strong> " . htmlspecialchars($description) . "
-                                            </p>
-                                            <div style='margin-bottom:20px;'>
-                                                <span style='display:inline-block; padding:6px 12px; border-radius:20px; font-size:12px; background:#e8f0ff; color:#1f3c88; margin:3px;'>
-                                                    Status: Pending
-                                                </span>
-                                                <span style='display:inline-block; padding:6px 12px; border-radius:20px; font-size:12px; background:#f0f0f0; color:#555; margin:3px;'>
-                                                    Department: $department
-                                                </span>
-                                            </div>
-                                            <p style='font-size:14px; color:#555; line-height:1.6; margin-bottom:20px;'>
-                                                <a href='" . (isset($_SERVER['HTTPS']) ? 'https' : 'http') . "://" . $_SERVER['HTTP_HOST'] . "/requisition' style='color:#1f3c88; text-decoration:none; font-weight:bold;'>View Requisition</a>
-                                            </p>
-                                            <div style='margin-top:25px; text-align:center;'>
-                                                <span style='display:inline-block; padding:6px 12px; border-radius:20px; font-size:12px; background:#1f3c88; color:#fff; margin:3px;'>
-                                                    Requisition Notification
-                                                </span>
-                                                <span style='display:inline-block; padding:6px 12px; border-radius:20px; font-size:12px; background:#e9f7ef; color:#1e7e34; margin:3px;'>
-                                                    System Generated
-                                                </span>
-                                            </div>
-                                        </div>
-                                        <div style='background:#f4f6f9; padding:15px; text-align:center; font-size:12px; color:#777;'>
-                                            <p style='margin:0;'>Texol Energies - THI Support</p>
-                                            <p style='margin:5px 0 0;'>Please do not reply to this email.</p>
-                                        </div>
-                                    </div>
-                                </div>
-                                ";
-
-                                // Send email using sendmail.php
-                                $ch = curl_init();
-                                curl_setopt_array($ch, [
-                                    CURLOPT_URL => 'http://' . $_SERVER['HTTP_HOST'] . '/sendmail.php',
-                                    CURLOPT_RETURNTRANSFER => true,
-                                    CURLOPT_POST => true,
-                                    CURLOPT_POSTFIELDS => http_build_query([
-                                        'to' => $approverEmail,
-                                        'subject' => $emailSubject,
-                                        'body' => $emailBody
-                                    ]),
-                                ]);
-                                curl_exec($ch);
-                                curl_close($ch);
-                            }
-                        }
-                    }
+                    // Email notifications are now handled by the role-based notification system
                 }
+
+                // Send email notification to requester and shared_with users
+                $notificationData = [
+                    'requisition_id' => $requisitionId,
+                    'action' => 'created',
+                    'added_by' => $_SESSION['user_name'] ?? 'Unknown User'
+                ];
+
+                $ch = curl_init();
+                curl_setopt_array($ch, [
+                    CURLOPT_URL => 'notify_requisition_created.php',
+                    CURLOPT_RETURNTRANSFER => true,
+                    CURLOPT_POST => true,
+                    CURLOPT_POSTFIELDS => json_encode($notificationData),
+                    CURLOPT_HTTPHEADER => [
+                        'Content-Type: application/json'
+                    ],
+                ]);
+                curl_exec($ch);
+                curl_close($ch);
 
                 echo json_encode(['success' => true, 'message' => 'Requisition created successfully!', 'requisition_id' => $requisitionId]);
             } else {
@@ -990,26 +972,7 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
     // If user has 'requisitions_view_all' permission, show all requisitions
     // Otherwise, show where user is requester OR in shared_with
     if ($currentUserId && !$ticketId) {
-        $canViewAllRequisitions = check_permission('requisitions_view_all', 'view');
-
-        if ($canViewAllRequisitions) {
-            // Show all requisitions
-        } else {
-            // Filter to show only user's requisitions
-            $filteredRequisitions = [];
-            foreach ($requisitions as $req) {
-                if (!is_array($req)) continue;
-                $isRequester = ($req['requested_by'] ?? '') === $currentUserId;
-                $sharedWith = $req['shared_with'] ?? '';
-                $sharedWithArray = !empty($sharedWith) ? explode(',', $sharedWith) : [];
-                $isInSharedWith = in_array($currentUserId, $sharedWithArray);
-
-                if ($isRequester || $isInSharedWith) {
-                    $filteredRequisitions[] = $req;
-                }
-            }
-            $requisitions = $filteredRequisitions;
-        }
+        // All users can now view all requisitions without restrictions
     }
 
     // Fetch all requisition items and attachments in single queries (N+1 optimization)
@@ -1093,8 +1056,16 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
     $supplierIds = array_filter(array_unique(array_column($requisitions, 'supplier_id')));
     $userIds = array_filter(array_unique(array_column($requisitions, 'requested_by')));
     $approvedByIds = array_filter(array_unique(array_column($requisitions, 'approved_by')));
-    $allUserIds = array_unique(array_merge($userIds, $approvedByIds));
-
+// Also collect the users each requisition is shared with (the approvers)
+$sharedUserIds = [];
+foreach ($requisitions as $r) {
+    if (!is_array($r) || empty($r['shared_with'])) continue;
+    foreach (explode(',', $r['shared_with']) as $sid) {
+        $sid = trim($sid);
+        if ($sid !== '') $sharedUserIds[] = $sid;
+    }
+}
+$allUserIds = array_unique(array_merge($userIds, $approvedByIds, $sharedUserIds));
     $suppliersById = [];
     if (!empty($supplierIds)) {
         $supplierIdsString = implode(',', $supplierIds);
@@ -1466,20 +1437,70 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
 
                                                     $progress = $totalRequired > 0 ? ($approvedCount / $totalRequired) * 100 : 0;
                                                     ?>
-                                                    <?php if ($totalRequired > 0): ?>
-                                                        <div class="progress" style="height: 20px; width: 100px;">
-                                                            <div class="progress-bar <?php echo $progress >= 100 ? 'bg-success' : ($progress > 0 ? 'bg-info' : 'bg-secondary'); ?>"
-                                                                 role="progressbar"
-                                                                 style="width: <?php echo $progress; ?>%"
-                                                                 aria-valuenow="<?php echo $progress; ?>"
-                                                                 aria-valuemin="0"
-                                                                 aria-valuemax="100">
-                                                                <?php echo $approvedCount; ?>/2
-                                                            </div>
-                                                        </div>
-                                                    <?php else: ?>
-                                                        <span class="text-muted small">-</span>
-                                                    <?php endif; ?>
+                                                 <?php if ($totalRequired > 0): ?>
+    <div class="dropdown">
+        <button type="button"
+                class="btn p-0 border-0 bg-transparent"
+                data-bs-toggle="dropdown"
+                data-bs-auto-close="outside"
+                data-bs-popper-config='{"strategy":"fixed"}'
+                aria-expanded="false"
+                title="View approvers">
+            <span class="progress" style="height: 20px; width: 100px; cursor: pointer;">
+                <span class="progress-bar <?php echo $progress >= 100 ? 'bg-success' : ($progress > 0 ? 'bg-info' : 'bg-secondary'); ?>"
+                      role="progressbar"
+                      style="width: <?php echo $progress; ?>%"
+                      aria-valuenow="<?php echo $progress; ?>"
+                      aria-valuemin="0"
+                      aria-valuemax="100">
+                    <?php echo $approvedCount; ?>/2
+                </span>
+            </span>
+        </button>
+        <div class="dropdown-menu p-2 shadow" style="min-width: 270px;">
+            <div class="small fw-semibold text-muted text-uppercase px-2 mb-2">Approvers</div>
+            <?php foreach ($requiredApprovers as $i => $approverId):
+                $approverId   = trim($approverId);
+                $approverUser = $usersById[$approverId] ?? null;
+                $approverName = $approverUser
+                    ? (($approverUser['full_name'] ?? '') ?: ($approverUser['email'] ?? 'Unknown user'))
+                    : 'Unknown user';
+                $hasApproved = false;
+                $approvedAt  = '';
+                foreach ($approvedByArray as $approval) {
+                    $aid = is_array($approval) ? ($approval['user_id'] ?? null) : $approval;
+                    if ($aid === $approverId) {
+                        $hasApproved = true;
+                        $approvedAt  = is_array($approval) ? ($approval['approved_at'] ?? '') : '';
+                        break;
+                    }
+                }
+                $roleLabel = $i === 0 ? 'Reviewer (1st)' : 'Approver (2nd)';
+            ?>
+                <div class="d-flex align-items-start gap-2 px-2 py-2 border-bottom">
+                    <?php if ($hasApproved): ?>
+                        <i class="bi bi-check-circle-fill text-success mt-1"></i>
+                    <?php else: ?>
+                        <i class="bi bi-hourglass-split text-warning mt-1"></i>
+                    <?php endif; ?>
+                    <div class="flex-grow-1">
+                        <div class="fw-semibold small"><?php echo htmlspecialchars($approverName); ?></div>
+                        <div class="text-muted" style="font-size: .75rem;">
+                            <?php echo $roleLabel; ?> &middot;
+                            <?php if ($hasApproved): ?>
+                                Approved<?php echo $approvedAt ? ' ' . htmlspecialchars(date('d M Y, H:i', strtotime($approvedAt))) : ''; ?>
+                            <?php else: ?>
+                                Pending
+                            <?php endif; ?>
+                        </div>
+                    </div>
+                </div>
+            <?php endforeach; ?>
+        </div>
+    </div>
+<?php else: ?>
+    <span class="text-muted small">-</span>
+<?php endif; ?>
                                                 </td>
                                                 <td class="text-end">
                                                     <div class="dropdown">
@@ -1563,6 +1584,8 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
     <!-- DataTables JS -->
     <script src="https://cdn.datatables.net/1.13.7/js/jquery.dataTables.min.js"></script>
     <script src="https://cdn.datatables.net/1.13.7/js/dataTables.bootstrap5.min.js"></script>
+    <!-- html2pdf.js for PDF generation -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
     <script>
         // Initialize DataTables
         $(document).ready(function() {
@@ -2361,6 +2384,560 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
             openEditModal(req.id);
         };
 
+        // Download requisition as PDF
+        window.downloadRequisitionPDF = function() {
+            const req = window.currentRequisition;
+            if (!req) return;
+const logoUrl = new URL('texol.png', window.location.href).href;
+            // Helper function to format date as day/month/year (dd/mm/yy)
+            const formatDateDMY = (dateString) => {
+                if (!dateString) return '-';
+                const date = new Date(dateString);
+                const day = String(date.getDate()).padStart(2, '0');
+                const month = String(date.getMonth() + 1).padStart(2, '0');
+                const year = String(date.getFullYear()).slice(-2); // Get last 2 digits
+                return `${day}/${month}/${year}`;
+            };
+
+            // Get requester info
+            const requestedByName = req.requested_by_user ? (req.requested_by_user.full_name || req.requested_by_user.email) : '-';
+            const requesterDepartment = req.department || '-';
+            const createdDate = formatDateDMY(req.created_at);
+            const requiredDate = req.required_date ? formatDateDMY(req.required_date) : '-';
+
+            // Calculate grand total
+            let grandTotal = 0;
+            if (req.items && req.items.length > 0) {
+                req.items.forEach(item => {
+                    grandTotal += (parseFloat(item.quantity) || 0) * (parseFloat(item.unit_price) || 0);
+                });
+            }
+
+            // Get approver info
+            const approverName = req.approved_by_user ? (req.approved_by_user.full_name || req.approved_by_user.email) : '';
+            const approvedDate = formatDateDMY(req.approved_at);
+            const approverSignature = (req.approved_by_user && req.approved_by_user.signature) ? req.approved_by_user.signature : '';
+
+            // Parse approved_by_users to get actual approvers (not just shared_with)
+            const approvedByUsers = req.approved_by_users || [];
+            const approvedByArray = Array.isArray(approvedByUsers) ? approvedByUsers : (typeof approvedByUsers === 'string' ? JSON.parse(approvedByUsers) : []);
+
+            // Extract user IDs and dates from approved_by array (handle both old format and new object format)
+            const actualApprovers = approvedByArray.map(approval => {
+                if (typeof approval === 'object' && approval.user_id) {
+                    return {
+                        user_id: approval.user_id,
+                        approved_at: approval.approved_at
+                    };
+                }
+                return { user_id: approval, approved_at: null }; // old format (just user ID string)
+            });
+
+            // Get first and second actual approvers for review/approval in print
+            const firstApprover = actualApprovers.length > 0 ? actualApprovers[0] : null;
+            const secondApprover = actualApprovers.length > 1 ? actualApprovers[1] : null;
+
+            // Format approval dates
+            const firstApprovalDate = firstApprover && firstApprover.approved_at ? formatDateDMY(firstApprover.approved_at) : '';
+            const secondApprovalDate = secondApprover && secondApprover.approved_at ? formatDateDMY(secondApprover.approved_at) : '';
+
+            // Get requester signature
+            const requesterSignature = (req.requested_by_user && req.requested_by_user.signature) ? req.requested_by_user.signature : '';
+
+            // Generate items rows
+            let itemsRows = '';
+            if (req.items && req.items.length > 0) {
+                itemsRows = req.items.map((item, index) => {
+                    const itemName = item.item ? item.item.name : 'Unknown';
+                    const quantity = item.quantity || 0;
+                    const unit = item.unit || '';
+                    const itemDescription = item.item ? (item.item.description || '') : '';
+                    return `
+                        <tr>
+                            <td class="no-col">${index + 1}</td>
+                            <td class="item-col">${itemName}</td>
+                            <td class="desc-col">${itemDescription}</td>
+                            <td class="qty-col">${quantity} ${unit}</td>
+                        </tr>
+                    `;
+                }).join('');
+            }
+
+            // Add empty rows to fill the table
+            const emptyRowsNeeded = 8 - (req.items ? req.items.length : 0);
+            for (let i = 0; i < emptyRowsNeeded; i++) {
+                itemsRows += `
+                    <tr>
+                        <td class="no-col">&nbsp;</td>
+                        <td class="item-col"></td>
+                        <td class="desc-col"></td>
+                        <td class="qty-col"></td>
+                    </tr>
+                `;
+            }
+
+            // Create HTML content for PDF
+            const pdfContent = `
+                <!DOCTYPE html>
+                <html lang="en">
+                <head>
+                <meta charset="UTF-8">
+                <title>TEX-ADM-FRM-003 Requisition to Order Form</title>
+                <style>
+                  * { box-sizing: border-box; }
+                  body {
+                    font-family: "Century Gothic", "CenturyGothic", "Apple Gothic", Arial, sans-serif;
+                    background: #e8e8e8;
+                    margin: 0;
+                    padding: 0;
+                  }
+                  .page {
+                    width: 200mm;
+                    min-height: 280mm;
+                    background: #fff;
+                    margin: 0 auto;
+                    padding: 15px;
+                    position: relative;
+                    box-sizing: border-box;
+                  }
+
+                  /* Header table */
+                  .header-table {
+                    width: 100%;
+                    border-collapse: collapse;
+                    border: 2px solid #000;
+                    margin-bottom: 22px;
+                  }
+                  .header-table td, .header-table th {
+                    border: 1px solid #000;
+                    padding: 4px 8px;
+                    vertical-align: middle;
+                  }
+                  .header-title {
+                    text-align: center;
+                    font-weight: bold;
+                    font-size: 10px;
+                    letter-spacing: 0.5px;
+                    color: #000;
+                  }
+                  .logo-cell {
+                    width: 150px;
+                    text-align: center;
+                    padding: 6px;
+                  }
+                  .logo-cell img {
+                    max-width: 120px;
+                    max-height: 60px;
+                    display: block;
+                    margin: 0 auto;
+                  }
+                  .logo-text {
+                    font-size: 20px;
+                    font-weight: 800;
+                    letter-spacing: 2px;
+                    color: #1f3c88;
+                    margin-bottom: 2px;
+                  }
+                  .logo-subtext {
+                    font-size: 8px;
+                    letter-spacing: 1px;
+                    color: #666;
+                  }
+                  .logo-tag {
+                    font-size: 9px;
+                    font-style: italic;
+                    color: #333;
+                    margin-top: 4px;
+                  }
+                  .form-name-cell {
+                    text-align: center;
+                    font-size: 10px;
+                    font-weight: normal;
+                    color: #000;
+                  }
+                  .meta-cell {
+                    font-size: 10px;
+                    text-align: left;
+                    line-height: 1.6;
+                    color: #000;
+                  }
+                  .meta-cell b { font-weight: bold; color: #000; }
+                  .page-cell {
+                    text-align: center;
+                    font-size: 10px;
+                    color: #000;
+                  }
+
+                  /* Main title */
+                  .main-title {
+                    text-align: center;
+                    font-size: 11px;
+                    font-weight: 800;
+                    letter-spacing: 0.5px;
+                    margin: 18px 0 20px 0;
+                    color: #000;
+                  }
+
+                  /* From/Date table */
+                  .info-table {
+                    width: 100%;
+                    border-collapse: collapse;
+                    border: 1px solid #000;
+                    margin-bottom: 14px;
+                    font-size: 10px;
+                  }
+                  .info-table td {
+                    border: 1px solid #000;
+                    padding: 10px 8px;
+                    width: 50%;
+                    color: #000;
+                  }
+
+                  .request-line {
+                    font-size: 11px;
+                    margin: 10px 0 6px 0;
+                    color: #000;
+                  }
+
+                  /* Items table */
+                  .items-table {
+                    width: 100%;
+                    border-collapse: collapse;
+                    border: 1px solid #000;
+                    font-size: 10px;
+                    margin-bottom: 20px;
+                  }
+                  .items-table th {
+                    border: 1px solid #000;
+                    background: #a6a6a6;
+                    padding: 6px 4px;
+                    font-size: 10px;
+                    text-align: left;
+                    color: #000;
+                  }
+                  .items-table td {
+                    border: 1px solid #000;
+                    padding: 12px 4px;
+                    color: #000;
+                  }
+                  .items-table th.no-col, .items-table td.no-col { width: 4%; text-align: center; }
+                  .items-table th.item-col, .items-table td.item-col { width: 15%; }
+                  .items-table th.desc-col, .items-table td.desc-col { width: 61%; }
+                  .items-table th.qty-col, .items-table td.qty-col { width: 20%; }
+
+                  /* Bottom section: mandatory / budget / store */
+                  .bottom-table {
+                    width: 100%;
+                    border-collapse: collapse;
+                    border: 1px solid #000;
+                    font-size: 10px;
+                    margin-bottom: 18px;
+                  }
+                  .bottom-table th {
+                    background: #a6a6a6;
+                    border: 1px solid #000;
+                    padding: 5px 6px;
+                    text-align: left;
+                    font-size: 10px;
+                    color: #000;
+                  }
+                  .bottom-table td {
+                    border: 1px solid #000;
+                    padding: 8px 6px;
+                    vertical-align: top;
+                    color: #000;
+                  }
+                  .mandatory-desc {
+                    font-size: 10px;
+                    font-weight: normal;
+                    font-style: normal;
+                    color: #000;
+                  }
+                  .num-col { width: 4%; text-align: center; }
+                  .mand-col { width: 46%; }
+                  .budget-avail-col { width: 12%; text-align: center; }
+                  .budget-amt-col { width: 13%; text-align: center; }
+                  .store-item-col { width: 13%; text-align: center; }
+                  .store-qty-col { width: 12%; text-align: center; }
+
+                  /* Reason for procurement */
+                  .reason-block {
+                    font-size: 11px;
+                    margin-bottom: 18px;
+                    color: #000;
+                  }
+                  .dotted-line {
+                    border-bottom: 1px dotted #000;
+                    height: 20px;
+                  }
+
+                  /* Signature table */
+                  .sig-table {
+                    width: 100%;
+                    border-collapse: collapse;
+                    border: 1px solid #000;
+                    font-size: 10px;
+                    margin-bottom: 40px;
+                  }
+                  .sig-table th {
+                    background: #a6a6a6;
+                    border: 1px solid #000;
+                    padding: 5px 8px;
+                    text-align: left;
+                    color: #000;
+                  }
+                  .sig-table td {
+                    border: 1px solid #000;
+                    padding: 16px 8px;
+                    width: 33.33%;
+                    font-weight: bold;
+                    color: #000;
+                  }
+                  .sig-table img {
+                    max-height: 40px;
+                    max-width: 100px;
+                  }
+
+                  .footer-row {
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: flex-end;
+                    margin-top: 20px;
+                  }
+                  .footer-caption {
+                    font-size: 11px;
+                    font-style: italic;
+                    color: #000;
+                  }
+                  .page-number {
+                    font-size: 11px;
+                    color: #000;
+                  }
+                </style>
+                </head>
+                <body>
+
+                <div class="page">
+
+                  <!-- Header -->
+                  <table class="header-table">
+                    <tr>
+                      <td colspan="3" class="header-title">TEXOL ENERGIES LIMITED</td>
+                    </tr>
+                    <tr>
+                   <td class="logo-cell">
+    <img src="${logoUrl}" alt="Texol Energies Logo" style="max-width: 120px; max-height: 60px; display: block; margin: 0 auto;">
+    <div class="logo-tag"><i>Reliability Redefined</i></div>
+</td>
+                      <td class="form-name-cell">Requisition to Order Form</td>
+                      <td class="meta-cell">
+                        <b>TEX-ADM-FRM-003, Ver 000</b><br>
+                        Issue Date: 1<sup>st</sup> Nov 2024
+                      </td>
+                    </tr>
+                    <tr>
+                      <td colspan="2"></td>
+                      <td class="page-cell">Page 1 of 1</td>
+                    </tr>
+                  </table>
+
+                  <div class="main-title">REQUISITION TO ORDER (RO) FORM</div>
+
+                  <!-- From / Date -->
+                  <table class="info-table">
+                    <tr>
+                      <td>From: ${requestedByName}</td>
+                      <td>Date: ${createdDate}</td>
+                    </tr>
+                    <tr>
+                      <td>Department: ${requesterDepartment}</td>
+                      <td>Items Required by when: ${requiredDate}</td>
+                    </tr>
+                  </table>
+
+                  <div class="request-line">Request: Please arrange for the procurement of the following items</div>
+
+                  <!-- Items table -->
+                  <table class="items-table">
+                    <tr>
+                      <th class="no-col">No.</th>
+                      <th class="item-col">ITEM</th>
+                      <th class="desc-col">DETAILED SPECIFIC DESCRIPTION<br>(Attachments, Drawings, BOQs)</th>
+                      <th class="qty-col">ORDER QTY</th>
+                    </tr>
+                    ${itemsRows}
+                  </table>
+
+                  <!-- Mandatory requirements / budget / store check -->
+                  <table class="bottom-table">
+                    <tr>
+                      <th colspan="2">MANDATORY REQUIREMENTS</th>
+                      <th colspan="2">BUDGET CHECK</th>
+                      <th colspan="2">STORE CHECK</th>
+                    </tr>
+                    <tr>
+                      <td colspan="2" class="mandatory-desc">e.g. (warranty, sample required, country of origin, after sale support, delivery date, training, standardization, site visit etc.)</td>
+                      <td class="budget-avail-col" rowspan="3"><b>Budget<br>Available (Y/N)</b></td>
+                      <td class="budget-amt-col" rowspan="3"><b>Amount<br>Budgeted</b><p></p><br>${grandTotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                      <td class="store-item-col" rowspan="3"><b>Item<br>Available in<br>store (Y/N)</b></td>
+                      <td class="store-qty-col" rowspan="3"><b>Qty<br>Available</b></td>
+                    </tr>
+                    <tr>
+                      <td class="num-col">1</td><td class="mand-col"></td>
+                    </tr>
+                    <tr>
+                      <td class="num-col">2</td><td class="mand-col"></td>
+                    </tr>
+
+                  </table>
+
+                  <!-- Reason for procurement -->
+                  <div class="reason-block">
+                    Required for (Reason for procurement):<br><br>
+                    <div class="dotted-line">${req.description || ''}</div>
+                    <div class="dotted-line"></div>
+                  </div>
+
+                  <!-- Signature table -->
+                  <table class="sig-table">
+                    <tr>
+                      <th>Requested by</th>
+                      <th>Review by (Supervisor/HOD)</th>
+                      <th>Approved by</th>
+                    </tr>
+                    <tr>
+                      <td>Name: ${requestedByName}</td><td>Name: <span id="pdfReviewedByName"></span></td><td>Name: <span id="pdfApprovedByName"></span></td>
+                    </tr>
+                    <tr>
+                      <td>Signature: ${requesterSignature ? '<img src="' + requesterSignature + '" alt="Signature" crossorigin="anonymous">' : ''}</td><td>Signature: <span id="pdfReviewedBySig"></span></td><td>Signature: <span id="pdfApprovedBySig"></span></td>
+                    </tr>
+                    <tr>
+                      <td>Date: ${createdDate}</td><td>Date: <span id="pdfReviewedByDate">${firstApprovalDate}</span></td><td>Date: <span id="pdfApprovedByDate">${secondApprovalDate}</span></td>
+                    </tr>
+                  </table>
+
+                  <div class="footer-row">
+                    <div class="footer-caption"><em>Texol Energies Limited Requisition to Order Form</em></div>
+                    <div class="page-number">1</div>
+                  </div>
+
+                </div>
+
+                </body>
+                </html>
+            `;
+
+            // Create a temporary container for the PDF content
+            const container = document.createElement('div');
+            container.style.position = 'absolute';
+            container.style.left = '-9999px';
+            container.innerHTML = pdfContent;
+            document.body.appendChild(container);
+
+            // Wait for all images to load before generating PDF
+            function waitForImages(container) {
+                const imgs = Array.from(container.querySelectorAll('img'));
+                return Promise.all(imgs.map(img => {
+                    if (img.complete && img.naturalWidth > 0) return Promise.resolve();
+                    return new Promise(resolve => {
+                        img.addEventListener('load', resolve, { once: true });
+                        img.addEventListener('error', resolve, { once: true });
+                    });
+                }));
+            }
+
+            // Fetch user details for PDF approval chain and then generate PDF
+            async function generatePDFWithDetails() {
+                try {
+                    if (firstApprover) {
+                        await fetchPDFUserDetails(firstApprover, 'pdfReviewedBy', container);
+                    }
+                    if (secondApprover) {
+                        await fetchPDFUserDetails(secondApprover, 'pdfApprovedBy', container);
+                    }
+
+                    // Wait for all images to load before generating PDF
+                    await waitForImages(container);
+
+                    // Generate PDF after details are loaded
+                    const element = container.querySelector('.page');
+                    const opt = {
+                        margin: 5,
+                        filename: `Requisition_${req.requisition_number || 'Draft'}.pdf`,
+                        image: { type: 'jpeg', quality: 0.98 },
+                        html2canvas: {
+                            scale: 2,
+                            useCORS: true,
+                            allowTaint: true,
+                            logging: true,
+                            letterRendering: true
+                        },
+                        jsPDF: {
+                            unit: 'mm',
+                            format: 'a4',
+                            orientation: 'portrait',
+                            compress: true
+                        },
+                        pagebreak: { mode: ['avoid-all', 'css', 'legacy'] }
+                    };
+
+                    html2pdf().set(opt).from(element).save().then(() => {
+                        document.body.removeChild(container);
+                    }).catch(err => {
+                        console.error('PDF generation error:', err);
+                        alert('Failed to generate PDF. Please try printing instead.');
+                        document.body.removeChild(container);
+                    });
+                } catch (error) {
+                    console.error('Error generating PDF:', error);
+                    alert('Failed to generate PDF. Please try printing instead.');
+                    document.body.removeChild(container);
+                }
+            }
+
+            generatePDFWithDetails();
+        };
+
+        async function fetchPDFUserDetails(approver, prefix, container) {
+            if (!supabase || !approver) return;
+
+            try {
+                const { data, error } = await supabase
+                    .from('users')
+                    .select('id, full_name, email, signature')
+                    .eq('id', approver.user_id)
+                    .single();
+
+                if (error) throw error;
+
+                const nameElement = container.querySelector(`#${prefix}Name`);
+                const sigElement = container.querySelector(`#${prefix}Sig`);
+                const dateElement = container.querySelector(`#${prefix}Date`);
+
+                if (nameElement) {
+                    nameElement.textContent = data.full_name || data.email || '-';
+                }
+
+                if (sigElement && data.signature) {
+                    sigElement.innerHTML = `<img src="${data.signature}" alt="Signature" style="max-height: 40px; max-width: 100px;">`;
+                }
+
+                if (dateElement && approver.approved_at) {
+                    const date = new Date(approver.approved_at);
+                    const day = String(date.getDate()).padStart(2, '0');
+                    const month = String(date.getMonth() + 1).padStart(2, '0');
+                    const year = String(date.getFullYear()).slice(-2);
+                    dateElement.textContent = `${day}/${month}/${year}`;
+                }
+            } catch (err) {
+                console.error('Error fetching user details for PDF:', err);
+                const nameElement = container.querySelector(`#${prefix}Name`);
+                if (nameElement) {
+                    nameElement.textContent = 'Error loading user';
+                }
+            }
+        }
+
         async function fetchUserDetails(userId, prefix) {
             if (!supabase) return;
 
@@ -2407,6 +2984,9 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
                             <div class="modal-footer">
                                 <button type="button" class="btn btn-warning d-none" id="editRequisitionBtn" onclick="editCurrentRequisition()">
                                     <i class="bi bi-pencil me-1"></i> Edit
+                                </button>
+                                <button type="button" class="btn btn-success" onclick="downloadRequisitionPDF()">
+                                    <i class="bi bi-file-earmark-pdf me-1"></i> Download PDF
                                 </button>
                                 <button type="button" class="btn btn-primary" onclick="printRequisition()">
                                     <i class="bi bi-printer me-1"></i> Print

@@ -6,6 +6,8 @@ require 'PHPMailer/src/Exception.php';
 require 'PHPMailer/src/PHPMailer.php';
 require 'PHPMailer/src/SMTP.php';
 
+require_once '../config.php';
+
 // Enable PHP error reporting
 error_reporting(E_ALL);
 ini_set('display_errors', 1);
@@ -31,27 +33,30 @@ $note = $data['notes'] ?? '';
 $action = $data['action'] ?? 'note';
 $added_by = $data['added_by'] ?? 'Unknown User';
 
-if (!$ticket_id || !$note) {
+if (!$ticket_id) {
     echo json_encode([
         'status' => 'error',
-        'message' => 'Missing ticket_id or note'
+        'message' => 'Missing ticket_id'
     ]);
     exit;
 }
 
-// ==========================
-// SUPABASE CONFIG
-// ==========================
-$supabase_url = "https://pjwvfuyzbzayxqxisysi.supabase.co";
-$supabase_key = "sb_publishable_0irc-UsepAkekLihnXz8Mw_ouNmhqld"; // IMPORTANT: server only
+if (!defined('SUPABASE_URL') || !defined('SUPABASE_ANON_KEY')) {
+    echo json_encode([
+        'status' => 'error',
+        'message' => 'Supabase configuration not found'
+    ]);
+    exit;
+}
+
+$supabase_url = rtrim(SUPABASE_URL, '/');
+$supabase_key = SUPABASE_ANON_KEY;
 
 // ==========================
 // SAFE CURL FUNCTION
 // ==========================
 function supabaseGet($url, $key) {
-
     $ch = curl_init($url);
-
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
     curl_setopt($ch, CURLOPT_HTTPHEADER, [
         "apikey: $key",
@@ -72,7 +77,6 @@ function supabaseGet($url, $key) {
     curl_close($ch);
 
     $decoded = json_decode($response, true);
-
     return is_array($decoded) ? $decoded : [];
 }
 
@@ -80,7 +84,7 @@ function supabaseGet($url, $key) {
 // FETCH TICKET
 // ==========================
 $ticket = supabaseGet(
-    "$supabase_url/rest/v1/tickets?id=eq.$ticket_id&select=ticket_id,title,description,requested_by",
+    "$supabase_url/rest/v1/tickets?id=eq.$ticket_id&select=id,ticket_id,title,description,requested_by,department",
     $supabase_key
 );
 
@@ -98,6 +102,7 @@ $ticket_id_display = $ticket['ticket_id'];
 $title = $ticket['title'];
 $description = $ticket['description'] ?? 'No description';
 $requested_by_id = $ticket['requested_by'];
+$department = $ticket['department'] ?? '';
 
 // ==========================
 // FETCH REQUESTER DETAILS
@@ -112,49 +117,116 @@ $requester_email = $requester['email'] ?? null;
 $requester_name = $requester['full_name'] ?? $requester_email;
 
 // ==========================
-// FETCH USERS
+// BUILD RECIPIENTS USING ROLE NOTIFICATIONS
 // ==========================
-$users = supabaseGet(
-    "$supabase_url/rest/v1/users?select=email,role",
-    $supabase_key
-);
-
 $recipients = [];
 
-foreach ($users as $user) {
+// Determine event key based on action
+$event_key = '';
+if ($action === 'note' || $action === 'updated') {
+    $event_key = 'ticket_updated';
+} elseif ($action === 'created') {
+    $event_key = 'ticket_created';
+} elseif ($action === 'closed') {
+    $event_key = 'ticket_closed';
+}
 
-    if (
-        isset($user['email']) &&
-        (
-            strtolower($user['role']) === 'admin' ||
-            $user['email'] === $requester_email
-        )
-    ) {
-        $recipients[] = $user['email'];
+// Get notification recipients based on role notifications
+if (!empty($event_key)) {
+    $ch = curl_init();
+    curl_setopt_array($ch, [
+        CURLOPT_URL => "$supabase_url/rest/v1/rpc/get_notification_recipients",
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_POST => true,
+        CURLOPT_HTTPHEADER => [
+            "apikey: $supabase_key",
+            "Authorization: Bearer $supabase_key",
+            "Content-Type: application/json",
+        ],
+        CURLOPT_POSTFIELDS => json_encode([
+            'p_event' => $event_key,
+            'p_department' => $department,
+            'p_requester_id' => $requested_by_id
+        ]),
+    ]);
+
+    $response = curl_exec($ch);
+    curl_close($ch);
+
+    if ($response) {
+        $notification_recipients = json_decode($response, true);
+        if (is_array($notification_recipients)) {
+            foreach ($notification_recipients as $recipient) {
+                $email = $recipient['email'] ?? '';
+                if (!empty($email) && filter_var($email, FILTER_VALIDATE_EMAIL)) {
+                    $recipients[] = $email;
+                }
+            }
+        }
     }
+}
+
+// Always add the requester
+if ($requester_email) {
+    $recipients[] = $requester_email;
 }
 
 $recipients = array_unique($recipients);
 
+if (empty($recipients)) {
+    echo json_encode([
+        'status' => 'success',
+        'message' => 'No recipients configured for this event'
+    ]);
+    exit;
+}
+
 // ==========================
 // EMAIL CONTENT
 // ==========================
-$subject = "New Note Added to Ticket: $title";
+$header_text = '';
+$note_section = '';
+
+if ($action === 'created') {
+    $header_text = 'New Ticket Created';
+    $subject = "New Ticket Created: $title";
+} elseif ($action === 'updated') {
+    $header_text = 'Ticket Updated';
+    $subject = "Ticket Updated: $title";
+} elseif ($action === 'closed') {
+    $header_text = 'Ticket Closed';
+    $subject = "Ticket Closed: $title";
+} else {
+    $header_text = 'Note Added to Ticket';
+    $subject = "Note Added to Ticket: $title";
+}
+
+// Add note section if there's a note
+if (!empty($note)) {
+    $note_section = "
+            <!-- NOTE -->
+            <div style='background:#f7f9fc; padding:15px; border-radius:8px; margin-bottom:20px;'>
+                <strong style='color:#1f3c88; font-size:16px;'>New Note:</strong><br><br>
+                <p style='font-size:14px; color:#555; line-height:1.6; margin:0;'>$note</p>
+                <p style='font-size:12px; color:#777; line-height:1.6; margin:10px 0 0 0;'>
+                    <em>Added by: $added_by</em>
+                </p>
+            </div>
+";
+}
 
 $body = "
 <div style='font-family: Arial, sans-serif; background:#f4f6f9; padding:20px;'>
    <img
-                src='https://texolenergies.com/assets/Logo-paGHQfRF.svg'
-                alt='Texol Energies'
-                style='width:140px; margin-bottom:10px; display:block; margin-left:auto; margin-right:auto;'
-            />
+        src='https://texolenergies.com/assets/Logo-paGHQfRF.svg'
+        alt='Texol Energies'
+        style='width:140px; margin-bottom:10px; display:block; margin-left:auto; margin-right:auto;'
+    />
     <div style='max-width:650px; margin:0 auto; background:#ffffff; border-radius:12px; overflow:hidden; box-shadow:0 2px 12px rgba(0,0,0,0.08);'>
 
         <!-- HEADER -->
         <div style='background:#1f3c88; color:#ffffff; padding:25px; text-align:center;'>
-
-            <h2 style='margin:0; font-size:20px;'>New Note Added to Ticket</h2>
-
+            <h2 style='margin:0; font-size:20px;'>$header_text</h2>
         </div>
 
         <!-- BODY -->
@@ -179,14 +251,7 @@ $body = "
                 <strong>Requested By:</strong> $requester_name
             </p>
 
-            <!-- NOTE -->
-            <div style='background:#f7f9fc; padding:15px; border-radius:8px; margin-bottom:20px;'>
-                <strong style='color:#1f3c88; font-size:16px;'>New Note:</strong><br><br>
-                <p style='font-size:14px; color:#555; line-height:1.6; margin:0;'>$note</p>
-                <p style='font-size:12px; color:#777; line-height:1.6; margin:10px 0 0 0;'>
-                    <em>Added by: $added_by</em>
-                </p>
-            </div>
+            $note_section
 
             <p style='font-size:14px; color:#555; line-height:1.6; margin-bottom:20px;'>
                 <a href=\"https://support.texolenergies.com/tickets?ticket_id=$ticket_id_display\" style='color:#1f3c88; text-decoration:none; font-weight:bold;'>View Ticket</a>
@@ -194,25 +259,20 @@ $body = "
 
             <!-- FOOTER TAGS -->
             <div style='margin-top:25px; text-align:center;'>
-
                 <span style='display:inline-block; padding:6px 12px; border-radius:20px; font-size:12px; background:#1f3c88; color:#fff; margin:3px;'>
-                    Ticket Note Notification
+                    Ticket Notification
                 </span>
-
                 <span style='display:inline-block; padding:6px 12px; border-radius:20px; font-size:12px; background:#e9f7ef; color:#1e7e34; margin:3px;'>
                     System Generated
                 </span>
-
             </div>
 
         </div>
 
         <!-- FOOTER -->
         <div style='background:#f4f6f9; padding:15px; text-align:center; font-size:12px; color:#777;'>
-
-            <p style='margin:0;'>Texol Energies - THI Support </p>
+            <p style='margin:0;'>Texol Energies - THI Support</p>
             <p style='margin:5px 0 0;'>Please do not reply to this email.</p>
-
         </div>
 
     </div>
@@ -237,10 +297,6 @@ try {
 
     $mail->setFrom('support@texolenergies.com', 'THI Support');
 
-    if (empty($recipients)) {
-        throw new Exception("No recipients found");
-    }
-
     foreach ($recipients as $email) {
         $mail->addAddress($email);
     }
@@ -254,12 +310,11 @@ try {
 
     echo json_encode([
         'status' => 'success',
-        'message' => 'Ticket note notification sent',
+        'message' => 'Ticket notification sent',
         'recipients' => $recipients
     ]);
 
 } catch (Exception $e) {
-
     echo json_encode([
         'status' => 'error',
         'message' => $mail->ErrorInfo,

@@ -38,10 +38,20 @@ if (! defined('SUPABASE_ANON_KEY') && isset($_ENV['SUPABASE_ANON_KEY'])) {
     define('SUPABASE_ANON_KEY', $_ENV['SUPABASE_ANON_KEY']);
 }
 
+if (! defined('SUPABASE_SERVICE_ROLE_KEY') && isset($_ENV['SUPABASE_SERVICE_ROLE_KEY'])) {
+    define('SUPABASE_SERVICE_ROLE_KEY', $_ENV['SUPABASE_SERVICE_ROLE_KEY']);
+}
+
+// Fallback to anon key if service role key is not available
+if (! defined('SUPABASE_SERVICE_ROLE_KEY') && defined('SUPABASE_ANON_KEY')) {
+    define('SUPABASE_SERVICE_ROLE_KEY', SUPABASE_ANON_KEY);
+}
+
 // Permission checking function
-function check_permission($module, $action = 'view') {
-    // Admins have all permissions
+function check_permission($module, $action = 'view', &$scope = null) {
+    // Admins have all permissions with 'all' scope
     if (isset($_SESSION['user_role']) && strtolower($_SESSION['user_role']) === 'admin') {
+        $scope = 'all';
         return true;
     }
 
@@ -50,47 +60,80 @@ function check_permission($module, $action = 'view') {
         return false;
     }
 
-    // Fetch user permissions from database
-    if (!defined('SUPABASE_URL') || !defined('SUPABASE_ANON_KEY')) {
-        return false;
+    // Cache effective permissions in session
+    if (!isset($_SESSION['effective_permissions'])) {
+        if (!defined('SUPABASE_URL') || !defined('SUPABASE_ANON_KEY')) {
+            return false;
+        }
+
+        $supabaseUrl = rtrim(SUPABASE_URL, '/');
+        $supabaseKey = SUPABASE_ANON_KEY;
+        $userEmail = $_SESSION['user_email'];
+
+        // Call the get_effective_permissions RPC function
+        $ch = curl_init();
+        curl_setopt_array($ch, [
+            CURLOPT_URL => $supabaseUrl . '/rest/v1/rpc/get_effective_permissions',
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_POST => true,
+            CURLOPT_HTTPHEADER => [
+                'apikey: ' . $supabaseKey,
+                'Authorization: Bearer ' . $supabaseKey,
+                'Content-Type: application/json',
+            ],
+            CURLOPT_POSTFIELDS => json_encode(['p_email' => $userEmail]),
+        ]);
+
+        $response = curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+
+        if ($httpCode === 200 && $response) {
+            $permissions = json_decode($response, true) ?: [];
+            $_SESSION['effective_permissions'] = $permissions;
+        } else {
+            $_SESSION['effective_permissions'] = [];
+        }
     }
 
-    $supabaseUrl = rtrim(SUPABASE_URL, '/');
-    $supabaseKey = SUPABASE_ANON_KEY;
-    $userEmail = $_SESSION['user_email'];
+    $permissions = $_SESSION['effective_permissions'];
 
-    $query = http_build_query([
-        'select' => 'action',
-        'user_email' => 'eq.' . $userEmail,
-        'module' => 'eq.' . $module
-    ]);
-
-    $ch = curl_init();
-    curl_setopt_array($ch, [
-        CURLOPT_URL => $supabaseUrl . '/rest/v1/user_permissions?' . $query,
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_HTTPHEADER => [
-            'apikey: ' . $supabaseKey,
-            'Authorization: Bearer ' . $supabaseKey,
-            'Accept: application/json',
-        ],
-    ]);
-
-    $response = curl_exec($ch);
-    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
-
-    if ($httpCode === 200 && $response) {
-        $permissions = json_decode($response, true) ?: [];
-        
-        // Check if user has the specific action or 'all' permission
-        foreach ($permissions as $perm) {
-            if ($perm['action'] === 'all' || $perm['action'] === $action) {
-                return true;
-            }
+    // Check if user has the specific action or 'all' permission
+    foreach ($permissions as $perm) {
+        if ($perm['module'] === $module && ($perm['action'] === 'all' || $perm['action'] === $action)) {
+            $scope = $perm['scope'] ?? 'all';
+            return true;
         }
     }
 
     return false;
+}
+
+// Helper function to build scope filter for queries
+function get_scope_filter($module, $action = 'view', $userEmail = null, $userDepartment = null) {
+    $scope = 'all';
+    check_permission($module, $action, $scope);
+
+    $filter = '';
+    switch ($scope) {
+        case 'own':
+            // Filter by user's own records
+            if ($userEmail) {
+                $filter = " AND (created_by = '" . pg_escape_string($userEmail) . "' OR requested_by = '" . pg_escape_string($userEmail) . "')";
+            }
+            break;
+        case 'department':
+            // Filter by user's department
+            if ($userDepartment) {
+                $filter = " AND lower(trim(department)) = lower(trim('" . pg_escape_string($userDepartment) . "'))";
+            }
+            break;
+        case 'all':
+        default:
+            // No filter - see everything
+            break;
+    }
+
+    return $filter;
 }
 

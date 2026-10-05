@@ -3725,16 +3725,20 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY') && SUPABASE_URL !== 
 </div>
     `;
 
-    await fetch('sendmail.php', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-        body: new URLSearchParams({
-            to: requester,
-            cc: ccEmails,
-            subject: `Ticket Created: ${title}`,
-            body: ticketBody
-        })
-    });
+    // Send email notification using role-based system
+    try {
+        await fetch('notify_ticket_notes.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                ticket_id: ticketId,
+                action: 'created',
+                added_by: '<?php echo $_SESSION['user_name'] ?? 'Unknown User'; ?>'
+            })
+        });
+    } catch (emailErr) {
+        console.error('Failed to send email notification:', emailErr);
+    }
 
 } catch (emailErr) {
                         console.error('Failed to send ticket email:', emailErr);
@@ -3958,117 +3962,21 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY') && SUPABASE_URL !== 
                                 showEditAlert('danger', insertError.message || 'Failed to update assignment.');
                                 return;
                             }
-                            
-                             let ticketId = id;
-                            const { data: ticketData, error: ticketError } = await supabase
-                                .from('tickets')
-                                .select('ticket_id')
-                                .eq('id', id)
-                                .single();
-                            if (!ticketError && ticketData && ticketData.ticket_id) {
-                                ticketId = ticketData.ticket_id;
-                            }
-                          // Prepare values
-const title = editTicketTitle?.value || '';
-const ticketUrl = `${window.location.origin}/tickets?ticket_id=${encodeURIComponent(ticketId)}`;
 
-const subject = `${title}`;
-const body = `
-<div style='font-family: Arial, sans-serif; background:#f4f6f9; padding:20px;'>
-   <img
-                src='https://texolenergies.com/assets/Logo-paGHQfRF.svg'
-                alt='Texol Energies'
-                style='width:140px; margin-bottom:10px; display:block; margin-left:auto; margin-right:auto;'
-            />
-    <div style='max-width:650px; margin:0 auto; background:#ffffff; border-radius:12px; overflow:hidden; box-shadow:0 2px 12px rgba(0,0,0,0.08);'>
-
-        <!-- HEADER -->
-        <div style='background:#1f3c88; color:#ffffff; padding:25px; text-align:center;'>
-
-            <h2 style='margin:0; font-size:20px;'>New Ticket Assignment</h2>
-
-        </div>
-
-        <!-- BODY -->
-        <div style='padding:25px;'>
-
-            <!-- TICKET ID -->
-            <p style='font-size:14px; color:#555; line-height:1.6; margin-bottom:10px;'>
-                <strong>Ticket ID:</strong> ${ticketId}
-            </p>
-
-            <!-- TITLE -->
-            <h3 style='margin:0 0 10px; font-size:18px; color:#333;'>${title}</h3>
-
-            <!-- DESCRIPTION -->
-            <p style='font-size:14px; color:#555; line-height:1.6; margin-bottom:20px;'>
-${description}
-            </p>
-
-            <!-- BADGES -->
-            <div style='margin-bottom:20px;'>
-                <span style='display:inline-block; padding:6px 12px; border-radius:20px; font-size:12px; background:#e8f0ff; color:#1f3c88; margin:3px;'>
-                    Status: ${editTicketStatus?.value || ''}
-                </span>
-                <span style='display:inline-block; padding:6px 12px; border-radius:20px; font-size:12px; background:#fff4e5; color:#b26a00; margin:3px;'>
-                    Priority: ${editTicketPriority?.value || ''}
-                </span>
-                <span style='display:inline-block; padding:6px 12px; border-radius:20px; font-size:12px; background:#fff4e5; color:#b26a00; margin:3px;'>
-                    Requested by: ${requester || ''}
-                </span>
-            </div>
-
-            <p style='font-size:14px; color:#555; line-height:1.6; margin-bottom:20px;'>
-                <a href="${ticketUrl}" style='color:#1f3c88; text-decoration:none; font-weight:bold;'>View Ticket</a>
-            </p>
-
-            <!-- FOOTER TAGS -->
-            <div style='margin-top:25px; text-align:center;'>
-
-                <span style='display:inline-block; padding:6px 12px; border-radius:20px; font-size:12px; background:#1f3c88; color:#fff; margin:3px;'>
-                    Ticket Notification
-                </span>
-
-                <span style='display:inline-block; padding:6px 12px; border-radius:20px; font-size:12px; background:#e9f7ef; color:#1e7e34; margin:3px;'>
-                    System Generated
-                </span>
-
-            </div>
-
-        </div>
-
-        <!-- FOOTER -->
-        <div style='background:#f4f6f9; padding:15px; text-align:center; font-size:12px; color:#777;'>
-
-            <p style='margin:0;'>Texol Energies - THI Support </p>
-            <p style='margin:5px 0 0;'>Please do not reply to this email.</p>
-
-        </div>
-
-    </div>
-
-</div>
-`;
-
-// Send emails in parallel (same simple format you used before)
-try {
-    await Promise.all(
-        selectedEmails.map(email => 
-            fetch('/sendmail.php', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                body: new URLSearchParams({
-                    to: email,
-                    subject: subject,
-                    body: body
-                })
-            }).then(res => res.text())
-              .then(text => console.log(`Email to ${email}:`, text))
-        )
-    );
-} catch (err) {
-    console.error("Email sending failed:", err);
-}  
+                            // Send email notification using role-based system
+                            try {
+                                await fetch('notify_ticket_notes.php', {
+                                    method: 'POST',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({
+                                        ticket_id: id,
+                                        action: 'updated',
+                                        added_by: '<?php echo $_SESSION['user_name'] ?? 'Unknown User'; ?>'
+                                    })
+                                });
+                            } catch (emailErr) {
+                                console.error('Failed to send email notification:', emailErr);
+                            }  
                           
                         }
                     }
