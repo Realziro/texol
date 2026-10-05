@@ -26,5 +26,3 @@ if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 
-//add this require_once __DIR__ . '/../session_init.php';
-// require_once __DIR__ . '/../config.php';
