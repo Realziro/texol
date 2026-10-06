@@ -1,24 +1,11 @@
 <?php
-session_start();
-
-// Load env/config (Supabase keys, etc.)
-require_once __DIR__ . '/../config.php';
-
-// Protect page: only allow access when logged in
-if (! isset($_SESSION['user_email'])) {
-    header('Location:   login');
-    exit;
-}
-
-// Restrict access to users with customer_feedback permission or Call Center Agent role
-if (!check_permission('customer_feedback', 'view') && (!isset($_SESSION['user_role']) || strtolower($_SESSION['user_role']) !== 'call center agent')) {
-    header('Location:   dashboard');
-    exit;
-}
-
+require_once __DIR__ . '/../auth.php';
 
 $isCallCenterAgent = isset($_SESSION['user_role']) && strtolower($_SESSION['user_role']) === 'call center agent';
-$hasFeedbackPermission = check_permission('customer_feedback', 'view');
+if (!$isCallCenterAgent) {
+    require_permission('customer_feedback', 'view');
+}
+$hasFeedbackPermission = can('customer_feedback', 'view');
 
 // Set active menu for sidebar
 $activeMenu = 'customer_feedback';
@@ -394,9 +381,10 @@ $activeMenu = 'customer_feedback';
         const supabaseClient = supabaseUrl && supabaseKey ? supabase.createClient(supabaseUrl, supabaseKey) : null;
 
         // Current user
+        <?php auth_js_config(['customer_feedback']); ?>
         const currentUserEmail = '<?php echo $_SESSION['user_email'] ?? ''; ?>';
         const currentUserId = '<?php echo $_SESSION['user_id'] ?? ''; ?>';
-        const hasFeedbackPermission = <?php echo $hasFeedbackPermission ? 'true' : 'false'; ?>;
+        const hasFeedbackPermission = window.AUTH.can('customer_feedback', 'view');
         const isCallCenterAgent = <?php echo $isCallCenterAgent ? 'true' : 'false'; ?>;
         let isSharedUserEdit = false;
 

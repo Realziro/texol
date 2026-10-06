@@ -1,32 +1,9 @@
 <?php
-session_start();
-
-require_once __DIR__ . '/../config.php';
-
-if (! isset($_SESSION['user_email'])) {
-    header('Location:   login');
-    exit;
-}
-
-// Check permission for categories module
-if (!check_permission('categories', 'view')) {
-    header('Location:   404');
-    exit;
-}
+require_once __DIR__ . '/../auth.php';
+require_permission('categories', 'view');
 
 // Fetch departments from database
 $departments = [];
-if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY') && SUPABASE_URL !== '' && SUPABASE_ANON_KEY !== '') {
-    $supabaseUrl = rtrim(SUPABASE_URL, '/');
-    $supabaseKey = SUPABASE_ANON_KEY;
-
-    $query = http_build_query([
-        'select' => 'id,name',
-        'order' => 'name.asc'
-    ]);
-
-    $ch = curl_init();
-    curl_setopt_array($ch, [
         CURLOPT_URL => $supabaseUrl . '/rest/v1/departments?' . $query,
         CURLOPT_RETURNTRANSFER => true,
         CURLOPT_HTTPHEADER => [

@@ -1,6 +1,5 @@
 <?php
-session_start();
-require_once __DIR__ . '/../config.php';
+require_once __DIR__ . '/../auth.php';
 
 if (! isset($_SESSION['user_email'])) {
     header('Location:   login');
@@ -164,6 +163,28 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY') && SUPABASE_URL !== 
         const currentUserEmail = <?php echo json_encode($_SESSION['user_email'] ?? ''); ?>;
         const currentView = <?php echo json_encode($view); ?>;
         const tbody = document.getElementById('userTicketsTableBody');
+
+        async function sendAdminTicketNoteEmail(ticketId, note) {
+            try {
+                const response = await fetch('notify_ticket_email.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        ticket_id: ticketId,
+                        action: 'note',
+                        source_module: 'admintickets',
+                        notes: note,
+                        added_by: <?php echo json_encode($_SESSION['user_name'] ?? 'Unknown User'); ?>
+                    })
+                });
+                const result = await response.json();
+                if (!response.ok || result.status !== 'success') {
+                    console.error('Admin ticket note email failed:', result);
+                }
+            } catch (error) {
+                console.error('Admin ticket note email failed:', error);
+            }
+        }
 
         function esc(str) {
             return (str || '').toString()
@@ -539,12 +560,14 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY') && SUPABASE_URL !== 
                     // Add comment if description changed
                     const newComment = document.getElementById('editTicketNewComment')?.value?.trim();
                     if (newComment) {
-                        await supabase.from('ticket_notes').insert({
+                        const { error: noteError } = await supabase.from('ticket_notes').insert({
                             ticket_id: id,
                             note: newComment,
                             created_by: currentUserEmail,
                             created_at: new Date().toISOString()
                         });
+                        if (noteError) throw noteError;
+                        await sendAdminTicketNoteEmail(id, newComment);
                     }
 
                     showEditAlert('success', 'Ticket updated successfully.');

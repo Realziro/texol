@@ -1,8 +1,7 @@
 <?php
-session_start();
+require_once __DIR__ . '/../auth.php';
 
 // Load env/config (Supabase keys, etc.)
-require_once __DIR__ . '/../config.php';
 
 // Protect page: only allow access when logged in
 if (! isset($_SESSION['user_email'])) {
@@ -668,10 +667,33 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY') && SUPABASE_URL !== 
 
         // Current user email
         const currentUserEmail = '<?php echo $_SESSION['user_email'] ?? ''; ?>';
+        const currentUserName = <?php echo json_encode($_SESSION['user_name'] ?? 'Unknown User'); ?>;
         let currentUserId = null;
         let currentTicket = null;
         let ticketQuill = null;
         let editTicketQuill = null;
+
+        async function sendMyTicketEmailNotification(ticketId, action, details = {}) {
+            try {
+                const response = await fetch('notify_ticket_email.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        ticket_id: ticketId,
+                        action,
+                        source_module: 'mytickets',
+                        added_by: currentUserName,
+                        ...details
+                    })
+                });
+                const result = await response.json();
+                if (!response.ok || result.status !== 'success') {
+                    console.error('My Tickets email notification failed:', result);
+                }
+            } catch (error) {
+                console.error('My Tickets email notification failed:', error);
+            }
+        }
 
         // DOM Elements
         const ticketForm = document.getElementById('addTicketForm');
@@ -883,21 +905,7 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY') && SUPABASE_URL !== 
 
                     console.log('🔍 [DEBUG] Final ticketId for email:', ticketId);
 
-                    // Send email notification using role-based system
-                    try {
-                        const ticketData = data[0];
-                        await fetch('notify_ticket_notes.php', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({
-                                ticket_id: ticketData.id,
-                                action: 'created',
-                                added_by: '<?php echo $_SESSION['user_name'] ?? 'Unknown User'; ?>'
-                            })
-                        });
-                    } catch (emailErr) {
-                        console.error('Failed to send email notification:', emailErr);
-                    }
+                    await sendMyTicketEmailNotification(data[0].id, 'created');
 
                     showTicketAlert('success', 'Ticket created successfully!');
                     ticketForm.reset();
@@ -1197,20 +1205,7 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY') && SUPABASE_URL !== 
                         return;
                     }
 
-                    // Send email notification using role-based system
-                    try {
-                        await fetch('notify_ticket_notes.php', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({
-                                ticket_id: currentTicket.id,
-                                action: 'updated',
-                                added_by: '<?php echo $_SESSION['user_name'] ?? 'Unknown User'; ?>'
-                            })
-                        });
-                    } catch (emailErr) {
-                        console.error('Failed to send email notification:', emailErr);
-                    }
+                    await sendMyTicketEmailNotification(currentTicket.id, 'updated', { updated_by: currentUserName });
 
                     showEditAlert('success', 'Ticket updated successfully!');
                     await loadTickets();
@@ -1442,22 +1437,7 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY') && SUPABASE_URL !== 
 
                     if (error) throw error;
 
-                    // Send email notification
-                    try {
-                        const userName = '<?php echo isset($_SESSION['user_name']) ? addslashes($_SESSION['user_name']) : 'Unknown User'; ?>';
-                        await fetch('notify_ticket_notes.php', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({
-                                ticket_id: ticketId,
-                                notes: noteText,
-                                action: 'note',
-                                added_by: userName
-                            })
-                        });
-                    } catch (emailErr) {
-                        console.error('Failed to send email notification:', emailErr);
-                    }
+                    await sendMyTicketEmailNotification(ticketId, 'note', { notes: noteText });
 
                     document.getElementById('ticketNoteTextarea').value = '';
                     loadTicketNotes(ticketId);

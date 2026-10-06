@@ -58,21 +58,34 @@ alter table public.user_permissions
     add column if not exists scope text not null default 'all';
 
 -- 6. EFFECTIVE PERMISSIONS (role + user overrides combined) -----------
--- One row per module/action; the widest scope wins (all > department > own).
+-- User overrides replace the matching role permission; otherwise role
+-- permissions apply. Within one source, the widest duplicate scope wins.
 create or replace function public.get_effective_permissions(p_email text)
 returns table (module text, action text, scope text)
 language sql
 stable
 as $$
-    with combined as (
+    with role_perms as (
         select rp.module, rp.action, rp.scope
         from public.users u
         join public.role_permissions rp on rp.role_id = u.role_id
         where u.email = p_email
-        union all
+    ),
+    user_perms as (
         select up.module, up.action, up.scope
         from public.user_permissions up
         where up.user_email = p_email
+    ),
+    combined as (
+        select module, action, scope from user_perms
+        union all
+        select rp.module, rp.action, rp.scope
+        from role_perms rp
+        where not exists (
+            select 1
+            from user_perms up
+            where up.module = rp.module and up.action = rp.action
+        )
     )
     select c.module, c.action,
            (array_agg(c.scope order by case c.scope when 'all' then 1 when 'department' then 2 else 3 end))[1]

@@ -51,7 +51,7 @@ function texol_is_active(string $menu, string $active): string
               Tasks
             </a>
         </li>
-        <?php if (check_permission('tickets', 'view')) : ?>
+        <?php if (can('tickets', 'view')) : ?>
         <li>
             <a href="  tickets" class="nav-link<?php echo texol_is_active('tickets', $activeMenu); ?>" data-menu="tickets">
                 <i class="bi bi-ticket-detailed me-2"></i>
@@ -76,7 +76,7 @@ function texol_is_active(string $menu, string $active): string
                         <i class="bi bi-file-earmark-plus me-2"></i>Requisitions
                     </a>
                 </li>
-                <?php if (check_permission('customer_feedback', 'view') || (isset($_SESSION['user_role']) && strtolower($_SESSION['user_role']) === 'call center agent')) : ?>
+                <?php if (can('customer_feedback', 'view') || (isset($_SESSION['user_role']) && strtolower($_SESSION['user_role']) === 'call center agent')) : ?>
                 <li>
                     <a class="dropdown-item<?php echo texol_is_active('customer_feedback', $activeMenu); ?>" href="  customer_feedback">
                         <i class="bi bi-chat-dots me-2"></i>Customer Feedback
@@ -116,7 +116,7 @@ function texol_is_active(string $menu, string $active): string
                 </li>
             </ul>
         </li>
-        <?php if (check_permission('users', 'view')) : ?>
+        <?php if (can('users', 'view')) : ?>
         <li>
             <a href="  users" class="nav-link<?php echo texol_is_active('users', $activeMenu); ?>" data-menu="users">
                 <i class="bi bi-people-fill me-2"></i>
@@ -125,7 +125,7 @@ function texol_is_active(string $menu, string $active): string
         </li>
         <?php endif; ?>
 
-                <?php if (check_permission('mytickets', 'view') || (isset($_SESSION['user_role']) && strtolower($_SESSION['user_role']) === 'Technician')) : ?>
+                <?php if (can('mytickets', 'view') || (isset($_SESSION['user_role']) && strtolower($_SESSION['user_role']) === 'Technician')) : ?>
 
         <li>
             <a href="  shared" class="nav-link<?php echo texol_is_active('shared', $activeMenu); ?>" data-menu="shared">
@@ -142,51 +142,55 @@ function texol_is_active(string $menu, string $active): string
                 Profile
             </a>
         </li>
-        <?php if (check_permission('departments', 'view') || check_permission('categories', 'view') || check_permission('permissions', 'view') || check_permission('roles', 'view')) : ?>
+        <?php if (can('departments', 'view') || can('categories', 'view') || can('permissions', 'view') || can('roles', 'view') || can('source', 'view')) : ?>
         <li class="nav-item dropdown">
             <a href="#" class="nav-link dropdown-toggle" data-bs-toggle="dropdown" role="button" aria-expanded="false">
                 <i class="bi bi-gear-fill me-2"></i>
                 Admin Settings
             </a>
             <ul class="dropdown-menu">
-                <?php if (check_permission('departments', 'view')) : ?>
+                <?php if (can('departments', 'view')) : ?>
                 <li>
                     <a class="dropdown-item<?php echo texol_is_active('departments', $activeMenu); ?>" href="  departments">
                         <i class="bi bi-diagram-3-fill me-2"></i>Departments
                     </a>
                 </li>
                 <?php endif; ?>
-                <?php if (check_permission('categories', 'view')) : ?>
+                <?php if (can('categories', 'view')) : ?>
                 <li>
                     <a class="dropdown-item<?php echo texol_is_active('categories', $activeMenu); ?>" href="  categories">
                         <i class="bi bi-tags-fill me-2"></i>Categories
                     </a>
                 </li>
                 <?php endif; ?>
-                <?php if (check_permission('roles', 'view')) : ?>
+                <?php if (can('roles', 'view')) : ?>
                 <li>
                     <a class="dropdown-item<?php echo texol_is_active('roles', $activeMenu); ?>" href="  roles">
                         <i class="bi bi-person-vcard-fill me-2"></i>Roles
                     </a>
                 </li>
                 <?php endif; ?>
-                <?php if (check_permission('permissions', 'view')) : ?>
+                <?php if (can('permissions', 'view')) : ?>
                 <li>
                     <a class="dropdown-item<?php echo texol_is_active('permissions', $activeMenu); ?>" href="  permissions">
                         <i class="bi bi-shield-lock-fill me-2"></i>Permissions
                     </a>
                 </li>
                 <?php endif; ?>
+                <?php if (can('source', 'view')) : ?>
                 <li>
                     <a class="dropdown-item<?php echo texol_is_active('source', $activeMenu); ?>" href="  source">
                         <i class="bi bi-link-45deg me-2"></i>Source
                     </a>
                 </li>
+                <?php endif; ?>
+                <?php if (is_admin()) : ?>
                 <li>
                     <a class="dropdown-item<?php echo texol_is_active('branches', $activeMenu); ?>" href="  branches">
                         <i class="bi bi-building me-2"></i>Branches
                     </a>
                 </li>
+                <?php endif; ?>
                 <?php if (isset($_SESSION['user_role']) && (strtolower($_SESSION['user_role']) === 'admin' || strtolower($_SESSION['user_role']) === 'hod')) : ?>
                 <li>
                     <a class="dropdown-item<?php echo texol_is_active('items', $activeMenu); ?>" href="  items">

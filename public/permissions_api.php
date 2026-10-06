@@ -1,21 +1,9 @@
 <?php
-session_start();
-
-require_once __DIR__ . '/../config.php';
+require_once __DIR__ . '/../auth.php';
 
 header('Content-Type: application/json');
 
-// Check if user is logged in
-if (!isset($_SESSION['user_email'])) {
-    echo json_encode(['success' => false, 'message' => 'Unauthorized']);
-    exit;
-}
-
-// Check if user has permission to manage permissions
-if (!check_permission('permissions', 'edit')) {
-    echo json_encode(['success' => false, 'message' => 'Access denied']);
-    exit;
-}
+require_permission('permissions', 'edit');
 
 $action = $_POST['action'] ?? '';
 
@@ -124,6 +112,7 @@ try {
             } else {
                 echo json_encode(['success' => true, 'message' => 'Permissions saved successfully']);
             }
+            auth_forget_permissions();
             break;
 
         case 'save_role_notifications':
@@ -180,6 +169,9 @@ try {
             );
 
             if ($result['httpCode'] >= 200 && $result['httpCode'] < 300) {
+                if (($userId ?? '') === ($_SESSION['user_id'] ?? '')) {
+                    auth_forget_permissions();
+                }
                 echo json_encode(['success' => true, 'message' => 'Role assigned successfully']);
             } else {
                 echo json_encode(['success' => false, 'message' => 'Failed to assign role']);
@@ -220,6 +212,9 @@ try {
                 }
             } else {
                 echo json_encode(['success' => true, 'message' => 'Overrides saved successfully']);
+            }
+            if (strcasecmp($userEmail, current_user_email()) === 0) {
+                auth_forget_permissions();
             }
             break;
 

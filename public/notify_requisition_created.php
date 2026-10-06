@@ -41,7 +41,7 @@ if (!$requisition_id) {
 // ==========================
 // SUPABASE CONFIG
 // ==========================
-require_once '../config.php';
+require_once __DIR__ . '/../auth.php';
 
 if (!defined('SUPABASE_URL') || !defined('SUPABASE_ANON_KEY')) {
     echo json_encode([

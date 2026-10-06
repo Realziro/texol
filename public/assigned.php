@@ -1,8 +1,7 @@
 <?php
-session_start();
+require_once __DIR__ . '/../auth.php';
 
 // Load env/config (Supabase keys, etc.)
-require_once __DIR__ . '/../config.php';
 
 // Protect page: only allow access when logged in
 if (! isset($_SESSION['user_email'])) {

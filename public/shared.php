@@ -1,8 +1,7 @@
 <?php
-session_start();
+require_once __DIR__ . '/../auth.php';
 
 // Load env/config (Supabase keys, etc.)
-require_once __DIR__ . '/../config.php';
 
 // Protect shared page: only allow access when logged in
 if (! isset($_SESSION['user_email'])) {
@@ -146,6 +145,28 @@ if (! isset($_SESSION['user_email'])) {
         const supabase = createClient(supabaseUrl, supabaseKey);
 
         const currentUserEmail = <?php echo json_encode($_SESSION['user_email'] ?? ''); ?>;
+
+        async function sendSharedTicketNoteEmail(ticketId, note) {
+            try {
+                const response = await fetch('notify_ticket_email.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        ticket_id: ticketId,
+                        action: 'note',
+                        source_module: 'shared',
+                        notes: note,
+                        added_by: <?php echo json_encode($_SESSION['user_name'] ?? 'Unknown User'); ?>
+                    })
+                });
+                const result = await response.json();
+                if (!response.ok || result.status !== 'success') {
+                    console.error('Shared ticket note email failed:', result);
+                }
+            } catch (error) {
+                console.error('Shared ticket note email failed:', error);
+            }
+        }
 
         const assignedTableBody = document.getElementById('assignedTableBody');
         const assignedAlert = document.getElementById('assignedAlert');
@@ -393,6 +414,8 @@ if (! isset($_SESSION['user_email'])) {
                         showNotesAlert('danger', error.message || 'Failed to save note.');
                         return;
                     }
+
+                    await sendSharedTicketNoteEmail(ticketId, body);
 
                     // Move ticket to In Progress when a note is posted
                     try {

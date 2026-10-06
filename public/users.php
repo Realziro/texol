@@ -1,20 +1,6 @@
 <?php
-session_start();
-
-// Load env/config (Supabase keys, etc.)
-require_once __DIR__ . '/../config.php';
-
-// Protect users page: only allow access when logged in
-if (! isset($_SESSION['user_email'])) {
-    header('Location:   login');
-    exit;
-}
-
-// Check permission for users module
-if (!check_permission('users', 'view')) {
-    header('Location:   404');
-    exit;
-}
+require_once __DIR__ . '/../auth.php';
+require_permission('users', 'view');
 ?>
 
 <!DOCTYPE html>

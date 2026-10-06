@@ -1,11 +1,10 @@
 <?php
-session_start();
+require_once __DIR__ . '/../auth.php';
 if (!isset($_SESSION['user_email'])) {
     header('Location:   login');
     exit;
 }
 
-include __DIR__ . '/../config.php';
 $activeMenu = 'job_cards';
 
 // Handle create modal request

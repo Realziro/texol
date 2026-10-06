@@ -1,7 +1,6 @@
 <?php
-session_start();
+require_once __DIR__ . '/../auth.php';
 
-require_once __DIR__ . '/../config.php';
 
 $meetingId = $_GET['id'] ?? '';
 

@@ -1,6 +1,6 @@
 <?php
-require_once __DIR__ . '/../session_init.php';
-require_once __DIR__ . '/../config.php';
+define('AUTH_AUTO_REQUIRE_LOGIN', false);
+require_once __DIR__ . '/../auth.php';
 
 // Check if user is already logged in
 if (isset($_SESSION['user_email'])) {

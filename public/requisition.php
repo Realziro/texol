@@ -3,10 +3,9 @@ error_reporting(E_ALL);
 ini_set('display_errors', 0);
 ini_set('log_errors', 1);
 ini_set('error_log', __DIR__ . '/php-error.log');
-session_start();
+require_once __DIR__ . '/../auth.php';
 
 // Load env/config (Supabase keys, etc.)
-require_once __DIR__ . '/../config.php';
 
 // Protect page: only allow access when logged in
 if (! isset($_SESSION['user_email'])) {
@@ -26,6 +25,45 @@ $ticketId = $_GET['ticket_id'] ?? '';
 $userDepartment = $_SESSION['user_department'] ?? $_SESSION['department'] ?? '';
 $userRole = $_SESSION['user_role'] ?? '';
 
+$requestHost = $_SERVER['HTTP_HOST'] ?? '';
+$requestHostName = strtolower((string) parse_url('http://' . $requestHost, PHP_URL_HOST));
+$isLocalHost = in_array($requestHostName, ['localhost', '127.0.0.1'], true);
+if ($isLocalHost && preg_match('/^(?:localhost|127\.0\.0\.1)(?::\d+)?$/i', $requestHost)) {
+    $scriptPath = parse_url($_SERVER['SCRIPT_NAME'] ?? '', PHP_URL_PATH) ?: '';
+    $basePath = dirname($scriptPath);
+    $basePath = $basePath === '.' || $basePath === '/' ? '' : '/' . trim($basePath, '/');
+    $requisitionNotifierUrl = 'http://' . $requestHost . $basePath . '/notify_requisition_email.php';
+} else {
+    $requisitionNotifierUrl = 'https://support.texolenergies.com/notify_requisition_email.php';
+}
+
+function send_requisition_notification(string $url, array $payload): void
+{
+    $ch = curl_init($url);
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_POST => true,
+        CURLOPT_CONNECTTIMEOUT => 5,
+        CURLOPT_TIMEOUT => 30,
+        CURLOPT_USERAGENT => 'Mozilla/5.0 (compatible; THI-Notifier/1.0)',
+        CURLOPT_HTTPHEADER => [
+            'Content-Type: application/json',
+            'Accept: application/json',
+            'Cookie: ' . session_name() . '=' . session_id(),
+        ],
+        CURLOPT_POSTFIELDS => json_encode($payload),
+    ]);
+    $response = curl_exec($ch);
+    $httpCode = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $curlError = curl_error($ch);
+    curl_close($ch);
+
+    $result = is_string($response) ? json_decode($response, true) : null;
+    if ($response === false || $httpCode < 200 || $httpCode >= 300 || ($result['status'] ?? '') !== 'success') {
+        error_log('Requisition email notification failed: HTTP ' . $httpCode . '; '
+            . ($curlError ?: ($result['message'] ?? 'Unexpected notifier response')));
+    }
+}
 
 
 // Handle form submission
@@ -319,18 +357,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             'added_by' => $_SESSION['user_name'] ?? 'Unknown User'
                         ];
 
-                        $ch = curl_init();
-                        curl_setopt_array($ch, [
-                            CURLOPT_URL => 'notify_requisition_created.php',
-                            CURLOPT_RETURNTRANSFER => true,
-                            CURLOPT_POST => true,
-                            CURLOPT_POSTFIELDS => json_encode($notificationData),
-                            CURLOPT_HTTPHEADER => [
-                                'Content-Type: application/json'
-                            ],
-                        ]);
-                        curl_exec($ch);
-                        curl_close($ch);
+                        send_requisition_notification($requisitionNotifierUrl, $notificationData);
 
                         $response = ['success' => true, 'message' => 'Requisition approved!'];
                     }
@@ -587,18 +614,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'added_by' => $_SESSION['user_name'] ?? 'Unknown User'
             ];
 
-            $ch = curl_init();
-            curl_setopt_array($ch, [
-                CURLOPT_URL => 'notify_requisition_created.php',
-                CURLOPT_RETURNTRANSFER => true,
-                CURLOPT_POST => true,
-                CURLOPT_POSTFIELDS => json_encode($notificationData),
-                CURLOPT_HTTPHEADER => [
-                    'Content-Type: application/json'
-                ],
-            ]);
-            curl_exec($ch);
-            curl_close($ch);
+            send_requisition_notification($requisitionNotifierUrl, $notificationData);
 
             echo json_encode(['success' => true, 'message' => 'Requisition updated successfully!']);
         } else {
@@ -760,30 +776,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     curl_close($ch);
                 }
 
-                // Send email notification to shared_with users
-                if (!empty($sharedWithArray)) {
-                    // Fetch email addresses of shared_with users
-                    $sharedWithIds = implode(',', array_map(function($id) {
-                        return 'eq.' . trim($id);
-                    }, $sharedWithArray));
-                    $query = http_build_query(['select' => 'email,full_name', 'id' => "in.($sharedWithIds)"]);
-                    $ch = curl_init();
-                    curl_setopt_array($ch, [
-                        CURLOPT_URL => $supabaseUrl . '/rest/v1/users?' . $query,
-                        CURLOPT_RETURNTRANSFER => true,
-                        CURLOPT_HTTPHEADER => [
-                            'apikey: ' . $supabaseKey,
-                            'Authorization: Bearer ' . $supabaseKey,
-                            'Accept: application/json',
-                        ],
-                    ]);
-                    $response = curl_exec($ch);
-                    $sharedWithUsers = json_decode($response, true);
-                    curl_close($ch);
-
-                    // Email notifications are now handled by the role-based notification system
-                }
-
                 // Send email notification to requester and shared_with users
                 $notificationData = [
                     'requisition_id' => $requisitionId,
@@ -791,18 +783,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     'added_by' => $_SESSION['user_name'] ?? 'Unknown User'
                 ];
 
-                $ch = curl_init();
-                curl_setopt_array($ch, [
-                    CURLOPT_URL => 'notify_requisition_created.php',
-                    CURLOPT_RETURNTRANSFER => true,
-                    CURLOPT_POST => true,
-                    CURLOPT_POSTFIELDS => json_encode($notificationData),
-                    CURLOPT_HTTPHEADER => [
-                        'Content-Type: application/json'
-                    ],
-                ]);
-                curl_exec($ch);
-                curl_close($ch);
+                send_requisition_notification($requisitionNotifierUrl, $notificationData);
 
                 echo json_encode(['success' => true, 'message' => 'Requisition created successfully!', 'requisition_id' => $requisitionId]);
             } else {
@@ -2052,104 +2033,22 @@ $allUserIds = array_unique(array_merge($userIds, $approvedByIds, $sharedUserIds)
                         }
                     }
 
-                    // Send email notification to shared_with users
-                    if (sharedWith) {
-                        const sharedWithIds = sharedWith.split(',').map(id => id.trim());
-                        if (sharedWithIds.length > 0) {
-                            // Fetch email addresses of shared_with users
-                            const { data: sharedWithUsers, error: usersError } = await supabase
-                                .from('users')
-                                .select('email, full_name')
-                                .in('id', sharedWithIds);
-
-                            if (!usersError && sharedWithUsers && sharedWithUsers.length > 0) {
-                                const sharedWithEmails = sharedWithUsers.map(u => u.email);
-
-                                // Send email notification via notify_requisition.php
-                                const mailBody = `
-                                <div style='font-family: Arial, sans-serif; background:#f4f6f9; padding:20px;'>
-                                    <img src='https://texolenergies.com/assets/Logo-paGHQfRF.svg' alt='Texol Energies' style='width:140px; margin:0 auto 15px; display:block;' />
-                                    <div style='max-width:650px; margin:0 auto; background:#ffffff; border-radius:12px; overflow:hidden; box-shadow:0 2px 12px rgba(0,0,0,0.08);'>
-                                        <div style='background:#1f3c88; color:#ffffff; padding:25px; text-align:center;'>
-                                            <h2 style='margin:0;'>New Requisition Created</h2>
-                                        </div>
-                                        <div style='padding:25px;'>
-                                            <p style='font-size:14px; color:#555; line-height:1.6; margin-bottom:10px;'>
-                                                <strong>Requisition Number:</strong> ${requisitionNumber}
-                                            </p>
-                                            <p style='font-size:14px; color:#555; line-height:1.6; margin-bottom:10px;'>
-                                                <strong>Department:</strong> ${department}
-                                            </p>
-                                            <p style='font-size:14px; color:#555; line-height:1.6; margin-bottom:10px;'>
-                                                <strong>Required Date:</strong> ${requiredDate}
-                                            </p>
-                                            <div style='margin-bottom:20px;'>
-                                                <span style='display:inline-block; padding:6px 12px; border-radius:20px; font-size:12px; background:#e8f0ff; color:#1f3c88; margin:3px;'>
-                                                    Status: Pending
-                                                </span>
-                                                <span style='display:inline-block; padding:6px 12px; border-radius:20px; font-size:12px; background:#f0f0f0; color:#555; margin:3px;'>
-                                                    Department: ${department}
-                                                </span>
-                                            </div>
-                                            <p style='font-size:14px; color:#555; line-height:1.6; margin-bottom:20px;'>
-                                                <a href='https://support.texolenergies.com/requisition' style='color:#1f3c88; text-decoration:none; font-weight:bold;'>View Requisition</a>
-                                            </p>
-                                            <div style='margin-top:25px; text-align:center;'>
-                                                <span style='display:inline-block; padding:6px 12px; border-radius:20px; font-size:12px; background:#1f3c88; color:#fff; margin:3px;'>
-                                                    Requisition Notification
-                                                </span>
-                                                <span style='display:inline-block; padding:6px 12px; border-radius:20px; font-size:12px; background:#e9f7ef; color:#1e7e34; margin:3px;'>
-                                                    System Generated
-                                                </span>
-                                            </div>
-                                        </div>
-                                        <div style='background:#f4f6f9; padding:15px; text-align:center; font-size:12px; color:#777;'>
-                                            <p style='margin:0;'>Texol Energies - THI Support</p>
-                                            <p style='margin:5px 0 0;'>Please do not reply to this email.</p>
-                                        </div>
-                                    </div>
-                                </div>`;
-
-                                const toEmail = sharedWithEmails[0] || '';
-                                const ccEmails = sharedWithEmails.length > 1 ? sharedWithEmails.slice(1).join(',') : '';
-
-                                console.log('Shared with emails:', sharedWithEmails);
-                                console.log('To email:', toEmail);
-                                console.log('CC emails:', ccEmails);
-
-                                const emailData = {
-                                    type: 'requisition',
-                                    to: toEmail,
-                                    cc: ccEmails,
-                                    subject: 'New Requisition Created: ' + requisitionNumber,
-                                    body: mailBody
-                                };
-
-                                console.log('Email data being sent:', emailData);
-
-                                try {
-                                    const emailResponse = await fetch('notify_requisition.php', {
-                                        method: 'POST',
-                                        headers: {
-                                            'Content-Type': 'application/json'
-                                        },
-                                        body: JSON.stringify(emailData)
-                                    });
-                                    const responseText = await emailResponse.text();
-                                    console.log('Email notification response:', responseText);
-                                    if (responseText) {
-                                        try {
-                                            const emailResult = JSON.parse(responseText);
-                                            console.log('Email notification result:', emailResult);
-                                        } catch (jsonErr) {
-                                            console.error('Failed to parse email response:', responseText);
-                                        }
-                                    }
-                                } catch (emailErr) {
-                                    console.error('Failed to send email notification:', emailErr);
-                                }
-                            }
+                    try {
+                        const notificationResponse = await fetch('notify_requisition_email.php', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                requisition_id: requisition.id,
+                                action: 'created',
+                                added_by: <?php echo json_encode($_SESSION['user_name'] ?? 'Unknown User'); ?>
+                            })
+                        });
+                        const notificationResult = await notificationResponse.json();
+                        if (!notificationResponse.ok || notificationResult.status !== 'success') {
+                            console.error('Requisition email notification failed:', notificationResult);
                         }
+                    } catch (emailError) {
+                        console.error('Requisition email notification failed:', emailError);
                     }
 
                     alert('Requisition created successfully!');

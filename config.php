@@ -49,12 +49,6 @@ if (! defined('SUPABASE_SERVICE_ROLE_KEY') && defined('SUPABASE_ANON_KEY')) {
 
 // Permission checking function
 function check_permission($module, $action = 'view', &$scope = null) {
-    // Admins have all permissions with 'all' scope
-    if (isset($_SESSION['user_role']) && strtolower($_SESSION['user_role']) === 'admin') {
-        $scope = 'all';
-        return true;
-    }
-
     // Check if user is logged in
     if (!isset($_SESSION['user_email'])) {
         return false;
@@ -111,8 +105,10 @@ function check_permission($module, $action = 'view', &$scope = null) {
 
 // Helper function to build scope filter for queries
 function get_scope_filter($module, $action = 'view', $userEmail = null, $userDepartment = null) {
-    $scope = 'all';
-    check_permission($module, $action, $scope);
+    $scope = null;
+    if (!check_permission($module, $action, $scope)) {
+        return ' AND 1 = 0';
+    }
 
     $filter = '';
     switch ($scope) {
@@ -120,12 +116,16 @@ function get_scope_filter($module, $action = 'view', $userEmail = null, $userDep
             // Filter by user's own records
             if ($userEmail) {
                 $filter = " AND (created_by = '" . pg_escape_string($userEmail) . "' OR requested_by = '" . pg_escape_string($userEmail) . "')";
+            } else {
+                $filter = ' AND 1 = 0';
             }
             break;
         case 'department':
             // Filter by user's department
             if ($userDepartment) {
                 $filter = " AND lower(trim(department)) = lower(trim('" . pg_escape_string($userDepartment) . "'))";
+            } else {
+                $filter = ' AND 1 = 0';
             }
             break;
         case 'all':

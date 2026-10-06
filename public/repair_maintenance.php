@@ -1,6 +1,5 @@
 <?php
-session_start();
-require_once __DIR__ . '/../config.php';
+require_once __DIR__ . '/../auth.php';
 if (!isset($_SESSION['user_email'])) {
     header('Location: login');
     exit;
@@ -778,8 +777,23 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
             b.querySelector('.spinner-border').classList.remove('d-none');
             b.querySelector('.btn-label').textContent = 'Saving...';
             try {
-                const x = await supabase.from('repair_maintenance_forms').insert(r);
+                const x = await supabase.from('repair_maintenance_forms').insert(r).select('id').single();
                 if (x.error) throw x.error;
+
+                try {
+                    const notificationResponse = await fetch('notify_repair_maintenance_email.php', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ form_id: x.data.id })
+                    });
+                    const notificationResult = await notificationResponse.json();
+                    if (!notificationResponse.ok || notificationResult.status !== 'success') {
+                        console.error('Repair and maintenance email notification failed:', notificationResult);
+                    }
+                } catch (emailError) {
+                    console.error('Repair and maintenance email notification failed:', emailError);
+                }
+
                 location.reload();
             } catch (x) {
                 alert(x.message);

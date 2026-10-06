@@ -1,6 +1,5 @@
 <?php
-session_start();
-require_once __DIR__ . '/../config.php';
+require_once __DIR__ . '/../auth.php';
 
 if (!isset($_SESSION['user_email'])) {
     header('Location: login');
@@ -833,6 +832,20 @@ document.getElementById('saveCctvBtn').addEventListener('click', async function(
             console.error('Database error:', error);
             showAlert('danger', error.message || 'Failed to save checklist');
             return;
+        }
+
+        try {
+            const notificationResponse = await fetch('notify_cctv_checklist_email.php', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ checklist_id: data?.[0]?.id })
+            });
+            const notificationResult = await notificationResponse.json();
+            if (!notificationResponse.ok || notificationResult.status !== 'success') {
+                console.error('CCTV checklist email notification failed:', notificationResult);
+            }
+        } catch (emailError) {
+            console.error('CCTV checklist email notification failed:', emailError);
         }
 
         showAlert('success', 'CCTV checklist saved successfully');

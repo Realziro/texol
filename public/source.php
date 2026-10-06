@@ -1,18 +1,6 @@
 <?php
-session_start();
-
-require_once __DIR__ . '/../config.php';
-
-if (! isset($_SESSION['user_email'])) {
-    header('Location:   login');
-    exit;
-}
-
-// Check permission for source module
-if (!check_permission('source', 'view')) {
-    header('Location:   404');
-    exit;
-}
+require_once __DIR__ . '/../auth.php';
+require_permission('source', 'view');
 ?>
 <!DOCTYPE html>
 <html lang="en">

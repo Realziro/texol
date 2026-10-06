@@ -1,5 +1,5 @@
 <?php
-session_start();
+require_once __DIR__ . '/../auth.php';
 
 // Protect profile page: only allow access when logged in
 if (!isset($_SESSION['user_email'])) {
@@ -7,7 +7,6 @@ if (!isset($_SESSION['user_email'])) {
     exit;
 }
 
-require_once __DIR__ . '/../config.php';
 
 $currentEmail = $_SESSION['user_email'] ?? '';
 $currentName = $_SESSION['user_name'] ?? '';

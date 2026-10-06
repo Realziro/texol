@@ -2,31 +2,58 @@
 use PHPMailer\PHPMailer\PHPMailer;
 use PHPMailer\PHPMailer\Exception;
 
-require 'PHPMailer/src/Exception.php';
-require 'PHPMailer/src/PHPMailer.php';
-require 'PHPMailer/src/SMTP.php';
+require __DIR__ . '/PHPMailer/src/Exception.php';
+require __DIR__ . '/PHPMailer/src/PHPMailer.php';
+require __DIR__ . '/PHPMailer/src/SMTP.php';
 
-// Enable PHP error reporting
+// ---- CORS: allow everything ----
+header('Access-Control-Allow-Origin: *');
+header('Access-Control-Allow-Methods: GET, POST, OPTIONS');
+header('Access-Control-Allow-Headers: *');
+header('Access-Control-Max-Age: 86400');
+header('Content-Type: application/json; charset=utf-8');
+
+// Preflight
+if (($_SERVER['REQUEST_METHOD'] ?? '') === 'OPTIONS') {
+    http_response_code(204);
+    exit;
+}
+
+ini_set('display_errors', 0);
 error_reporting(E_ALL);
-ini_set('display_errors', 1);
 
-header('Content-Type: application/json');
+// ---- Input: JSON body, form POST, or query string ----
+$input = $_REQUEST;
+$raw = file_get_contents('php://input');
+if ($raw) {
+    $json = json_decode($raw, true);
+    if (is_array($json)) $input = array_merge($input, $json);
+}
 
-// Get POST data
-$to_email = $_POST['to'] ?? '';
-$cc_emails = $_POST['cc'] ?? '';
-$email_subject = $_POST['subject'] ?? '';
-$email_body = $_POST['body'] ?? 'This is a notification email.';
+$to_email      = $input['to'] ?? '';
+$cc_emails     = $input['cc'] ?? '';
+$bcc_emails    = $input['bcc'] ?? '';
+$reply_to      = $input['reply_to'] ?? '';
+$email_subject = $input['subject'] ?? '';
+$email_body    = $input['body'] ?? 'This is a notification email.';
 
 if (!$to_email || !$email_subject) {
+    http_response_code(400);
     echo json_encode(['status' => 'error', 'message' => 'Missing to or subject']);
     exit;
+}
+
+function addList($list, $fn) {
+    if (!is_array($list)) $list = explode(',', (string)$list);
+    foreach ($list as $e) {
+        $e = trim($e);
+        if ($e !== '') $fn($e);
+    }
 }
 
 $mail = new PHPMailer(true);
 
 try {
-    $mail->SMTPDebug = 0;
     $mail->isSMTP();
     $mail->Host       = 'mail.texolenergies.com';
     $mail->SMTPAuth   = true;
@@ -34,22 +61,15 @@ try {
     $mail->Password   = 'realziro@1997';
     $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
     $mail->Port       = 587;
+    $mail->CharSet    = 'UTF-8';
+    $mail->SMTPDebug  = 0;
 
     $mail->setFrom('support@texolenergies.com', 'THI Support');
 
-    // Main recipient
-    $mail->addAddress($to_email);
-
-    // Handle CC emails
-    if (!empty($cc_emails)) {
-        $cc_list = explode(',', $cc_emails);
-        foreach ($cc_list as $cc) {
-            $cc = trim($cc);
-            if (!empty($cc)) {
-                $mail->addCC($cc);
-            }
-        }
-    }
+    addList($to_email,   fn($e) => $mail->addAddress($e));
+    addList($cc_emails,  fn($e) => $mail->addCC($e));
+    addList($bcc_emails, fn($e) => $mail->addBCC($e));
+    addList($reply_to,   fn($e) => $mail->addReplyTo($e));
 
     $mail->isHTML(true);
     $mail->Subject = $email_subject;
@@ -59,7 +79,7 @@ try {
     $mail->send();
 
     echo json_encode(['status' => 'success', 'message' => 'Email sent successfully']);
-
 } catch (Exception $e) {
+    http_response_code(500);
     echo json_encode(['status' => 'error', 'message' => $mail->ErrorInfo]);
 }

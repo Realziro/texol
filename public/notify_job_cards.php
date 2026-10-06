@@ -6,7 +6,7 @@ require 'PHPMailer/src/Exception.php';
 require 'PHPMailer/src/PHPMailer.php';
 require 'PHPMailer/src/SMTP.php';
 
-require_once '../config.php';
+require_once __DIR__ . '/../auth.php';
 
 // Enable PHP error reporting
 error_reporting(E_ALL);

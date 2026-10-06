@@ -1,6 +1,6 @@
 <?php
 // Upload handler for ticket attachments
-session_start();
+require_once __DIR__ . '/../auth.php';
 
 // Check if user is logged in
 if (!isset($_SESSION['user_email'])) {

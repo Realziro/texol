@@ -1,5 +1,5 @@
 <?php
-session_start();
+require_once __DIR__ . '/../auth.php';
 
 // Protect dashboard: only allow access when logged in
 if (! isset($_SESSION['user_email'])) {
@@ -8,7 +8,6 @@ if (! isset($_SESSION['user_email'])) {
 }
 
 // Load env/config (Supabase keys, etc.)
-require_once __DIR__ . '/../config.php';
 
 // Dashboard metrics sourced from Supabase `tickets`
 $email = $_SESSION['user_email'] ?? '';

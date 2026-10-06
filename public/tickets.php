@@ -1,25 +1,13 @@
 <?php
-session_start();
+require_once __DIR__ . '/../auth.php';
 
 // Load env/config (Supabase keys, etc.)
-require_once __DIR__ . '/../config.php';
 
-// Protect tickets page: only allow access when logged in
-if (! isset($_SESSION['user_email'])) {
-    header('Location:   login');
-    exit;
-}
+$ticketViewScope = require_permission('tickets', 'view');
 
-// Redirect non-admins and non-HODs to mytickets page
-$userRole = isset($_SESSION['user_role']) ? strtolower($_SESSION['user_role']) : '';
-if ($userRole !== 'admin' && $userRole !== 'hod') {
-    header('Location:   mytickets');
-    exit;
-}
-
-// Get current user's department if they are HOD
+// Load the department when this permission needs it and the session lacks it.
 $userDepartment = null;
-if ($userRole === 'hod' && isset($_SESSION['user_email'])) {
+if ($ticketViewScope === 'department' && current_user_department() === '' && isset($_SESSION['user_email'])) {
     // Fetch user's department from Supabase
     if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
         $supabaseUrl = rtrim(SUPABASE_URL, '/');
@@ -47,9 +35,13 @@ if ($userRole === 'hod' && isset($_SESSION['user_email'])) {
 
         if (is_array($userData) && !empty($userData[0])) {
             $userDepartment = $userData[0]['department'] ?? null;
+            $_SESSION['user_department'] = $userDepartment ?? '';
         }
     }
 }
+$userDepartment = $userDepartment ?? current_user_department();
+$ticketScopeParams = scope_filter_params('tickets', 'view', 'department', ['requested_by']);
+$ticketEditScopeParams = scope_filter_params('tickets', 'edit', 'department', ['requested_by']);
 
 // Handle notification ticket notes request
 $openNotesModal = false;
@@ -737,7 +729,10 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY') && SUPABASE_URL !== 
                                             <button type="button" class="btn btn-sm btn-outline-secondary me-2" id="resetTicketForm">
                                                 Reset
                                             </button>
-                                            <button type="submit" class="btn btn-sm btn-primary" id="createTicketBtn">
+                                            <?php if (!can('tickets', 'create')) : ?>
+                                            <small class="text-danger me-auto align-self-center">Your account needs the tickets/create permission to save tickets.</small>
+                                            <?php endif; ?>
+                                            <button type="submit" class="btn btn-sm btn-primary" id="createTicketBtn" <?php echo can('tickets', 'create') ? '' : 'disabled'; ?>>
                                                 Save Ticket
                                             </button>
                                         </div>
@@ -892,7 +887,7 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY') && SUPABASE_URL !== 
                     </div>
                 </div>
 
-                <?php if (isset($_SESSION['user_role']) && strtolower($_SESSION['user_role']) === 'admin') : ?>
+                <?php if (can('tickets', 'view')) : ?>
                     <!-- ADMIN: All Tickets & Assignment -->
                     <section class="mb-4">
                         <div class="card border-0 shadow-sm">
@@ -1159,7 +1154,7 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY') && SUPABASE_URL !== 
                             </div>
                         </div>
 
-                        <?php if (isset($_SESSION['user_role']) && strtolower($_SESSION['user_role']) === 'admin') : ?>
+                        <?php if (can('tickets', 'edit')) : ?>
                         <div class="col-12">
                             <label class="form-label small fw-semibold" for="editTicketAssignees">Assigned Technicians</label>
                             <select
@@ -1306,15 +1301,58 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY') && SUPABASE_URL !== 
 
         // Use the logged-in user's email as their "id" for requested_by
         const currentUserId = <?php echo json_encode($_SESSION['user_email'] ?? ''); ?>;
-        const currentUserRole = <?php echo json_encode($_SESSION['user_role'] ?? ''); ?>;
-        const isAdmin = (currentUserRole || '').toLowerCase() === 'admin';
-        const isHOD = (currentUserRole || '').toLowerCase() === 'hod';
+        const canCreateTickets = <?php echo can('tickets', 'create') ? 'true' : 'false'; ?>;
+        const canEditTickets = <?php echo can('tickets', 'edit') ? 'true' : 'false'; ?>;
         const userDepartment = <?php echo json_encode($userDepartment ?? ''); ?>;
+        const ticketScopeFilters = <?php echo json_encode($ticketScopeParams, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
+        const ticketEditScopeFilters = <?php echo json_encode($ticketEditScopeParams, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
+
+        async function sendTicketEmailNotification(ticketId, action, details = {}) {
+            try {
+                const response = await fetch('notify_ticket_email.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        ticket_id: ticketId,
+                        action,
+                        added_by: <?php echo json_encode($_SESSION['user_name'] ?? 'Unknown User'); ?>,
+                        ...details
+                    })
+                });
+                const result = await response.json();
+                if (!response.ok || result.status !== 'success') {
+                    console.error('Ticket email notification failed:', {
+                        message: result.message || response.statusText,
+                        upstreamStatus: result.sendmail_http_status,
+                        detail: result.detail || result.message
+                    });
+                }
+            } catch (error) {
+                console.error('Ticket email notification failed:', error);
+            }
+        }
+
+        function applyTicketScope(query, filters = ticketScopeFilters) {
+            if (filters.or) {
+                return query.or(filters.or.replace(/^\(|\)$/g, ''));
+            }
+
+            for (const [column, expression] of Object.entries(filters)) {
+                const separator = expression.indexOf('.');
+                if (separator < 0) continue;
+
+                const operator = expression.slice(0, separator);
+                const value = expression.slice(separator + 1);
+                if (operator === 'is' && value === 'null') {
+                    return query.is(column, null);
+                }
+                return query.filter(column, operator, value);
+            }
+
+            return query;
+        }
 
         console.log('Current User ID:', currentUserId || 'NOT SET');
-        console.log('Current User Role:', currentUserRole || 'NOT SET');
-        console.log('Is Admin:', isAdmin);
-        console.log('Is HOD:', isHOD);
         console.log('User Department:', userDepartment || 'NOT SET');
 
         // Read view filter from query string (?view=unassigned|overdue|today)
@@ -1588,7 +1626,7 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY') && SUPABASE_URL !== 
         if (addTicketNoteBtn) {
             addTicketNoteBtn.addEventListener('click', async () => {
                 hideNotesAlert();
-                if (!isAdmin) {
+                if (!canEditTickets) {
                     showNotesAlert('danger', 'Only admins can add notes from this page.');
                     return;
                 }
@@ -1600,6 +1638,16 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY') && SUPABASE_URL !== 
                 if (!ticketId) return;
                 if (!body) {
                     showNotesAlert('warning', 'Please write a note first.');
+                    return;
+                }
+
+                const { data: editableTicket, error: scopeError } = await applyTicketScope(supabase
+                    .from('tickets')
+                    .select('id')
+                    .eq('id', ticketId), ticketEditScopeFilters)
+                    .maybeSingle();
+                if (scopeError || !editableTicket) {
+                    showNotesAlert('danger', 'You do not have permission to edit this ticket.');
                     return;
                 }
 
@@ -1623,22 +1671,7 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY') && SUPABASE_URL !== 
                         throw error;
                     }
 
-                    // Send email notification
-                    try {
-                        const userName = '<?php echo isset($_SESSION['user_name']) ? addslashes($_SESSION['user_name']) : 'Unknown User'; ?>';
-                        await fetch('notify_ticket_notes.php', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({
-                                ticket_id: ticketId,
-                                notes: body,
-                                action: 'note',
-                                added_by: userName
-                            })
-                        });
-                    } catch (emailErr) {
-                        console.error('Failed to send email notification:', emailErr);
-                    }
+                    await sendTicketEmailNotification(ticketId, 'note', { notes: body });
 
                     if (ticketNoteTextarea) ticketNoteTextarea.value = '';
                     await loadNotes(ticketId);
@@ -1733,7 +1766,7 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY') && SUPABASE_URL !== 
             if (ticket?.status) metaParts.push(`Status: ${ticket.status}`);
             if (ticketNotesMeta) ticketNotesMeta.textContent = metaParts.join(' · ');
 
-            const allowAdminNotes = isAdmin;
+            const allowAdminNotes = canEditTickets;
             if (ticketNotesComposer) ticketNotesComposer.classList.toggle('d-none', !allowAdminNotes);
             if (ticketNotesComposerHint) {
                 ticketNotesComposerHint.textContent = allowAdminNotes
@@ -1885,7 +1918,7 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY') && SUPABASE_URL !== 
             if (requestedByEl) requestedByEl.textContent = ticket.requested_by || 'N/A';
 
             // Populate assignees multi-select for admins
-            if (isAdmin && editTicketAssignees) {
+            if (canEditTickets && editTicketAssignees) {
                 editTicketAssignees.innerHTML = '';
                 const currentAssignees = Array.isArray(ticket.ticket_assignees)
                     ? ticket.ticket_assignees.map((a) => (a.technician_email || '').trim())
@@ -1907,7 +1940,7 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY') && SUPABASE_URL !== 
             // Show/hide Close button based on role and ownership
             if (closeTicketBtn) {
                 const status = (ticket.status || '').toLowerCase();
-                const canClose = status !== 'closed' && (isAdmin || (ticket.requested_by || '') === currentUserId);
+                const canClose = status !== 'closed' && canEditTickets;
                 closeTicketBtn.classList.toggle('d-none', !canClose);
             }
 
@@ -1973,10 +2006,10 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY') && SUPABASE_URL !== 
 
             try {
                 // Use ticket_id string instead of UUID
-                const { data: ticketData } = await supabase
+                const { data: ticketData } = await applyTicketScope(supabase
                     .from('tickets')
                     .select('ticket_id')
-                    .eq('id', ticketId)
+                    .eq('id', ticketId))
                     .single();
                 
                 const ticketIdStr = ticketData?.ticket_id;
@@ -2998,9 +3031,9 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY') && SUPABASE_URL !== 
 
             try {
                 console.log('Loading tickets for user:', currentUserId);
-                let query = supabase
+                let query = applyTicketScope(supabase
                     .from('tickets')
-                    .select('*, ticket_assignees(technician_email)')
+                    .select('*, ticket_assignees(technician_email)'))
                     .eq('requested_by', currentUserId);
 
                 // Apply extra filters for special dashboard views for non-admin list (my tickets)
@@ -3377,9 +3410,9 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY') && SUPABASE_URL !== 
                             .filter(Boolean)
                     );
 
-                    const res = await supabase
+                    const res = await applyTicketScope(supabase
                         .from('tickets')
-                        .select('*, branch, ticket_assignees(technician_email)')
+                        .select('*, branch, ticket_assignees(technician_email)'))
                         .neq('status', 'Closed')
                         .order('created_at', { ascending: false })
                         .limit(200);
@@ -3408,9 +3441,9 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY') && SUPABASE_URL !== 
                         data = [];
                         error = null;
                     } else {
-                        const res = await supabase
+                        const res = await applyTicketScope(supabase
                             .from('tickets')
-                            .select('*, branch, ticket_assignees(technician_email)')
+                            .select('*, branch, ticket_assignees(technician_email)'))
                             .in('id', ticketIds)
                             .neq('status', 'Closed')
                             .order('created_at', { ascending: false })
@@ -3420,15 +3453,9 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY') && SUPABASE_URL !== 
                         error = res.error;
                     }
                 } else {
-                    let query = supabase
+                    let query = applyTicketScope(supabase
                         .from('tickets')
-                        .select('*, branch, ticket_assignees(technician_email)');
-
-                    // For HOD users, filter by their department
-                    if (isHOD && userDepartment) {
-                        query = query.eq('department', userDepartment);
-                        console.log('Filtering tickets for HOD department:', userDepartment);
-                    }
+                        .select('*, branch, ticket_assignees(technician_email)'));
 
                     // Apply filters for admin views based on ?view=
                     if (currentView === 'open') {
@@ -3501,6 +3528,10 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY') && SUPABASE_URL !== 
             ticketForm.addEventListener('submit', async (event) => {
                 event.preventDefault();
                 hideTicketAlert();
+                if (!canCreateTickets) {
+                    showTicketAlert('danger', 'You do not have permission to create tickets.');
+                    return;
+                }
 
                 const title = document.getElementById('ticketTitle').value.trim();
                 const requester = document.getElementById('ticketRequester').value.trim();
@@ -3624,6 +3655,7 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY') && SUPABASE_URL !== 
                                 // Don't fail the ticket creation, just log the error
                             } else {
                                 console.log('Successfully assigned technicians to ticket');
+                                await sendTicketEmailNotification(data[0].id, 'assigned', { permission_action: 'create' });
                             }
                         } catch (assigneeErr) {
                             console.error('Error assigning technicians:', assigneeErr);
@@ -3635,114 +3667,9 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY') && SUPABASE_URL !== 
                     showTicketAlert('success', 'Ticket created successfully.');
 
                     // Get ticket_id from response
-                    const ticketId = data && data.length > 0 ? (data[0].ticket_id || data[0].id) : '';
+                    const ticketId = data && data.length > 0 ? data[0].id : '';
 
-                    // Send email notification with ticket details
-                try {
-    const ticketBody = `
-<div style='font-family: Arial, sans-serif; background:#f4f6f9; padding:20px;'>
-   <img
-                src='https://texolenergies.com/assets/Logo-paGHQfRF.svg'
-                alt='Texol Energies'
-                style='width:140px; margin-bottom:10px; display:block; margin-left:auto; margin-right:auto;'
-            />
-    <div style='max-width:650px; margin:0 auto; background:#ffffff; border-radius:12px; overflow:hidden; box-shadow:0 2px 12px rgba(0,0,0,0.08);'>
-
-        <!-- HEADER -->
-        <div style='background:#1f3c88; color:#ffffff; padding:25px; text-align:center;'>
-
-            <h2 style='margin:0; font-size:20px;'>New Support Ticket Created</h2>
-
-        </div>
-
-        <!-- BODY -->
-        <div style='padding:25px;'>
-
-            <!-- TICKET ID -->
-            <p style='font-size:14px; color:#555; line-height:1.6; margin-bottom:10px;'>
-                <strong>Ticket ID:</strong> ${ticketId}
-            </p>
-
-            <!-- TITLE -->
-            <h3 style='margin:0 0 10px; font-size:18px; color:#333;'>${title}</h3>
-
-            <!-- DESCRIPTION -->
-            <p style='font-size:14px; color:#555; line-height:1.6; margin-bottom:20px;'>
-                ${description}
-            </p>
-
-            <!-- BADGES -->
-            <div style='margin-bottom:20px;'>
-                <span style='display:inline-block; padding:6px 12px; border-radius:20px; font-size:12px; background:#e8f0ff; color:#1f3c88; margin:3px;'>
-                    Status: ${status}
-                </span>
-                <span style='display:inline-block; padding:6px 12px; border-radius:20px; font-size:12px; background:#fff4e5; color:#b26a00; margin:3px;'>
-                    Priority: ${priority}
-                </span>
-                <span style='display:inline-block; padding:6px 12px; border-radius:20px; font-size:12px; background:#f0f0f0; color:#555; margin:3px;'>
-                    Department: ${department}
-                </span>
-                <span style='display:inline-block; padding:6px 12px; border-radius:20px; font-size:12px; background:#f0f0f0; color:#555; margin:3px;'>
-                    Branch: ${branch || 'N/A'}
-                </span>
-                <span style='display:inline-block; padding:6px 12px; border-radius:20px; font-size:12px; background:#f0f0f0; color:#555; margin:3px;'>
-                    Category: ${category || 'N/A'}
-                </span>
-                 <span style='display:inline-block; padding:6px 12px; border-radius:20px; font-size:12px; background:#f0f0f0; color:#555; margin:3px;'>
-                    Requested By: ${requester || 'N/A'}
-                </span>
-            </div>
-
-            <p style='font-size:14px; color:#555; line-height:1.6; margin-bottom:20px;'>
-                <a href="https://support.texolenergies.com/tickets?ticket_id=${ticketId}" style='color:#1f3c88; text-decoration:none; font-weight:bold;'>View Ticket</a>
-            </p>
-
-            <!-- FOOTER TAGS -->
-            <div style='margin-top:25px; text-align:center;'>
-
-                <span style='display:inline-block; padding:6px 12px; border-radius:20px; font-size:12px; background:#1f3c88; color:#fff; margin:3px;'>
-                    Ticket Notification
-                </span>
-
-                <span style='display:inline-block; padding:6px 12px; border-radius:20px; font-size:12px; background:#e9f7ef; color:#1e7e34; margin:3px;'>
-                    System Generated
-                </span>
-
-            </div>
-
-        </div>
-
-        <!-- FOOTER -->
-        <div style='background:#f4f6f9; padding:15px; text-align:center; font-size:12px; color:#777;'>
-
-            <p style='margin:0;'>Texol Energies - THI Support </p>
-            <p style='margin:5px 0 0;'>Please do not reply to this email.</p>
-
-        </div>
-
-    </div>
-
-</div>
-    `;
-
-    // Send email notification using role-based system
-    try {
-        await fetch('notify_ticket_notes.php', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                ticket_id: ticketId,
-                action: 'created',
-                added_by: '<?php echo $_SESSION['user_name'] ?? 'Unknown User'; ?>'
-            })
-        });
-    } catch (emailErr) {
-        console.error('Failed to send email notification:', emailErr);
-    }
-
-} catch (emailErr) {
-                        console.error('Failed to send ticket email:', emailErr);
-                    }
+                    await sendTicketEmailNotification(ticketId, 'created');
                     
                     ticketForm.reset();
                     
@@ -3771,6 +3698,10 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY') && SUPABASE_URL !== 
         if (saveTicketChangesBtn) {
             saveTicketChangesBtn.addEventListener('click', async () => {
                 hideEditAlert();
+                if (!canEditTickets) {
+                    showEditAlert('danger', 'You do not have permission to edit tickets.');
+                    return;
+                }
 
                 const id = editTicketId?.value;
                 const title = editTicketTitle?.value?.trim();
@@ -3859,7 +3790,7 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY') && SUPABASE_URL !== 
                     // Combine existing and new attachments
                     const allAttachments = [...existingAttachments, ...uploadedAttachments];
                     // Update ticket. Admins can edit any ticket; non-admins only their own.
-                    let query = supabase
+                    let query = applyTicketScope(supabase
                         .from('tickets')
                         .update({
                             title,
@@ -3878,11 +3809,7 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY') && SUPABASE_URL !== 
                             due_date: dueDateIso,
                             attachments: allAttachments.length > 0 ? allAttachments : null
                         })
-                        .eq('id', id);
-
-                    if (!isAdmin) {
-                        query = query.eq('requested_by', currentUserId);
-                    }
+                        .eq('id', id), ticketEditScopeFilters);
 
                     // Return affected rows so we can confirm we're only updating 1 ticket
                     const { data: updatedRows, error } = await query.select('id');
@@ -3930,8 +3857,10 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY') && SUPABASE_URL !== 
                         return;
                     }
 
+                    await sendTicketEmailNotification(id, 'updated', { updated_by: <?php echo json_encode($_SESSION['user_name'] ?? 'Unknown User'); ?> });
+
                     // If admin, also update assignees from modal multi-select
-                    if (isAdmin && editTicketAssignees) {
+                    if (canEditTickets && editTicketAssignees) {
                         const selectedEmails = Array.from(editTicketAssignees.selectedOptions)
                             .map((opt) => opt.value)
                             .filter((v) => v && v.trim().length > 0);
@@ -3963,21 +3892,7 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY') && SUPABASE_URL !== 
                                 return;
                             }
 
-                            // Send email notification using role-based system
-                            try {
-                                await fetch('notify_ticket_notes.php', {
-                                    method: 'POST',
-                                    headers: { 'Content-Type': 'application/json' },
-                                    body: JSON.stringify({
-                                        ticket_id: id,
-                                        action: 'updated',
-                                        added_by: '<?php echo $_SESSION['user_name'] ?? 'Unknown User'; ?>'
-                                    })
-                                });
-                            } catch (emailErr) {
-                                console.error('Failed to send email notification:', emailErr);
-                            }  
-                          
+                            await sendTicketEmailNotification(id, 'assigned');
                         }
                     }
 
@@ -4001,6 +3916,10 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY') && SUPABASE_URL !== 
         if (closeTicketBtn) {
             closeTicketBtn.addEventListener('click', async () => {
                 hideEditAlert();
+                if (!canEditTickets) {
+                    showEditAlert('danger', 'You do not have permission to edit tickets.');
+                    return;
+                }
 
                 const id = editTicketId?.value;
                 if (!id) return;
@@ -4009,14 +3928,10 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY') && SUPABASE_URL !== 
                 if (!confirmClose) return;
 
                 try {
-                    let query = supabase
+                    let query = applyTicketScope(supabase
                         .from('tickets')
                         .update({ status: 'Closed' })
-                        .eq('id', id);
-
-                    if (!isAdmin) {
-                        query = query.eq('requested_by', currentUserId);
-                    }
+                        .eq('id', id), ticketEditScopeFilters);
 
                     const { error } = await query;
 
@@ -4025,6 +3940,8 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY') && SUPABASE_URL !== 
                         showEditAlert('danger', error.message || 'Failed to close ticket.');
                         return;
                     }
+
+                    await sendTicketEmailNotification(id, 'closed', { closed_by: <?php echo json_encode($_SESSION['user_name'] ?? 'Unknown User'); ?> });
 
                     editModal?.hide();
 
@@ -4283,10 +4200,10 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY') && SUPABASE_URL !== 
         if (openTicketId) {
             setTimeout(async () => {
                 try {
-                    const { data: ticket, error } = await supabase
+                    const { data: ticket, error } = await applyTicketScope(supabase
                         .from('tickets')
                         .select('*')
-                        .eq('id', openTicketId)
+                        .eq('id', openTicketId))
                         .single();
 
                     if (error) {
@@ -4307,10 +4224,10 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY') && SUPABASE_URL !== 
         if (openTicketIdStr) {
             setTimeout(async () => {
                 try {
-                    const { data: ticket, error } = await supabase
+                    const { data: ticket, error } = await applyTicketScope(supabase
                         .from('tickets')
                         .select('*')
-                        .eq('ticket_id', openTicketIdStr)
+                        .eq('ticket_id', openTicketIdStr))
                         .single();
 
                     if (error) {
