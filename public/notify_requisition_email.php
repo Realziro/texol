@@ -104,6 +104,17 @@ if ($rpc['code'] === 200 && is_array($rpc['data'])) {
     }
 }
 
+$managementRows = requisition_mail_get('users', [
+    'select' => 'email',
+    'role' => 'ilike.management',
+    'status' => 'eq.active',
+]);
+foreach ($managementRows as $manager) {
+    if (filter_var($manager['email'] ?? '', FILTER_VALIDATE_EMAIL)) {
+        $recipients[] = $manager['email'];
+    }
+}
+
 if ($action === 'created') {
     $adminRows = requisition_mail_get('users', [
         'select' => 'email',

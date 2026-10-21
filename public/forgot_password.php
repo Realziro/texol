@@ -80,52 +80,15 @@ $email = $email ?? '';
     
     $subject = 'Password Reset Request - Support Portal';
 
-    $body = '
-<div style="font-family: Arial, Helvetica, sans-serif; background-color: #f4f6f8; padding: 20px;">
-    <div style="max-width: 600px; margin: auto; background: #ffffff; border: 1px solid #e0e0e0; border-radius: 6px; overflow: hidden;">
-
-        <div style="background: #0d6efd; color: #fff; padding: 15px 20px;">
-            <h2 style="margin: 0; font-size: 18px;">Password Reset Request</h2>
-        </div>
-
-        <div style="padding: 20px;">
-            <p>Hello,</p>
-
-            <p>We received a request to reset your password for your Support Portal account.</p>
-
-            <p>If you made this request, click the button below to reset your password:</p>
-
-    <table role="presentation" cellspacing="0" cellpadding="0" align="center">
-    <tr>
-        <td bgcolor="#0d6efd" style="border-radius:4px;">
-            <a href="' . $resetUrl . '" 
-               style="
-                    display:inline-block;
-                    padding:12px 20px;
-                    color:#ffffff;
-                    text-decoration:none;
-                    font-weight:600;
-                    font-family: Arial, Helvetica, sans-serif;
-               ">
-                Reset Password
-            </a>
-        </td>
-    </tr>
-</table>
-
-            <p style="color:#666; font-size:13px;">
-                This link will expire in 1 hour for security reasons. If you did not request this, please ignore this email.
-            </p>
-
-            <p>Best regards,<br>Support Team</p>
-        </div>
-    </div>
-</div>
-';
+    $escape = static fn($value): string => htmlspecialchars((string) $value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+    ob_start();
+    require __DIR__ . '/../MailTemplates/auth/reset_password.php';
+    $body = ob_get_clean();
 
     $ch = curl_init();
     curl_setopt($ch, CURLOPT_URL, "https://support.texolenergies.com/sendmail.php");
     curl_setopt($ch, CURLOPT_POST, 1);
+    curl_setopt($ch, CURLOPT_USERAGENT, 'Mozilla/5.0 (compatible; THI-Notifier/1.0)');
     curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query([
         'to' => $email,
         'subject' => $subject,

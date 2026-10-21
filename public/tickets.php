@@ -3,7 +3,8 @@ require_once __DIR__ . '/../auth.php';
 
 // Load env/config (Supabase keys, etc.)
 
-$ticketViewScope = require_permission('tickets', 'view');
+$isAdminUser = is_admin();
+$ticketViewScope = $isAdminUser ? 'all' : require_permission('tickets', 'view');
 
 // Load the department when this permission needs it and the session lacks it.
 $userDepartment = null;
@@ -40,7 +41,7 @@ if ($ticketViewScope === 'department' && current_user_department() === '' && iss
     }
 }
 $userDepartment = $userDepartment ?? current_user_department();
-$ticketScopeParams = scope_filter_params('tickets', 'view', 'department', ['requested_by']);
+$ticketScopeParams = $isAdminUser ? [] : scope_filter_params('tickets', 'view', 'department', ['requested_by']);
 $ticketEditScopeParams = scope_filter_params('tickets', 'edit', 'department', ['requested_by']);
 
 // Handle notification ticket notes request
@@ -887,7 +888,7 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY') && SUPABASE_URL !== 
                     </div>
                 </div>
 
-                <?php if (can('tickets', 'view')) : ?>
+                <?php if ($isAdminUser || can('tickets', 'view')) : ?>
                     <!-- ADMIN: All Tickets & Assignment -->
                     <section class="mb-4">
                         <div class="card border-0 shadow-sm">

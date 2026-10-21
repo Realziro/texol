@@ -18,6 +18,8 @@ if (! isset($_SESSION['user_email'])) {
 $message = '';
 $messageType = '';
 $requisitions = [];
+$branches = [];
+$branchOptionsHtml = '<option value="">Select Branch</option>';
 $items = [];
 $suppliers = [];
 $userEmail = $_SESSION['user_email'] ?? '';
@@ -631,6 +633,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         header('Content-Type: application/json');
 
         $department = $_POST['department'] ?? '';
+        $branch = trim($_POST['branch'] ?? '');
         $requiredDate = $_POST['required_date'] ?? '';
         $description = $_POST['description'] ?? '';
         $supplierId = $_POST['supplier_id'] ?? '';
@@ -714,6 +717,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'requisition_number' => $requisitionNumber,
                 'requested_by' => $userId,
                 'department' => $department,
+                'branch' => $branch ?: null,
                 'required_date' => $requiredDate,
                 'description' => $description,
                 'supplier_id' => $supplierId ?: null,
@@ -830,6 +834,26 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
         }
         curl_close($ch);
         error_log('User department: ' . $userDepartment . ', ID: ' . $userDepartmentId);
+    }
+
+    $branchQuery = http_build_query(['select' => 'id,name', 'order' => 'name.asc']);
+    $ch = curl_init();
+    curl_setopt_array($ch, [
+        CURLOPT_URL => $supabaseUrl . '/rest/v1/branches?' . $branchQuery,
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_HTTPHEADER => [
+            'apikey: ' . $supabaseKey,
+            'Authorization: Bearer ' . $supabaseKey,
+            'Accept: application/json',
+        ],
+    ]);
+    $branches = json_decode(curl_exec($ch), true) ?: [];
+    curl_close($ch);
+    foreach ($branches as $branchOption) {
+        $branchName = trim((string) ($branchOption['name'] ?? ''));
+        if ($branchName === '') continue;
+        $escapedBranchName = htmlspecialchars($branchName, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+        $branchOptionsHtml .= '<option value="' . $escapedBranchName . '">' . $escapedBranchName . '</option>';
     }
 
     // Fetch items - filter by user's department
@@ -954,6 +978,41 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
     // Otherwise, show where user is requester OR in shared_with
     if ($currentUserId && !$ticketId) {
         // All users can now view all requisitions without restrictions
+    }
+
+    $branchByTicketId = [];
+    $linkedTicketIds = array_values(array_unique(array_filter(array_map(
+        static fn($id): string => trim((string) $id),
+        array_column($requisitions, 'ticket_id')
+    ), static fn(string $id): bool => preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i', $id) === 1)));
+    if ($linkedTicketIds) {
+        $ticketQuery = http_build_query([
+            'select' => 'id,ticket_id,branch',
+            'id' => 'in.(' . implode(',', $linkedTicketIds) . ')',
+        ]);
+        $ch = curl_init();
+        curl_setopt_array($ch, [
+            CURLOPT_URL => $supabaseUrl . '/rest/v1/tickets?' . $ticketQuery,
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_HTTPHEADER => [
+                'apikey: ' . $supabaseKey,
+                'Authorization: Bearer ' . $supabaseKey,
+                'Accept: application/json',
+            ],
+        ]);
+        $ticketRows = json_decode(curl_exec($ch), true) ?: [];
+        curl_close($ch);
+
+        foreach ($ticketRows as $ticketRow) {
+            if (!is_array($ticketRow)) continue;
+            $branch = trim((string) ($ticketRow['branch'] ?? ''));
+            if ($branch === '') continue;
+            foreach (['id', 'ticket_id'] as $ticketKey) {
+                if (!empty($ticketRow[$ticketKey])) {
+                    $branchByTicketId[(string) $ticketRow[$ticketKey]] = $branch;
+                }
+            }
+        }
     }
 
     // Fetch all requisition items and attachments in single queries (N+1 optimization)
@@ -1241,6 +1300,15 @@ $allUserIds = array_unique(array_merge($userIds, $approvedByIds, $sharedUserIds)
                                 <label class="form-label small fw-semibold">Description</label>
                                 <input type="text" class="form-control form-control-sm" name="description" placeholder="Short description of requisition">
                             </div>
+                            <div class="col-md-6">
+                                <label class="form-label small fw-semibold">Branch From</label>
+                                <select class="form-select form-select-sm" name="branch">
+                                    <option value="">Select Branch</option>
+                                    <?php foreach ($branches as $branch): ?>
+                                        <option value="<?php echo htmlspecialchars($branch['name']); ?>"><?php echo htmlspecialchars($branch['name']); ?></option>
+                                    <?php endforeach; ?>
+                                </select>
+                            </div>
                             <input type="hidden" name="ticket_id" value="<?php echo htmlspecialchars($_GET['ticket_id']); ?>">
                             <div class="col-md-6">
                                 <label class="form-label small fw-semibold">Supplier</label>
@@ -1346,6 +1414,8 @@ $allUserIds = array_unique(array_merge($userIds, $approvedByIds, $sharedUserIds)
                                     <tr>
                                         <th class="small text-uppercase text-muted">RQ #</th>
                                         <th class="small text-uppercase text-muted">Ticket ID</th>
+                                        <th class="small text-uppercase text-muted">Branch From</th>
+                                        <th class="small text-uppercase text-muted">Department To</th>
                                         <th class="small text-uppercase text-muted">Description</th>
                                         <th class="small text-uppercase text-muted">Required Date</th>
                                         <th class="small text-uppercase text-muted">Status</th>
@@ -1356,6 +1426,8 @@ $allUserIds = array_unique(array_merge($userIds, $approvedByIds, $sharedUserIds)
                                 <tbody>
                                     <?php if (empty($requisitions)): ?>
                                         <tr>
+                                            <td class="text-center text-muted small py-3">-</td>
+                                            <td class="text-center text-muted small py-3">-</td>
                                             <td class="text-center text-muted small py-3">-</td>
                                             <td class="text-center text-muted small py-3">-</td>
                                             <td class="text-center text-muted small py-3">-</td>
@@ -1376,6 +1448,8 @@ $allUserIds = array_unique(array_merge($userIds, $approvedByIds, $sharedUserIds)
                                                         -
                                                     <?php endif; ?>
                                                 </td>
+                                                <td class="small"><?php echo htmlspecialchars($req['branch'] ?? $branchByTicketId[(string) ($req['ticket_id'] ?? '')] ?? '-'); ?></td>
+                                                <td class="small"><?php echo htmlspecialchars($req['department'] ?? '-'); ?></td>
                                                 <td class="small"><?php echo htmlspecialchars($req['description'] ?? '-'); ?></td>
                                                 <td class="small"><?php echo htmlspecialchars($req['required_date'] ?? '-'); ?></td>
                                                 <td class="small">
@@ -1663,6 +1737,7 @@ $allUserIds = array_unique(array_merge($userIds, $approvedByIds, $sharedUserIds)
         const userEmail = '<?php echo $userEmail; ?>';
         const ticketIdParam = '<?php echo $ticketId; ?>';
         const currentUserId = '<?php echo $_SESSION['user_id'] ?? ''; ?>';
+        const branchOptionsHtml = <?php echo json_encode($branchOptionsHtml, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?>;
         const userDepartment = '<?php echo $userDepartment; ?>';
 
 
@@ -1937,6 +2012,7 @@ $allUserIds = array_unique(array_merge($userIds, $approvedByIds, $sharedUserIds)
                 const requiredDate = formData.get('required_date');
                 const description = formData.get('description');
                 const supplierId = formData.get('supplier_id');
+                const branch = formData.get('branch');
                 const ticketIdFromForm = formData.get('ticket_id');
                 const sharedWith = formData.get('shared_with');
                 
@@ -1962,6 +2038,7 @@ $allUserIds = array_unique(array_merge($userIds, $approvedByIds, $sharedUserIds)
                         requisition_number: requisitionNumber,
                         requested_by: userData.id,
                         department: department || null,
+                        branch: branch || null,
                         required_date: requiredDate || null,
                         description: description || null,
                         supplier_id: supplierId || null,
@@ -2287,6 +2364,39 @@ $allUserIds = array_unique(array_merge($userIds, $approvedByIds, $sharedUserIds)
         window.downloadRequisitionPDF = function() {
             const req = window.currentRequisition;
             if (!req) return;
+
+            // Show loading spinner
+            const downloadBtn = document.getElementById('downloadPDFBtn');
+            const downloadBtnText = document.getElementById('downloadBtnText');
+            const downloadSpinner = document.getElementById('downloadSpinner');
+            
+            if (downloadBtn) {
+                downloadBtn.disabled = true;
+            }
+            if (downloadBtnText) {
+                downloadBtnText.textContent = 'Generating...';
+            }
+            if (downloadSpinner) {
+                downloadSpinner.classList.remove('d-none');
+            }
+
+            // Function to reset button state
+            const resetButtonState = () => {
+                if (downloadBtn) {
+                    downloadBtn.disabled = false;
+                }
+                if (downloadBtnText) {
+                    downloadBtnText.textContent = 'Download PDF';
+                }
+                if (downloadSpinner) {
+                    downloadSpinner.classList.add('d-none');
+                }
+            };
+
+            // Store references globally for the async function
+            window.downloadBtn = downloadBtn;
+            window.downloadBtnText = downloadBtnText;
+            window.downloadSpinner = downloadSpinner;
 const logoUrl = new URL('texol.png', window.location.href).href;
             // Helper function to format date as day/month/year (dd/mm/yy)
             const formatDateDMY = (dateString) => {
@@ -2363,7 +2473,7 @@ const logoUrl = new URL('texol.png', window.location.href).href;
             }
 
             // Add empty rows to fill the table
-            const emptyRowsNeeded = 8 - (req.items ? req.items.length : 0);
+            const emptyRowsNeeded = 7 - (req.items ? req.items.length : 0);
             for (let i = 0; i < emptyRowsNeeded; i++) {
                 itemsRows += `
                     <tr>
@@ -2395,7 +2505,7 @@ const logoUrl = new URL('texol.png', window.location.href).href;
                     min-height: 280mm;
                     background: #fff;
                     margin: 0 auto;
-                    padding: 15px;
+                    padding: 12px;
                     position: relative;
                     box-sizing: border-box;
                   }
@@ -2473,7 +2583,7 @@ const logoUrl = new URL('texol.png', window.location.href).href;
                     font-size: 11px;
                     font-weight: 800;
                     letter-spacing: 0.5px;
-                    margin: 18px 0 20px 0;
+                    margin: 12px 0 14px 0;
                     color: #000;
                   }
 
@@ -2504,7 +2614,7 @@ const logoUrl = new URL('texol.png', window.location.href).href;
                     border-collapse: collapse;
                     border: 1px solid #000;
                     font-size: 10px;
-                    margin-bottom: 20px;
+                    margin-bottom: 14px;
                   }
                   .items-table th {
                     border: 1px solid #000;
@@ -2530,7 +2640,7 @@ const logoUrl = new URL('texol.png', window.location.href).href;
                     border-collapse: collapse;
                     border: 1px solid #000;
                     font-size: 10px;
-                    margin-bottom: 18px;
+                    margin-bottom: 12px;
                   }
                   .bottom-table th {
                     background: #a6a6a6;
@@ -2562,12 +2672,12 @@ const logoUrl = new URL('texol.png', window.location.href).href;
                   /* Reason for procurement */
                   .reason-block {
                     font-size: 11px;
-                    margin-bottom: 18px;
+                    margin-bottom: 12px;
                     color: #000;
                   }
                   .dotted-line {
                     border-bottom: 1px dotted #000;
-                    height: 20px;
+                    height: 16px;
                   }
 
                   /* Signature table */
@@ -2576,7 +2686,7 @@ const logoUrl = new URL('texol.png', window.location.href).href;
                     border-collapse: collapse;
                     border: 1px solid #000;
                     font-size: 10px;
-                    margin-bottom: 40px;
+                    margin-bottom: 25px;
                   }
                   .sig-table th {
                     background: #a6a6a6;
@@ -2587,7 +2697,7 @@ const logoUrl = new URL('texol.png', window.location.href).href;
                   }
                   .sig-table td {
                     border: 1px solid #000;
-                    padding: 16px 8px;
+                    padding: 10px 8px;
                     width: 33.33%;
                     font-weight: bold;
                     color: #000;
@@ -2747,6 +2857,18 @@ const logoUrl = new URL('texol.png', window.location.href).href;
 
             // Fetch user details for PDF approval chain and then generate PDF
             async function generatePDFWithDetails() {
+                const resetButtonState = () => {
+                    if (window.downloadBtn) {
+                        window.downloadBtn.disabled = false;
+                    }
+                    if (window.downloadBtnText) {
+                        window.downloadBtnText.textContent = 'Download PDF';
+                    }
+                    if (window.downloadSpinner) {
+                        window.downloadSpinner.classList.add('d-none');
+                    }
+                };
+
                 try {
                     if (firstApprover) {
                         await fetchPDFUserDetails(firstApprover, 'pdfReviewedBy', container);
@@ -2782,15 +2904,18 @@ const logoUrl = new URL('texol.png', window.location.href).href;
 
                     html2pdf().set(opt).from(element).save().then(() => {
                         document.body.removeChild(container);
+                        resetButtonState();
                     }).catch(err => {
                         console.error('PDF generation error:', err);
                         alert('Failed to generate PDF. Please try printing instead.');
                         document.body.removeChild(container);
+                        resetButtonState();
                     });
                 } catch (error) {
                     console.error('Error generating PDF:', error);
                     alert('Failed to generate PDF. Please try printing instead.');
                     document.body.removeChild(container);
+                    resetButtonState();
                 }
             }
 
@@ -2884,8 +3009,9 @@ const logoUrl = new URL('texol.png', window.location.href).href;
                                 <button type="button" class="btn btn-warning d-none" id="editRequisitionBtn" onclick="editCurrentRequisition()">
                                     <i class="bi bi-pencil me-1"></i> Edit
                                 </button>
-                                <button type="button" class="btn btn-success" onclick="downloadRequisitionPDF()">
-                                    <i class="bi bi-file-earmark-pdf me-1"></i> Download PDF
+                                <button type="button" class="btn btn-success" id="downloadPDFBtn" onclick="downloadRequisitionPDF()">
+                                    <i class="bi bi-file-earmark-pdf me-1"></i> <span id="downloadBtnText">Download PDF</span>
+                                    <span class="spinner-border spinner-border-sm d-none" id="downloadSpinner"></span>
                                 </button>
                                 <button type="button" class="btn btn-primary" onclick="printRequisition()">
                                     <i class="bi bi-printer me-1"></i> Print
@@ -2979,7 +3105,7 @@ const logoUrl = new URL('texol.png', window.location.href).href;
             }
 
             // Add empty rows to fill the table
-            const emptyRowsNeeded = 8 - (req.items ? req.items.length : 0);
+            const emptyRowsNeeded = 7 - (req.items ? req.items.length : 0);
             for (let i = 0; i < emptyRowsNeeded; i++) {
                 itemsRows += `
                     <tr>
@@ -3079,7 +3205,7 @@ const logoUrl = new URL('texol.png', window.location.href).href;
                     font-size: 11px;
                     font-weight: 800;
                     letter-spacing: 0.5px;
-                    margin: 18px 0 20px 0;
+                    margin: 12px 0 14px 0;
                   }
 
                   /* From/Date table */
@@ -3092,7 +3218,7 @@ const logoUrl = new URL('texol.png', window.location.href).href;
                   }
                   .info-table td {
                     border: 1px solid #000;
-                    padding: 10px 8px;
+                    padding: 8px 8px;
                     width: 50%;
                   }
 
@@ -3107,18 +3233,18 @@ const logoUrl = new URL('texol.png', window.location.href).href;
                     border-collapse: collapse;
                     border: 1px solid #000;
                     font-size: 10px;
-                    margin-bottom: 20px;
+                    margin-bottom: 14px;
                   }
                   .items-table th {
                     border: 1px solid #000;
                     background: #a6a6a6;
-                    padding: 6px 4px;
+                    padding: 4px 4px;
                     font-size: 10px;
                     text-align: left;
                   }
                   .items-table td {
                     border: 1px solid #000;
-                    padding: 12px 4px;
+                    padding: 6px 4px;
                   }
                   .items-table th.no-col, .items-table td.no-col { width: 4%; text-align: center; }
                   .items-table th.item-col, .items-table td.item-col { width: 15%; }
@@ -3131,18 +3257,18 @@ const logoUrl = new URL('texol.png', window.location.href).href;
                     border-collapse: collapse;
                     border: 1px solid #000;
                     font-size: 10px;
-                    margin-bottom: 18px;
+                    margin-bottom: 12px;
                   }
                   .bottom-table th {
                     background: #a6a6a6;
                     border: 1px solid #000;
-                    padding: 5px 6px;
+                    padding: 4px 6px;
                     text-align: left;
                     font-size: 10px;
                   }
                   .bottom-table td {
                     border: 1px solid #000;
-                    padding: 8px 6px;
+                    padding: 6px 6px;
                     vertical-align: top;
                   }
                   .mandatory-desc {
@@ -3160,11 +3286,11 @@ const logoUrl = new URL('texol.png', window.location.href).href;
                   /* Reason for procurement */
                   .reason-block {
                     font-size: 11px;
-                    margin-bottom: 18px;
+                    margin-bottom: 12px;
                   }
                   .dotted-line {
                     border-bottom: 1px dotted #000;
-                    height: 20px;
+                    height: 16px;
                   }
 
                   /* Signature table */
@@ -3173,17 +3299,17 @@ const logoUrl = new URL('texol.png', window.location.href).href;
                     border-collapse: collapse;
                     border: 1px solid #000;
                     font-size: 10px;
-                    margin-bottom: 40px;
+                    margin-bottom: 25px;
                   }
                   .sig-table th {
                     background: #a6a6a6;
                     border: 1px solid #000;
-                    padding: 5px 8px;
+                    padding: 4px 8px;
                     text-align: left;
                   }
                   .sig-table td {
                     border: 1px solid #000;
-                    padding: 16px 8px;
+                    padding: 10px 8px;
                     width: 33.33%;
                     font-weight: bold;
                   }
@@ -3428,6 +3554,12 @@ const logoUrl = new URL('texol.png', window.location.href).href;
                                     <div class="col-md-6">
                                         <label class="form-label small fw-semibold">Description</label>
                                         <input type="text" class="form-control form-control-sm" name="description" placeholder="Short description of requisition">
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label small fw-semibold">Branch From</label>
+                                        <select class="form-select form-select-sm" name="branch">
+                                            ${branchOptionsHtml}
+                                        </select>
                                     </div>
                                     <input type="hidden" name="ticket_id" value="">
                                     <div class="col-md-6">

@@ -51,7 +51,7 @@ function texol_is_active(string $menu, string $active): string
               Tasks
             </a>
         </li>
-        <?php if (can('tickets', 'view')) : ?>
+        <?php if (is_admin() || can('tickets', 'view')) : ?>
         <li>
             <a href="  tickets" class="nav-link<?php echo texol_is_active('tickets', $activeMenu); ?>" data-menu="tickets">
                 <i class="bi bi-ticket-detailed me-2"></i>
@@ -66,7 +66,7 @@ function texol_is_active(string $menu, string $active): string
             </a>
         </li>
         <li class="nav-item dropdown">
-            <a href="#" class="nav-link dropdown-toggle<?php echo in_array($activeMenu, ['requisitions', 'customer_feedback', 'attendance', 'incident', 'incident_settlement', 'cctv_checklist_texol', 'cctv_checklist_sta', 'shortage_acknowledgement', 'repair_maintenance'], true) ? ' active' : ''; ?>" data-bs-toggle="dropdown" role="button" aria-expanded="false">
+            <a href="#" class="nav-link dropdown-toggle<?php echo in_array($activeMenu, ['requisitions', 'customer_feedback', 'attendance', 'incident', 'incident_settlement', 'cctv_checklist_texol', 'cctv_checklist_sta', 'shortage_acknowledgement', 'repair_maintenance', 'hod_analytics'], true) ? ' active' : ''; ?>" data-bs-toggle="dropdown" role="button" aria-expanded="false">
                 <i class="bi bi-file-earmark-text me-2"></i>
              Digitized   Forms
             </a>
@@ -76,13 +76,11 @@ function texol_is_active(string $menu, string $active): string
                         <i class="bi bi-file-earmark-plus me-2"></i>Requisitions
                     </a>
                 </li>
-                <?php if (can('customer_feedback', 'view') || (isset($_SESSION['user_role']) && strtolower($_SESSION['user_role']) === 'call center agent')) : ?>
                 <li>
                     <a class="dropdown-item<?php echo texol_is_active('customer_feedback', $activeMenu); ?>" href="  customer_feedback">
                         <i class="bi bi-chat-dots me-2"></i>Customer Feedback
                     </a>
                 </li>
-                <?php endif; ?>
                 <li>
                     <a class="dropdown-item<?php echo texol_is_active('attendance', $activeMenu); ?>" href="  meetings">
                         <i class="bi bi-calendar-event me-2"></i>Attendance
@@ -136,6 +134,14 @@ function texol_is_active(string $menu, string $active): string
                 <?php endif; ?>
 
        
+        <?php if (is_hod()) : ?>
+        <li>
+            <a href="  hod_analytics" class="nav-link<?php echo texol_is_active('hod_analytics', $activeMenu); ?>" data-menu="hod_analytics">
+                <i class="bi bi-graph-up-arrow me-2"></i>
+                HOD Analytics
+            </a>
+        </li>
+        <?php endif; ?>
         <li>
             <a href="  profile" class="nav-link<?php echo texol_is_active('profile', $activeMenu); ?>" data-menu="profile">
                 <i class="bi bi-person-circle me-2"></i>
@@ -191,7 +197,7 @@ function texol_is_active(string $menu, string $active): string
                     </a>
                 </li>
                 <?php endif; ?>
-                <?php if (isset($_SESSION['user_role']) && (strtolower($_SESSION['user_role']) === 'admin' || strtolower($_SESSION['user_role']) === 'hod')) : ?>
+                <?php if (is_admin() || is_hod()) : ?>
                 <li>
                     <a class="dropdown-item<?php echo texol_is_active('items', $activeMenu); ?>" href="  items">
                         <i class="bi bi-box-seam me-2"></i>Items

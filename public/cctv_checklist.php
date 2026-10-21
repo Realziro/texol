@@ -103,7 +103,7 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
             border: 2px solid #000;
             background: #fff;
             color: #000;
-            font-family: Arial, Helvetica, sans-serif;
+            font-family: "Century Gothic", "CenturyGothic", "Apple Gothic", Arial, sans-serif;
         }
 
         .cctv-printout table {
@@ -492,7 +492,8 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
                     <button type="button" class="btn btn-outline-danger" id="modalDeleteCctv"
                         title="Delete checklist" aria-label="Delete checklist"><i class="bi bi-trash"></i></button>
                     <button type="button" class="btn btn-outline-success" id="modalDownloadCctv"
-                        title="Download checklist" aria-label="Download checklist"><i class="bi bi-download"></i></button>
+                        title="Download checklist" aria-label="Download checklist"><i class="bi bi-download me-1"></i> <span id="downloadBtnText">Download</span>
+                        <span class="spinner-border spinner-border-sm d-none" id="downloadSpinner"></span></button>
                     <button type="button" class="btn btn-primary" id="modalPrintCctv" title="Print checklist"
                         aria-label="Print checklist"><i class="bi bi-printer"></i></button>
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
@@ -1198,8 +1199,33 @@ document.getElementById('saveCctvBtn').addEventListener('click', async function(
 
         document.getElementById('modalDownloadCctv')?.addEventListener('click', async () => {
             if (!selectedCctv) return;
+
+            // Show loading spinner
+            const downloadBtn = document.getElementById('modalDownloadCctv');
+            const downloadBtnText = document.getElementById('downloadBtnText');
+            const downloadSpinner = document.getElementById('downloadSpinner');
             
-            const htmlContent = `<div style="padding: 20px; background: white;">${cctvFormHtml(selectedCctv)}</div>`;
+            if (downloadBtn) {
+                downloadBtn.disabled = true;
+            }
+            if (downloadBtnText) {
+                downloadBtnText.textContent = 'Generating...';
+            }
+            if (downloadSpinner) {
+                downloadSpinner.classList.remove('d-none');
+            }
+
+            // Use local logo URL for PDF generation (same as requisition)
+            const logoUrl = new URL('texol.png', window.location.href).href;
+            
+            // Replace the remote logo URL with local logo URL in the HTML content
+            const cctvHtml = cctvFormHtml(selectedCctv);
+            const htmlWithLocalLogo = cctvHtml.replace(
+                /src="https:\/\/www\.texolenergies\.com\/assets\/Logo-paGHQfRF\.svg"/g,
+                `src="${logoUrl}"`
+            );
+
+            const htmlContent = `<div style="padding: 20px; background: white;">${htmlWithLocalLogo}</div>`;
 
             // Create a temporary container
             const container = document.createElement('div');
@@ -1256,6 +1282,17 @@ document.getElementById('saveCctvBtn').addEventListener('click', async function(
             } finally {
                 // Clean up
                 document.body.removeChild(container);
+                
+                // Reset button state
+                if (downloadBtn) {
+                    downloadBtn.disabled = false;
+                }
+                if (downloadBtnText) {
+                    downloadBtnText.textContent = 'Download';
+                }
+                if (downloadSpinner) {
+                    downloadSpinner.classList.add('d-none');
+                }
             }
         });
     </script>

@@ -11,6 +11,7 @@ $name = $_SESSION['user_name'] ?? $email;
 $department = $_SESSION['user_department'] ?? $_SESSION['department'] ?? '';
 $role = $_SESSION['user_role'] ?? '';
 $userId = $_SESSION['user_id'] ?? '';
+$repairScope = 'all'; // Available to everyone to see all
 if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
     $url = rtrim(SUPABASE_URL, '/');
     $key = SUPABASE_ANON_KEY;
@@ -31,10 +32,24 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
     curl_setopt_array($ch, [CURLOPT_URL => $url . '/rest/v1/repair_maintenance_forms?select=*&order=form_date.desc,created_at.desc', CURLOPT_RETURNTRANSFER => true, CURLOPT_HTTPHEADER => $headers]);
     $records = json_decode(curl_exec($ch), true) ?: [];
     curl_close($ch);
-    $records = array_values(array_filter($records, function ($r) use ($userId) {
-        if (!$userId || !is_array($r))
+    $records = array_values(array_filter($records, function ($r) use ($userId, $department, $repairScope) {
+        if (!is_array($r)) {
             return false;
-        return ($r['created_by'] ?? '') === $userId || in_array($userId, array_filter(array_map('trim', explode(',', $r['shared_with'] ?? ''))), true); }));
+        }
+        if ($repairScope === 'all') {
+            return true;
+        }
+
+        $isOwner = $userId !== '' && ($r['created_by'] ?? '') === $userId;
+        $isShared = $userId !== '' && in_array($userId, array_filter(array_map('trim', explode(',', $r['shared_with'] ?? ''))), true);
+        $matchesDepartment = $department !== ''
+            && strcasecmp(trim((string) ($r['department'] ?? '')), trim((string) $department)) === 0;
+
+        if ($repairScope === 'department') {
+            return $matchesDepartment || $isOwner || $isShared;
+        }
+        return $repairScope === 'own' && ($isOwner || $isShared);
+    }));
 }
 ?>
 <!DOCTYPE html>
@@ -399,7 +414,10 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
                                                                                 class="bi bi-eye me-2"></i>View</button></li>
                                                                     <li><button class="dropdown-item"
                                                                             onclick="printRepair(<?php echo htmlspecialchars(json_encode($r), ENT_QUOTES, 'UTF-8'); ?>)"><i
-                                                                                class="bi bi-printer me-2"></i>Print</button>
+                                                                                class="bi bi-printer me-2"></i>Print</button></li>
+                                                                    <li><button class="dropdown-item"
+                                                                            onclick="downloadRepair(<?php echo htmlspecialchars(json_encode($r), ENT_QUOTES, 'UTF-8'); ?>)"><i
+                                                                                class="bi bi-download me-2"></i>Download</button>
                                                                     </li>
                                                                     <li><button class="dropdown-item"
                                                                             onclick="approveRepair(<?php echo htmlspecialchars(json_encode($r), ENT_QUOTES, 'UTF-8'); ?>)"><i
@@ -433,7 +451,9 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
                 <div class="modal-body" id="repairModalBody"></div>
                 <div class="modal-footer"><button class="btn btn-outline-primary" id="editRepair" title="Edit form"><i
                             class="bi bi-pencil"></i></button><button class="btn btn-outline-danger" id="deleteRepair"
-                        title="Delete form"><i class="bi bi-trash"></i></button><button class="btn btn-primary"
+                        title="Delete form"><i class="bi bi-trash"></i></button><button class="btn btn-outline-success" id="downloadRepair"
+                        title="Download form"><i class="bi bi-download me-1"></i> <span id="downloadBtnText">Download</span>
+                        <span class="spinner-border spinner-border-sm d-none" id="downloadSpinner"></span></button><button class="btn btn-primary"
                         id="printRepair" title="Print form"><i class="bi bi-printer"></i></button><button
                         class="btn btn-secondary" data-bs-dismiss="modal">Close</button></div>
             </div>
@@ -444,6 +464,8 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
     <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
     <script src="https://cdn.datatables.net/1.13.7/js/jquery.dataTables.min.js"></script>
     <script src="https://cdn.datatables.net/1.13.7/js/dataTables.bootstrap5.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script>
         $(function () {
             $('#repairTable').DataTable({
@@ -471,6 +493,9 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
             users = [],
             approvers = [],
             selected = null;
+        const canEdit = <?php echo can('repair_maintenance', 'edit') ? 'true' : 'false'; ?>;
+        const canDelete = <?php echo can('repair_maintenance', 'delete') ? 'true' : 'false'; ?>;
+        const canCreate = <?php echo can('repair_maintenance', 'create') ? 'true' : 'false'; ?>;
         let technicianProfile = {
             role: <?php echo json_encode($role); ?>,
             signature: '',
@@ -631,7 +656,10 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
             await prepare(item);
             selected = item;
             document.getElementById('repairModalBody').innerHTML = detail(item);
-            document.getElementById('editRepair').disabled = approvals(item).length > 0;
+            const editBtn = document.getElementById('editRepair');
+            const deleteBtn = document.getElementById('deleteRepair');
+            if (editBtn) editBtn.disabled = !canEdit || approvals(item).length > 0;
+            if (deleteBtn) deleteBtn.disabled = !canDelete;
             new bootstrap.Modal(document.getElementById('repairModal')).show();
         };
         window.printRepair = async item => {
@@ -647,7 +675,109 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
             w.document.close();
             w.onload = () => w.print();
         };
+        window.downloadRepair = async item => {
+            await prepare(item);
+
+            // Show loading spinner
+            const downloadBtn = document.getElementById('downloadRepair');
+            const downloadBtnText = document.getElementById('downloadBtnText');
+            const downloadSpinner = document.getElementById('downloadSpinner');
+            
+            if (downloadBtn) {
+                downloadBtn.disabled = true;
+            }
+            if (downloadBtnText) {
+                downloadBtnText.textContent = 'Generating...';
+            }
+            if (downloadSpinner) {
+                downloadSpinner.classList.remove('d-none');
+            }
+
+            // Use local logo URL for PDF generation (same as requisition)
+            const logoUrl = new URL('texol.png', window.location.href).href;
+            
+            // Replace the remote logo URL with local logo URL in the HTML content
+            const repairHtml = printHtml(item);
+            const htmlWithLocalLogo = repairHtml.replace(
+                /src="https:\/\/www\.texolenergies\.com\/assets\/Logo-paGHQfRF\.svg"/g,
+                `src="${logoUrl}"`
+            );
+
+            const htmlContent = `<div style="padding: 20px; background: white;">${htmlWithLocalLogo}</div>`;
+
+            // Create a temporary container
+            const container = document.createElement('div');
+            container.innerHTML = htmlContent;
+            container.style.position = 'fixed';
+            container.style.left = '-9999px';
+            container.style.top = '0';
+            container.style.width = '210mm';
+            container.style.background = 'white';
+            document.body.appendChild(container);
+
+            try {
+                // Wait for any images to load
+                await new Promise(resolve => setTimeout(resolve, 500));
+
+                // Use html2canvas to capture the content
+                const canvas = await html2canvas(container, {
+                    scale: 2,
+                    useCORS: true,
+                    logging: false,
+                    backgroundColor: '#ffffff'
+                });
+
+                // Create PDF using jsPDF
+                const { jsPDF } = window.jspdf;
+                const pdf = new jsPDF('p', 'mm', 'a4');
+
+                // Calculate dimensions to fit A4
+                const imgWidth = 210; // A4 width in mm
+                const pageHeight = 297; // A4 height in mm
+                const imgHeight = (canvas.height * imgWidth) / canvas.width;
+
+                let heightLeft = imgHeight;
+                let position = 0;
+
+                // Add first page
+                pdf.addImage(canvas.toDataURL('image/jpeg', 0.95), 'JPEG', 0, position, imgWidth, imgHeight);
+                heightLeft -= pageHeight;
+
+                // Add additional pages if needed
+                while (heightLeft > 0) {
+                    position = heightLeft - imgHeight;
+                    pdf.addPage();
+                    pdf.addImage(canvas.toDataURL('image/jpeg', 0.95), 'JPEG', 0, position, imgWidth, imgHeight);
+                    heightLeft -= pageHeight;
+                }
+
+                // Save the PDF
+                pdf.save(`repair_maintenance_${item.form_date || 'date'}.pdf`);
+
+            } catch (error) {
+                console.error('PDF generation error:', error);
+                alert('Failed to generate PDF. Please try again.');
+            } finally {
+                // Clean up
+                document.body.removeChild(container);
+                
+                // Reset button state
+                if (downloadBtn) {
+                    downloadBtn.disabled = false;
+                }
+                if (downloadBtnText) {
+                    downloadBtnText.textContent = 'Download';
+                }
+                if (downloadSpinner) {
+                    downloadSpinner.classList.add('d-none');
+                }
+            }
+        };
         window.approveRepair = async item => {
+            if (!canEdit) {
+                alert('You do not have permission to approve repair and maintenance forms.');
+                return;
+            }
             const ids = (item.shared_with || '').split(',').map(x => x.trim()).filter(Boolean).slice(0, 2),
                 i = ids.indexOf(activeUserId),
                 a = approvals(item);
@@ -684,6 +814,10 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
             location.reload();
         };
         window.rejectRepair = async item => {
+            if (!canEdit) {
+                alert('You do not have permission to reject repair and maintenance forms.');
+                return;
+            }
             const ids = (item.shared_with || '').split(',').map(x => x.trim()).filter(Boolean).slice(0, 2);
             if (approvals(item).length || !ids.includes(activeUserId)) {
                 alert('Only assigned approvers can reject before approval.');
@@ -697,12 +831,20 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
             else location.reload();
         };
         window.deleteRepair = async item => {
+            if (!canDelete) {
+                alert('You do not have permission to delete repair and maintenance forms.');
+                return;
+            }
             if (!confirm('Delete this form?')) return;
             const r = await supabase.from('repair_maintenance_forms').delete().eq('id', item.id);
             if (r.error) alert(r.error.message);
             else location.reload();
         };
         window.editRepairForm = async item => {
+            if (!canEdit) {
+                alert('You do not have permission to edit repair and maintenance forms.');
+                return;
+            }
             if (approvals(item).length > 0 || ['checked', 'approved'].includes(item.status)) {
                 alert('This form cannot be edited after approval.');
                 return;
@@ -752,10 +894,18 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
         document.getElementById('printRepair').onclick = () => selected && printRepair(selected);
         document.getElementById('editRepair').onclick = () => selected && editRepairForm(selected);
         document.getElementById('deleteRepair').onclick = () => selected && deleteRepair(selected);
+        document.getElementById('downloadRepair').onclick = () => selected && downloadRepair(selected);
         let submittingRepair = false;
         document.getElementById('repairForm').onsubmit = async e => {
             e.preventDefault();
             if (submittingRepair) return;
+            
+            // Check create permission before submitting
+            if (!canCreate) {
+                alert('You do not have permission to create repair and maintenance forms.');
+                return;
+            }
+            
             submittingRepair = true;
             const o = document.getElementById('branchId').selectedOptions[0],
                 b = document.getElementById('saveBtn');

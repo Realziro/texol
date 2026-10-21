@@ -2,10 +2,7 @@
 require_once __DIR__ . '/../auth.php';
 
 $isCallCenterAgent = isset($_SESSION['user_role']) && strtolower($_SESSION['user_role']) === 'call center agent';
-if (!$isCallCenterAgent) {
-    require_permission('customer_feedback', 'view');
-}
-$hasFeedbackPermission = can('customer_feedback', 'view');
+$hasFeedbackPermission = true;
 
 // Set active menu for sidebar
 $activeMenu = 'customer_feedback';
@@ -384,7 +381,7 @@ $activeMenu = 'customer_feedback';
         <?php auth_js_config(['customer_feedback']); ?>
         const currentUserEmail = '<?php echo $_SESSION['user_email'] ?? ''; ?>';
         const currentUserId = '<?php echo $_SESSION['user_id'] ?? ''; ?>';
-        const hasFeedbackPermission = window.AUTH.can('customer_feedback', 'view');
+        const hasFeedbackPermission = true;
         const isCallCenterAgent = <?php echo $isCallCenterAgent ? 'true' : 'false'; ?>;
         let isSharedUserEdit = false;
 

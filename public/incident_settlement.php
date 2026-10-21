@@ -92,7 +92,12 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
             border: 2px solid #000;
             background: #fff;
             color: #000;
-            font-family: Arial, Helvetica, sans-serif;
+            font-family: "Century Gothic", "CenturyGothic", "Apple Gothic", Arial, sans-serif;
+        }
+
+        .settlement-printout:not(:first-child) {
+            page-break-before: always;
+            break-before: page;
         }
 
         .settlement-printout table {
@@ -536,7 +541,8 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
                     <button type="button" class="btn btn-outline-danger" id="modalDeleteSettlement"
                         title="Delete settlement" aria-label="Delete settlement"><i class="bi bi-trash"></i></button>
                     <button type="button" class="btn btn-outline-success" id="modalDownloadSettlement"
-                        title="Download settlement" aria-label="Download settlement"><i class="bi bi-download"></i></button>
+                        title="Download settlement" aria-label="Download settlement"><i class="bi bi-download me-1"></i> <span id="downloadBtnText">Download</span>
+                        <span class="spinner-border spinner-border-sm d-none" id="downloadSpinner"></span></button>
                     <button type="button" class="btn btn-primary" id="modalPrintSettlement" title="Print settlement"
                         aria-label="Print settlement"><i class="bi bi-printer"></i></button>
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
@@ -1162,9 +1168,35 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
 
         document.getElementById('modalDownloadSettlement')?.addEventListener('click', async () => {
             if (!selectedSettlement) return;
+
+            // Show loading spinner
+            const downloadBtn = document.getElementById('modalDownloadSettlement');
+            const downloadBtnText = document.getElementById('downloadBtnText');
+            const downloadSpinner = document.getElementById('downloadSpinner');
+            
+            if (downloadBtn) {
+                downloadBtn.disabled = true;
+            }
+            if (downloadBtnText) {
+                downloadBtnText.textContent = 'Generating...';
+            }
+            if (downloadSpinner) {
+                downloadSpinner.classList.remove('d-none');
+            }
             
             const signatureData = await loadSettlementSignatures(selectedSettlement.id);
-            const htmlContent = `<div style="padding: 20px; background: white;">${settlementFormHtml(selectedSettlement, signatureData)}</div>`;
+            
+            // Use local logo URL for PDF generation (same as requisition)
+            const logoUrl = new URL('texol.png', window.location.href).href;
+            
+            // Replace the remote logo URL with local logo URL in the HTML content
+            const settlementHtml = settlementFormHtml(selectedSettlement, signatureData);
+            const htmlWithLocalLogo = settlementHtml.replace(
+                /src="https:\/\/www\.texolenergies\.com\/assets\/Logo-paGHQfRF\.svg"/g,
+                `src="${logoUrl}"`
+            );
+
+            const htmlContent = `<div style="padding: 20px; background: white;">${htmlWithLocalLogo}</div>`;
 
             // Create a temporary container
             const container = document.createElement('div');
@@ -1180,36 +1212,53 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
                 // Wait for any images to load
                 await new Promise(resolve => setTimeout(resolve, 500));
 
-                // Use html2canvas to capture the content
-                const canvas = await html2canvas(container, {
-                    scale: 2,
-                    useCORS: true,
-                    logging: false,
-                    backgroundColor: '#ffffff'
-                });
-
+                // Split content into separate pages (each .settlement-printout)
+                const pageElements = container.querySelectorAll('.settlement-printout');
+                
                 // Create PDF using jsPDF
                 const { jsPDF } = window.jspdf;
                 const pdf = new jsPDF('p', 'mm', 'a4');
 
-                // Calculate dimensions to fit A4
-                const imgWidth = 210; // A4 width in mm
-                const pageHeight = 297; // A4 height in mm
-                const imgHeight = (canvas.height * imgWidth) / canvas.width;
+                // Process each page separately
+                for (let i = 0; i < pageElements.length; i++) {
+                    const pageElement = pageElements[i];
+                    
+                    // Create a temporary container for this page
+                    const pageContainer = document.createElement('div');
+                    pageContainer.innerHTML = pageElement.outerHTML;
+                    pageContainer.style.position = 'fixed';
+                    pageContainer.style.left = '-9999px';
+                    pageContainer.style.top = '0';
+                    pageContainer.style.width = '210mm';
+                    pageContainer.style.background = 'white';
+                    document.body.appendChild(pageContainer);
 
-                let heightLeft = imgHeight;
-                let position = 0;
+                    // Wait for images to load
+                    await new Promise(resolve => setTimeout(resolve, 200));
 
-                // Add first page
-                pdf.addImage(canvas.toDataURL('image/jpeg', 0.95), 'JPEG', 0, position, imgWidth, imgHeight);
-                heightLeft -= pageHeight;
+                    // Capture this page with html2canvas
+                    const canvas = await html2canvas(pageContainer, {
+                        scale: 2,
+                        useCORS: true,
+                        logging: false,
+                        backgroundColor: '#ffffff'
+                    });
 
-                // Add additional pages if needed
-                while (heightLeft > 0) {
-                    position = heightLeft - imgHeight;
-                    pdf.addPage();
-                    pdf.addImage(canvas.toDataURL('image/jpeg', 0.95), 'JPEG', 0, position, imgWidth, imgHeight);
-                    heightLeft -= pageHeight;
+                    // Calculate dimensions to fit A4
+                    const imgWidth = 210; // A4 width in mm
+                    const pageHeight = 297; // A4 height in mm
+                    const imgHeight = (canvas.height * imgWidth) / canvas.width;
+
+                    // Add page to PDF (add new page for subsequent pages)
+                    if (i > 0) {
+                        pdf.addPage();
+                    }
+
+                    // Add the image to the current page
+                    pdf.addImage(canvas.toDataURL('image/jpeg', 0.95), 'JPEG', 0, 0, imgWidth, imgHeight);
+
+                    // Clean up the page container
+                    document.body.removeChild(pageContainer);
                 }
 
                 // Save the PDF
@@ -1221,6 +1270,17 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
             } finally {
                 // Clean up
                 document.body.removeChild(container);
+                
+                // Reset button state
+                if (downloadBtn) {
+                    downloadBtn.disabled = false;
+                }
+                if (downloadBtnText) {
+                    downloadBtnText.textContent = 'Download';
+                }
+                if (downloadSpinner) {
+                    downloadSpinner.classList.add('d-none');
+                }
             }
         });
     </script>

@@ -525,7 +525,8 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
                         type="button" class="btn btn-outline-danger" id="modalDeleteIncident" title="Delete incident"
                         aria-label="Delete incident"><i class="bi bi-trash"></i></button><button type="button"
                         class="btn btn-outline-success" id="modalDownloadIncident" title="Download incident"
-                        aria-label="Download incident"><i class="bi bi-download"></i></button><button type="button"
+                        aria-label="Download incident"><i class="bi bi-download me-1"></i> <span id="downloadBtnText">Download</span>
+                        <span class="spinner-border spinner-border-sm d-none" id="downloadSpinner"></span></button><button type="button"
                         class="btn btn-primary" id="modalPrintIncident" title="Print incident"
                         aria-label="Print incident"><i class="bi bi-printer"></i></button><button type="button"
                         class="btn btn-secondary" data-bs-dismiss="modal">Close</button></div>
@@ -766,7 +767,32 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
             await loadIncidentReporterProfile(item);
             await loadApprovalUsers(item);
 
-            const htmlContent = `<div style="padding: 20px; background: white;">${incidentFormHtml(item)}</div>`;
+            // Show loading spinner
+            const downloadBtn = document.getElementById('modalDownloadIncident');
+            const downloadBtnText = document.getElementById('downloadBtnText');
+            const downloadSpinner = document.getElementById('downloadSpinner');
+            
+            if (downloadBtn) {
+                downloadBtn.disabled = true;
+            }
+            if (downloadBtnText) {
+                downloadBtnText.textContent = 'Generating...';
+            }
+            if (downloadSpinner) {
+                downloadSpinner.classList.remove('d-none');
+            }
+
+            // Use local logo URL for PDF generation (same as requisition)
+            const logoUrl = new URL('texol.png', window.location.href).href;
+            
+            // Replace the remote logo URL with local logo URL in the HTML content
+            const incidentHtml = incidentFormHtml(item);
+            const htmlWithLocalLogo = incidentHtml.replace(
+                /src="https:\/\/www\.texolenergies\.com\/assets\/Logo-paGHQfRF\.svg"/g,
+                `src="${logoUrl}"`
+            );
+
+            const htmlContent = `<div style="padding: 20px; background: white;">${htmlWithLocalLogo}</div>`;
 
             // Create a temporary container
             const container = document.createElement('div');
@@ -823,6 +849,17 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
             } finally {
                 // Clean up
                 document.body.removeChild(container);
+                
+                // Reset button state
+                if (downloadBtn) {
+                    downloadBtn.disabled = false;
+                }
+                if (downloadBtnText) {
+                    downloadBtnText.textContent = 'Download';
+                }
+                if (downloadSpinner) {
+                    downloadSpinner.classList.add('d-none');
+                }
             }
         };
         document.getElementById('modalPrintIncident').addEventListener('click', () => {

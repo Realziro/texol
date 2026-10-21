@@ -87,6 +87,10 @@ function is_admin(): bool
 {
     return strtolower($_SESSION['user_role'] ?? '') === 'admin';
 }
+function is_hod(): bool
+{
+    return strtolower($_SESSION['user_role'] ?? '') === 'hod';
+}
 
 // ---------------------------------------------------------------------
 // Supabase (server side, service role key - never sent to the browser)

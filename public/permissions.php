@@ -367,7 +367,7 @@ require_permission('permissions', 'view');
         const supabaseKey = '<?php echo defined("SUPABASE_ANON_KEY") ? SUPABASE_ANON_KEY : ""; ?>';
         const supabase = createClient(supabaseUrl, supabaseKey);
 
-        const modules = ['dashboard', 'job_cards', 'tickets', 'mytickets', 'users', 'departments', 'categories', 'roles', 'permissions', 'requisition_approval', 'requisitions_view_all', 'customer_feedback', 'incident_settlement', 'cctv_checklist_texol', 'cctv_checklist_sta'];
+        const modules = ['dashboard', 'job_cards', 'tickets', 'mytickets', 'users', 'departments', 'categories', 'roles', 'permissions', 'requisition_approval', 'requisitions_view_all', 'customer_feedback', 'incident_settlement', 'cctv_checklist_texol', 'cctv_checklist_sta', 'repair_maintenance'];
         const actions = ['view', 'create', 'edit', 'delete', 'all'];
         const scopes = ['own', 'department', 'all'];
 

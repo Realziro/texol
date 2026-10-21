@@ -14,7 +14,7 @@ if (! isset($_SESSION['user_email'])) {
 }
 
 // Restrict to admin and HOD only
-if (!isset($_SESSION['user_role']) || (strtolower($_SESSION['user_role']) !== 'admin' && strtolower($_SESSION['user_role']) !== 'hod')) {
+if (!is_admin() && !is_hod()) {
     header('Location:   index');
     exit;
 }
@@ -283,7 +283,7 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
                                 <div class="mt-2">
                                     <small class="text-success">
                                         <i class="bi bi-arrow-up"></i>
-                                        <?php echo count(array_filter($analyticsData['tickets'] ?? [], fn($t) => ($t['status'] ?? '') === 'open')); ?> Open
+                                        <?php echo count(array_filter($analyticsData['tickets'] ?? [], fn($t) => strtolower($t['status'] ?? '') === 'open')); ?> Open
                                     </small>
                                 </div>
                             </div>
@@ -327,7 +327,7 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
                                 <div class="mt-2">
                                     <small class="text-warning">
                                         <i class="bi bi-clock"></i>
-                                        <?php echo count(array_filter($analyticsData['incidents'] ?? [], fn($i) => ($i['status'] ?? '') === 'pending')); ?> Pending
+                                        <?php echo count(array_filter($analyticsData['incidents'] ?? [], fn($i) => strtolower($i['status'] ?? '') === 'pending')); ?> Pending
                                     </small>
                                 </div>
                             </div>
@@ -746,7 +746,7 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
             const statusCounts = {};
             if (Array.isArray(tickets)) {
                 tickets.forEach(ticket => {
-                    const status = ticket.status || 'unknown';
+                    const status = (ticket.status || 'unknown').toLowerCase();
                     statusCounts[status] = (statusCounts[status] || 0) + 1;
                 });
             }
@@ -757,7 +757,7 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
             const statusCounts = {};
             if (Array.isArray(requisitions)) {
                 requisitions.forEach(req => {
-                    const status = req.status || 'unknown';
+                    const status = (req.status || 'unknown').toLowerCase();
                     statusCounts[status] = (statusCounts[status] || 0) + 1;
                 });
             }

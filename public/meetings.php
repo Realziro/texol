@@ -61,7 +61,7 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
             padding: 10mm 12mm 8mm;
             background: #fff;
             color: #000;
-            font-family: Arial, Helvetica, sans-serif;
+            font-family: "Century Gothic", "CenturyGothic", "Apple Gothic", Arial, sans-serif;
         }
 
         .attendance-form-printout table {
@@ -493,7 +493,8 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
                     </button>
                     <button type="button" class="btn btn-outline-success" id="modalDownloadMeeting"
                         title="Download attendance form" aria-label="Download attendance form">
-                        <i class="bi bi-download"></i>
+                        <i class="bi bi-download me-1"></i> <span id="downloadBtnText">Download</span>
+                        <span class="spinner-border spinner-border-sm d-none" id="downloadSpinner"></span>
                     </button>
                     <button type="button" class="btn btn-outline-danger" id="modalDeleteMeeting" title="Delete meeting"
                         aria-label="Delete meeting">
@@ -875,7 +876,31 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
         async function downloadAttendanceForm() {
             if (!currentAttendanceForm || !currentMeeting) return;
 
-            const htmlContent = `<div style="padding: 20px; background: white;">${currentAttendanceForm}</div>`;
+            // Show loading spinner
+            const downloadBtn = document.getElementById('modalDownloadMeeting');
+            const downloadBtnText = document.getElementById('downloadBtnText');
+            const downloadSpinner = document.getElementById('downloadSpinner');
+            
+            if (downloadBtn) {
+                downloadBtn.disabled = true;
+            }
+            if (downloadBtnText) {
+                downloadBtnText.textContent = 'Generating...';
+            }
+            if (downloadSpinner) {
+                downloadSpinner.classList.remove('d-none');
+            }
+
+            // Use local logo URL for PDF generation (same as requisition)
+            const logoUrl = new URL('texol.png', window.location.href).href;
+            
+            // Replace the remote logo URL with local logo URL in the HTML content
+            const htmlWithLocalLogo = currentAttendanceForm.replace(
+                /src="https:\/\/www\.texolenergies\.com\/assets\/Logo-paGHQfRF\.svg"/g,
+                `src="${logoUrl}"`
+            );
+
+            const htmlContent = `<div style="padding: 20px; background: white;">${htmlWithLocalLogo}</div>`;
 
             // Create a temporary container
             const container = document.createElement('div');
@@ -932,6 +957,17 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
             } finally {
                 // Clean up
                 document.body.removeChild(container);
+                
+                // Reset button state
+                if (downloadBtn) {
+                    downloadBtn.disabled = false;
+                }
+                if (downloadBtnText) {
+                    downloadBtnText.textContent = 'Download';
+                }
+                if (downloadSpinner) {
+                    downloadSpinner.classList.add('d-none');
+                }
             }
         }
 

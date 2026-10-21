@@ -135,7 +135,10 @@ from new_role,
         ('requisition_approval',  'edit',   'department'),
         ('job_cards',             'view',   'department'),
         ('tickets',               'view',   'department'),
-        ('mytickets',             'view',   'own')
+        ('mytickets',             'view',   'own'),
+        ('repair_maintenance',    'view',   'department'),
+        ('repair_maintenance',    'create', 'department'),
+        ('repair_maintenance',    'edit',   'department')
      ) as v(module, action, scope)
 on conflict (role_id, module, action) do nothing;
 
@@ -153,7 +156,9 @@ from public.roles r,
         ('job_card_created'),
         ('job_card_updated'),
         ('incident_reported'),
-        ('incident_settled')
+        ('incident_settled'),
+        ('repair_form_submitted'),
+        ('repair_form_approved')
      ) as e(event_key)
 where r.name = 'HOD'
 on conflict (role_id, event_key) do update set scope = excluded.scope;
@@ -212,7 +217,11 @@ from super_role,
         ('cctv_checklist_texol',     'view',   'all'),
         ('cctv_checklist_texol',     'edit',   'all'),
         ('cctv_checklist_sta',       'view',   'all'),
-        ('cctv_checklist_sta',       'edit',   'all')
+        ('cctv_checklist_sta',       'edit',   'all'),
+        ('repair_maintenance',       'view',   'all'),
+        ('repair_maintenance',       'create', 'all'),
+        ('repair_maintenance',       'edit',   'all'),
+        ('repair_maintenance',       'delete', 'all')
      ) as v(module, action, scope)
 on conflict (role_id, module, action) do nothing;
 
@@ -231,7 +240,9 @@ from public.roles r,
         ('job_card_created'),
         ('job_card_updated'),
         ('incident_reported'),
-        ('incident_settled')
+        ('incident_settled'),
+        ('repair_form_submitted'),
+        ('repair_form_approved')
      ) as e(event_key)
 where r.name = 'Super Admin'
 on conflict (role_id, event_key) do update set scope = excluded.scope;
