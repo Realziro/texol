@@ -233,10 +233,25 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
     <style>
         .stat-card {
             transition: transform 0.2s, box-shadow 0.2s;
+            cursor: pointer;
         }
         .stat-card:hover {
             transform: translateY(-5px);
             box-shadow: 0 8px 25px rgba(0,0,0,0.15) !important;
+        }
+        .stat-card .status-text {
+            cursor: pointer;
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 4px;
+            text-decoration: underline;
+            text-decoration-style: dotted;
+            text-underline-offset: 3px;
+            transition: background-color 0.2s;
+        }
+        .stat-card .status-text:hover {
+            background-color: rgba(0,0,0,0.05);
+            text-decoration-style: solid;
         }
         .chart-container {
             position: relative;
@@ -329,7 +344,7 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
                 <div class="row g-3 g-lg-4 mb-4">
                     <!-- Tickets -->
                     <div class="col-12 col-sm-6 col-xl-3">
-                        <div class="card border-0 shadow-sm stat-card h-100">
+                        <div class="card border-0 shadow-sm stat-card h-100" onclick="window.location.href='tickets.php'">
                             <div class="card-body p-3 p-md-4">
                                 <div class="d-flex align-items-center justify-content-between mb-3">
                                     <div class="bg-primary bg-opacity-10 p-3 rounded-circle">
@@ -340,7 +355,7 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
                                 <h3 class="h2 fw-bold mb-1"><?php echo count($analyticsData['tickets'] ?? []); ?></h3>
                                 <p class="text-muted small mb-0">Total Tickets</p>
                                 <div class="mt-2">
-                                    <small class="text-warning">
+                                    <small class="text-warning status-text" onclick="event.stopPropagation(); window.location.href='tickets.php?status=open'">
                                         <i class="bi bi-clock"></i>
                                         <?php echo count(array_filter($analyticsData['tickets'] ?? [], fn($t) => strtolower($t['status'] ?? '') === 'open')); ?> Open
                                     </small>
@@ -351,7 +366,7 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
 
                     <!-- Requisitions -->
                     <div class="col-12 col-sm-6 col-xl-3">
-                        <div class="card border-0 shadow-sm stat-card h-100">
+                        <div class="card border-0 shadow-sm stat-card h-100" onclick="window.location.href='requisition.php'">
                             <div class="card-body p-3 p-md-4">
                                 <div class="d-flex align-items-center justify-content-between mb-3">
                                     <div class="bg-success bg-opacity-10 p-3 rounded-circle">
@@ -362,7 +377,7 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
                                 <h3 class="h2 fw-bold mb-1"><?php echo count($analyticsData['requisitions'] ?? []); ?></h3>
                                 <p class="text-muted small mb-0">Total Requisitions</p>
                                 <div class="mt-2">
-                                    <small class="text-warning">
+                                    <small class="text-warning status-text" onclick="event.stopPropagation(); window.location.href='requisition.php?status=pending'">
                                         <i class="bi bi-hourglass"></i>
                                         <?php echo count(array_filter($analyticsData['requisitions'] ?? [], fn($r) => strtolower($r['status'] ?? '') === 'pending')); ?> Pending Approval
                                     </small>
@@ -373,7 +388,7 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
 
                     <!-- Incidents -->
                     <div class="col-12 col-sm-6 col-xl-3">
-                        <div class="card border-0 shadow-sm stat-card h-100">
+                        <div class="card border-0 shadow-sm stat-card h-100" onclick="window.location.href='incident.php'">
                             <div class="card-body p-3 p-md-4">
                                 <div class="d-flex align-items-center justify-content-between mb-3">
                                     <div class="bg-danger bg-opacity-10 p-3 rounded-circle">
@@ -384,7 +399,7 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
                                 <h3 class="h2 fw-bold mb-1"><?php echo count($analyticsData['incidents'] ?? []); ?></h3>
                                 <p class="text-muted small mb-0">Total Incidents</p>
                                 <div class="mt-2">
-                                    <small class="text-warning">
+                                    <small class="text-warning status-text" onclick="event.stopPropagation(); window.location.href='incident.php?status=pending'">
                                         <i class="bi bi-clock"></i>
                                         <?php echo count(array_filter($analyticsData['incidents'] ?? [], fn($i) => strtolower($i['status'] ?? '') === 'pending')); ?> Pending
                                     </small>
@@ -420,7 +435,7 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
                 <div class="row g-3 g-lg-4 mb-4">
                     <!-- Job Cards -->
                     <div class="col-12 col-sm-6 col-xl-3">
-                        <div class="card border-0 shadow-sm stat-card h-100">
+                        <div class="card border-0 shadow-sm stat-card h-100" onclick="window.location.href='job_cards.php'">
                             <div class="card-body p-3 p-md-4">
                                 <div class="d-flex align-items-center justify-content-between mb-3">
                                     <div class="bg-warning bg-opacity-10 p-3 rounded-circle">
@@ -431,7 +446,7 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
                                 <h3 class="h2 fw-bold mb-1"><?php echo count($analyticsData['job_cards'] ?? []); ?></h3>
                                 <p class="text-muted small mb-0">Total Job Cards</p>
                                 <div class="mt-2">
-                                    <small class="text-warning">
+                                    <small class="text-warning status-text" onclick="event.stopPropagation(); window.location.href='job_cards.php?status=in_progress'">
                                         <i class="bi bi-hourglass"></i>
                                         <?php echo count(array_filter($analyticsData['job_cards'] ?? [], fn($j) => strtolower($j['status'] ?? '') === 'in progress')); ?> In Progress
                                     </small>
@@ -442,7 +457,7 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
 
                     <!-- Repair Maintenance -->
                     <div class="col-12 col-sm-6 col-xl-3">
-                        <div class="card border-0 shadow-sm stat-card h-100">
+                        <div class="card border-0 shadow-sm stat-card h-100" onclick="window.location.href='repair_maintenance.php'">
                             <div class="card-body p-3 p-md-4">
                                 <div class="d-flex align-items-center justify-content-between mb-3">
                                     <div class="bg-secondary bg-opacity-10 p-3 rounded-circle">
@@ -453,7 +468,7 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
                                 <h3 class="h2 fw-bold mb-1"><?php echo count($analyticsData['repair_maintenance'] ?? []); ?></h3>
                                 <p class="text-muted small mb-0">Repair Forms</p>
                                 <div class="mt-2">
-                                    <small class="text-warning">
+                                    <small class="text-warning status-text" onclick="event.stopPropagation(); window.location.href='repair_maintenance.php?status=pending'">
                                         <i class="bi bi-hourglass"></i>
                                         <?php echo count(array_filter($analyticsData['repair_maintenance'] ?? [], fn($r) => strtolower($r['status'] ?? '') === 'pending')); ?> Pending
                                     </small>
@@ -464,7 +479,7 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
 
                     <!-- CCTV Checklists -->
                     <div class="col-12 col-sm-6 col-xl-3">
-                        <div class="card border-0 shadow-sm stat-card h-100">
+                        <div class="card border-0 shadow-sm stat-card h-100" onclick="window.location.href='cctv_checklist.php'">
                             <div class="card-body p-3 p-md-4">
                                 <div class="d-flex align-items-center justify-content-between mb-3">
                                     <div class="bg-purple bg-opacity-10 p-3 rounded-circle" style="background-color: rgba(111, 66, 193, 0.1);">
@@ -480,7 +495,7 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
 
                     <!-- Pending Approvals -->
                     <div class="col-12 col-sm-6 col-xl-3">
-                        <div class="card border-0 shadow-sm stat-card h-100">
+                        <div class="card border-0 shadow-sm stat-card h-100" onclick="window.location.href='requisition.php?status=pending'">
                             <div class="card-body p-3 p-md-4">
                                 <div class="d-flex align-items-center justify-content-between mb-3">
                                     <div class="bg-orange bg-opacity-10 p-3 rounded-circle" style="background-color: rgba(253, 126, 20, 0.1);">

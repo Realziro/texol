@@ -41,6 +41,14 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
     $incidents = json_decode(curl_exec($ch), true) ?: [];
     curl_close($ch);
 
+    // Filter by status if provided in URL
+    $statusFilter = $_GET['status'] ?? '';
+    if ($statusFilter) {
+        $incidents = array_values(array_filter($incidents, function($incident) use ($statusFilter) {
+            return strtolower($incident['status'] ?? '') === strtolower($statusFilter);
+        }));
+    }
+
     if (empty($userId) && !empty($userEmail)) {
         $userQuery = http_build_query([
             'select' => 'id',

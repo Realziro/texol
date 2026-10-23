@@ -774,10 +774,6 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
             }
         };
         window.approveRepair = async item => {
-            if (!canEdit) {
-                alert('You do not have permission to approve repair and maintenance forms.');
-                return;
-            }
             const ids = (item.shared_with || '').split(',').map(x => x.trim()).filter(Boolean).slice(0, 2),
                 i = ids.indexOf(activeUserId),
                 a = approvals(item);
@@ -819,8 +815,8 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
                 return;
             }
             const ids = (item.shared_with || '').split(',').map(x => x.trim()).filter(Boolean).slice(0, 2);
-            if (approvals(item).length || !ids.includes(activeUserId)) {
-                alert('Only assigned approvers can reject before approval.');
+            if (!ids.includes(activeUserId)) {
+                alert('You are not assigned to approve this form.');
                 return;
             }
             if (!confirm('Reject this form?')) return;

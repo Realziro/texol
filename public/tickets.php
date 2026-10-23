@@ -1356,9 +1356,9 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY') && SUPABASE_URL !== 
         console.log('Current User ID:', currentUserId || 'NOT SET');
         console.log('User Department:', userDepartment || 'NOT SET');
 
-        // Read view filter from query string (?view=unassigned|overdue|today)
+        // Read view filter from query string (?view=unassigned|overdue|today or ?status=open|pending|closed)
         const urlParams = new URLSearchParams(window.location.search);
-        const currentView = (urlParams.get('view') || '').toLowerCase();
+        const currentView = (urlParams.get('view') || urlParams.get('status') || '').toLowerCase();
         const openTicketId = urlParams.get('open');
         const openTicketIdStr = urlParams.get('ticket_id');
 
@@ -3458,13 +3458,15 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY') && SUPABASE_URL !== 
                         .from('tickets')
                         .select('*, branch, ticket_assignees(technician_email)'));
 
-                    // Apply filters for admin views based on ?view=
-                    if (currentView === 'open') {
+                    // Apply filters for admin views based on ?view= or ?status=
+                    if (currentView === 'open' || currentView === 'status=open') {
                         query = query.eq('status', 'Open');
-                    } else if (currentView === 'inprogress') {
+                    } else if (currentView === 'inprogress' || currentView === 'status=in progress') {
                         query = query.eq('status', 'In Progress');
-                    } else if (currentView === 'closed') {
+                    } else if (currentView === 'closed' || currentView === 'status=closed') {
                         query = query.eq('status', 'Closed');
+                    } else if (currentView === 'pending' || currentView === 'status=pending') {
+                        query = query.eq('status', 'Pending');
                     } else if (currentView === 'overdue') {
                         const nowIso = new Date().toISOString();
                         query = query

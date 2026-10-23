@@ -953,6 +953,12 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
 
     $query = http_build_query($queryParams);
 
+    // Add status filter if provided in URL
+    $statusFilter = $_GET['status'] ?? '';
+    if ($statusFilter) {
+        $query .= '&status=eq.' . urlencode($statusFilter);
+    }
+
     $ch = curl_init();
     curl_setopt_array($ch, [
         CURLOPT_URL => $supabaseUrl . '/rest/v1/requisitions?' . $query,
