@@ -1579,7 +1579,7 @@ $allUserIds = array_unique(array_merge($userIds, $approvedByIds, $sharedUserIds)
                                                             </li>
                                                             <?php
                                                             // Show approve button if user is in shared_with and hasn't approved yet
-                                                            // Requester cannot approve their own requisition unless explicitly in approvers list
+                                                            // Only users in shared_with can approve/reject
                                                             $currentUserInShared = in_array($currentUserId, $sharedWithArray);
                                                             $currentUserApproved = false;
                                                             foreach ($approvedByArray as $approval) {
@@ -1592,14 +1592,10 @@ $allUserIds = array_unique(array_merge($userIds, $approvedByIds, $sharedUserIds)
                                                                     break;
                                                                 }
                                                             }
-                                                            // Check if current user is one of the first 2 in shared_with (only they can approve/reject)
-                                                            $currentUserIndex = array_search($currentUserId, $sharedWithArray);
-                                                            $isFirstOrSecondApprover = $currentUserIndex !== false && $currentUserIndex < 2;
-                                                            // User can approve if: in shared_with AND hasn't approved AND status not approved or rejected AND is first or second approver
-                                                            // Requester can only approve if they are explicitly in the shared_with list
-                                                            $canApprove = $currentUserInShared && !$currentUserApproved && !in_array(($req['status'] ?? ''), ['approved', 'rejected']) && $isFirstOrSecondApprover;
-                                                            // User can reject if: in shared_with AND status is pending or partially_approved AND is first or second approver
-                                                            $canReject = $currentUserInShared && in_array(($req['status'] ?? ''), ['pending', 'partially_approved']) && $isFirstOrSecondApprover;
+                                                            // User can approve if: in shared_with AND hasn't approved AND status not approved or rejected
+                                                            $canApprove = $currentUserInShared && !$currentUserApproved && !in_array(($req['status'] ?? ''), ['approved', 'rejected']);
+                                                            // User can reject if: in shared_with AND status is pending or partially_approved
+                                                            $canReject = $currentUserInShared && in_array(($req['status'] ?? ''), ['pending', 'partially_approved']);
                                                             if ($canApprove): ?>
                                                                 <li>
                                                                     <button class="dropdown-item" type="button"
@@ -2147,7 +2143,9 @@ $allUserIds = array_unique(array_merge($userIds, $approvedByIds, $sharedUserIds)
             if (!modal || !details) {
                 // Create modal if it doesn't exist
                 createViewModal();
-                return viewRequisition(req);
+                // Wait for DOM to update then retry
+                setTimeout(() => viewRequisition(req), 100);
+                return;
             }
 
             // Store current requisition for printing
@@ -3449,14 +3447,18 @@ const logoUrl = new URL('texol.png', window.location.href).href;
             printWindow.document.close();
 
             // Fetch user details for print approval chain
-            if (firstApprover) {
-                fetchPrintUserDetails(printWindow, firstApprover, 'printReviewedBy');
-            }
-            if (secondApprover) {
-                fetchPrintUserDetails(printWindow, secondApprover, 'printApprovedBy');
-            }
-
-            printWindow.focus();
+            const fetchDetails = async () => {
+                if (firstApprover) {
+                    await fetchPrintUserDetails(printWindow, firstApprover, 'printReviewedBy');
+                }
+                if (secondApprover) {
+                    await fetchPrintUserDetails(printWindow, secondApprover, 'printApprovedBy');
+                }
+                printWindow.focus();
+                printWindow.print();
+            };
+            
+            fetchDetails();
         };
 
         async function fetchPrintUserDetails(printWindow, approver, prefix) {

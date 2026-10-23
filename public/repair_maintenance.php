@@ -900,12 +900,6 @@ if (defined('SUPABASE_URL') && defined('SUPABASE_ANON_KEY')) {
             e.preventDefault();
             if (submittingRepair) return;
             
-            // Check create permission before submitting
-            if (!canCreate) {
-                alert('You do not have permission to create repair and maintenance forms.');
-                return;
-            }
-            
             submittingRepair = true;
             const o = document.getElementById('branchId').selectedOptions[0],
                 b = document.getElementById('saveBtn');
